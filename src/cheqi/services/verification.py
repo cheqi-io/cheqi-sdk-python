@@ -1,9 +1,10 @@
-"""Verification service for receipt integrity using RFC 8785 JSON canonicalization."""
+"""Verification service for receipt integrity using canonical hashing."""
 
 from __future__ import annotations
 
 from cheqi.utils.hash import sha256_hex
 from cheqi.utils.rfc8785 import canonicalize_str
+from cheqi.utils.xml import canonicalize_xml
 
 
 class VerificationService:
@@ -32,4 +33,18 @@ class VerificationService:
             True if the canonical hash matches.
         """
         actual_hash = self.canonicalize_and_hash_json(json_str)
+        return actual_hash == expected_hash
+
+    def canonicalize_and_hash_xml(self, xml_str: str) -> str:
+        """Canonicalize XML and compute a SHA-256 hash.
+
+        Formatting-only whitespace between elements is removed before
+        exclusive XML C14N and hashing.
+        """
+        canonical = canonicalize_xml(xml_str)
+        return sha256_hex(canonical)
+
+    def verify_xml_hash(self, xml_str: str, expected_hash: str) -> bool:
+        """Verify that an XML string matches an expected canonical hash."""
+        actual_hash = self.canonicalize_and_hash_xml(xml_str)
         return actual_hash == expected_hash

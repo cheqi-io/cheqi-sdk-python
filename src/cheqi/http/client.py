@@ -34,7 +34,7 @@ from cheqi.models.receipt import ReceiptTemplateRequest, ReceiptTemplateResponse
 
 logger = logging.getLogger("cheqi.http")
 
-_USER_AGENT = "CheqiSDK-Python/0.1.0"
+_USER_AGENT = "CheqiSDK-Python/0.1.2"
 
 
 @runtime_checkable
