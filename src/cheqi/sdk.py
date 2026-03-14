@@ -27,13 +27,6 @@ class CheqiSDK:
             api_key="sk_live_...",
         )
 
-        # Or with OAuth2 credentials:
-        sdk = CheqiSDK(
-            environment=Environment.SANDBOX,
-            client_id="your_client_id",
-            client_secret="your_client_secret",
-        )
-
         # Process a receipt
         result = sdk.receipt_service.process_complete_receipt(
             identification_details, receipt_request, access_token
@@ -46,8 +39,6 @@ class CheqiSDK:
         environment: Optional[Environment] = None,
         custom_api_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
         private_key: Optional[str] = None,
         timeout_seconds: int = 30,
         max_retries: int = 3,
@@ -56,8 +47,6 @@ class CheqiSDK:
             environment=environment,
             custom_api_endpoint=custom_api_endpoint,
             api_key=api_key,
-            client_id=client_id,
-            client_secret=client_secret,
             private_key=private_key,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,

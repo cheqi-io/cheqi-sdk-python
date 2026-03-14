@@ -23,9 +23,7 @@ class Environment(str, Enum):
 class CheqiSDKConfig:
     """Immutable SDK configuration.
 
-    Supports two authentication modes:
-    - API key: Bearer token (starts with sk_live_ or sk_test_)
-    - OAuth2: Client credentials (client_id + client_secret)
+    Authentication via API key: Bearer token (starts with sk_live_ or sk_test_).
     """
 
     def __init__(
@@ -34,8 +32,6 @@ class CheqiSDKConfig:
         environment: Optional[Environment] = None,
         custom_api_endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
         private_key: Optional[str] = None,
         timeout_seconds: int = 30,
         max_retries: int = 3,
@@ -49,8 +45,6 @@ class CheqiSDKConfig:
             raise ValueError("Either 'environment' or 'custom_api_endpoint' must be provided")
 
         self._api_key = api_key
-        self._client_id = client_id
-        self._client_secret = client_secret
         self._private_key = private_key
 
         if timeout_seconds <= 0:
@@ -63,9 +57,8 @@ class CheqiSDKConfig:
 
         # Warn if no auth configured
         has_api_key = bool(api_key and api_key.strip())
-        has_credentials = bool(client_id and client_id.strip() and client_secret and client_secret.strip())
 
-        if not has_api_key and not has_credentials:
+        if not has_api_key:
             logger.warning("No authentication configured. API calls will fail unless access tokens are provided.")
 
         if has_api_key and not self._is_valid_api_key_format(api_key):  # type: ignore[arg-type]
@@ -82,14 +75,6 @@ class CheqiSDKConfig:
     @property
     def api_key(self) -> Optional[str]:
         return self._api_key
-
-    @property
-    def client_id(self) -> Optional[str]:
-        return self._client_id
-
-    @property
-    def client_secret(self) -> Optional[str]:
-        return self._client_secret
 
     @property
     def private_key(self) -> Optional[str]:

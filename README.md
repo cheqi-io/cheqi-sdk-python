@@ -95,22 +95,11 @@ request = (
 
 ## Authentication
 
-Two modes are supported:
-
 ```python
-# API Key (for companies accessing their own data)
 sdk = CheqiSDK(
     environment=Environment.PRODUCTION,
     api_key="sk_live_...",
 )
-
-# OAuth2 Client Credentials (for third-party integrations)
-sdk = CheqiSDK(
-    environment=Environment.PRODUCTION,
-    client_id="your_client_id",
-    client_secret="your_client_secret",
-)
-# Pass access_token to service methods
 ```
 
 ## Development
