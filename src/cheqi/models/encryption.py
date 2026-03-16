@@ -6,7 +6,14 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from cheqi.models.base import CheqiBaseModel
-from cheqi.models.enums import ReceiptFormat, ReceiverType
+from cheqi.models.enums import BarcodeType, ReceiptFormat, ReceiverType
+
+
+class NotificationDisplayCode(CheqiBaseModel):
+    """Optional code to render directly in the push notification."""
+
+    type: BarcodeType
+    data: str
 
 
 class EncryptedReceiptRequestDto(CheqiBaseModel):
@@ -21,6 +28,7 @@ class EncryptedReceiptRequestDto(CheqiBaseModel):
     public_key: Optional[str] = None
     supplier_party_id: Optional[UUID] = None
     receipt_formats: Optional[List[ReceiptFormat]] = None
+    notification_display_code: Optional[NotificationDisplayCode] = None
 
 
 class EncryptedReceiptsRequest(CheqiBaseModel):

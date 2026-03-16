@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from cheqi.exceptions import CheqiSDKError, ErrorCodes, ReceiptProcessingError
 from cheqi.http.client import CheqiApiClient
-from cheqi.models.encryption import EncryptedReceiptRequestDto
+from cheqi.models.encryption import EncryptedReceiptRequestDto, NotificationDisplayCode
 from cheqi.models.enums import ReceiptFormat
 from cheqi.models.envelopes import ReceiptCreatedResponse, ReceiptEnvelope, ReceiptResult
 from cheqi.models.matching import (
@@ -49,6 +49,7 @@ class ReceiptService:
         identification_details: IdentificationDetails,
         receipt_request: ReceiptTemplateRequest,
         access_token: Optional[str] = None,
+        notification_display_code: Optional[NotificationDisplayCode] = None,
     ) -> ReceiptResult:
         """Complete receipt processing workflow.
 
@@ -110,7 +111,9 @@ class ReceiptService:
             if match_response.customer_found:
                 # Step 3: Build encrypted receipts
                 encrypted_receipts = self._build_encrypted_receipts(
-                    match_response, template_response
+                    match_response,
+                    template_response,
+                    notification_display_code,
                 )
 
                 # Compute template hash
@@ -164,6 +167,7 @@ class ReceiptService:
         self,
         receipt_json: str,
         recipient: Recipient,
+        notification_display_code: Optional[NotificationDisplayCode] = None,
     ) -> EncryptedReceiptRequestDto:
         """Encrypt a receipt for a single recipient."""
         if not receipt_json or not receipt_json.strip():
@@ -178,7 +182,12 @@ class ReceiptService:
                 error_code=ErrorCodes.VALIDATION_ERROR,
                 http_status_code=400,
             )
-        return self._encryption_service.encrypt_receipt_for_recipient(receipt_json, recipient)
+        encrypted_receipt = self._encryption_service.encrypt_receipt_for_recipient(receipt_json, recipient)
+        if notification_display_code is None:
+            return encrypted_receipt
+        return encrypted_receipt.model_copy(
+            update={"notification_display_code": notification_display_code}
+        )
 
     def send_encrypted_receipts(
         self,
@@ -242,6 +251,7 @@ class ReceiptService:
         self,
         match_response: RecipientResolutionResponse,
         template_response: ReceiptTemplateResponse,
+        notification_display_code: Optional[NotificationDisplayCode] = None,
     ) -> List[EncryptedReceiptRequestDto]:
         """Build encrypted receipts for all matched recipients."""
         encrypted_receipts: List[EncryptedReceiptRequestDto] = []
@@ -262,6 +272,7 @@ class ReceiptService:
                 encrypted_receipt=encrypted.encrypted_receipt,
                 encrypted_symmetric_key=encrypted.encrypted_symmetric_key,
                 public_key=encrypted.public_key,
+                notification_display_code=notification_display_code,
             )
             encrypted_receipts.append(encrypted_with_formats)
 

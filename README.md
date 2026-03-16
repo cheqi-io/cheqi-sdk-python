@@ -22,9 +22,11 @@ from cheqi.models import (
     IdentificationDetails,
     CardDetails,
     ReceiptTemplateRequest,
+    NotificationDisplayCode,
     Product,
     Tax,
     UnitCode,
+    BarcodeType,
     PaymentType,
     CardProvider,
 )
@@ -78,6 +80,25 @@ result = sdk.receipt_service.process_complete_receipt(
 if result.success:
     print(f"Receipt delivered! ID: {result.cheqi_receipt_id}")
 ```
+
+## Notification Display Code
+
+If the merchant has notification-code rendering enabled, you can attach a QR code or barcode to the high-level receipt flow. The code is sent as request metadata and rendered by supported mobile clients directly from the push notification.
+
+```python
+notification_display_code = NotificationDisplayCode(
+    type=BarcodeType.QR_CODE,
+    data="https://example.com/receipt/INV-2024-001",
+)
+
+result = sdk.receipt_service.process_complete_receipt(
+    identification_details=identification,
+    receipt_request=receipt_request,
+    notification_display_code=notification_display_code,
+)
+```
+
+If the merchant is not enabled for this feature, or you omit `notification_display_code`, the normal receipt push is sent.
 
 ## Chainable Model Building
 
