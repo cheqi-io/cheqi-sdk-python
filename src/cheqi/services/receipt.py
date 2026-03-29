@@ -120,7 +120,7 @@ class ReceiptService:
                 template_content = (
                     template_response.cheqi.to_json()
                     if template_response.cheqi
-                    else template_response.ubl or ""
+                    else template_response.ubl_purchase_receipt or ""
                 )
                 template_hash = sha256_hex(template_content)
 
@@ -285,7 +285,7 @@ class ReceiptService:
     ) -> ReceiptEnvelope:
         """Build a receipt envelope with only the formats accepted by the recipient."""
         cheqi_receipt = None
-        ubl_xml = None
+        ubl_purchase_receipt = None
         vat_metadata = template_response.vat_metadata
 
         accepted = recipient.accepted_formats or []
@@ -293,11 +293,11 @@ class ReceiptService:
         if ReceiptFormat.CHEQI in accepted and template_response.cheqi:
             cheqi_receipt = template_response.cheqi
 
-        if ReceiptFormat.UBL_XML in accepted and template_response.ubl:
-            ubl_xml = template_response.ubl
+        if ReceiptFormat.UBL_PURCHASE_RECEIPT in accepted and template_response.ubl_purchase_receipt:
+            ubl_purchase_receipt = template_response.ubl_purchase_receipt
 
         return ReceiptEnvelope(
             cheqi_receipt=cheqi_receipt,
-            ubl_xml=ubl_xml,
+            ubl_purchase_receipt=ubl_purchase_receipt,
             vat_metadata=vat_metadata,
         )

@@ -14,7 +14,7 @@ class ReceiptEnvelope(CheqiBaseModel):
     """Envelope containing multiple receipt format representations."""
 
     cheqi_receipt: Optional[CheqiReceipt] = None
-    ubl_xml: Optional[str] = None
+    ubl_purchase_receipt: Optional[str] = None
     vat_metadata: Optional[VatMetadata] = None
 
 

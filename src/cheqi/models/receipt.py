@@ -208,7 +208,7 @@ class CheqiReceipt(CheqiBaseModel):
     barcodes: Optional[List[Barcode]] = None
     selling_party: Optional[SellingParty] = None
     receiving_party: Optional[ReceivingParty] = None
-    verification_nonce: Optional[str] = None
+    receipt_uuid: Optional[str] = None
     payment_info: Optional[PaymentInfo] = None
 
 

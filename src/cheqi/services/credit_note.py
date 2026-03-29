@@ -95,7 +95,7 @@ class CreditNoteService:
             template_content = (
                 template_response.cheqi.to_json()
                 if template_response.cheqi
-                else template_response.ubl or ""
+                else template_response.ubl_purchase_receipt or ""
             )
             template_hash = sha256_hex(template_content)
 
@@ -173,17 +173,17 @@ class CreditNoteService:
     ) -> CreditNoteEnvelope:
         """Build a credit note envelope with formats accepted by the recipient."""
         cheqi_credit_note = None
-        ubl_xml = None
+        ubl_purchase_receipt = None
 
         accepted = recipient.accepted_formats or []
 
         if ReceiptFormat.CHEQI in accepted and template_response.cheqi:
             cheqi_credit_note = template_response.cheqi
-        if ReceiptFormat.UBL_XML in accepted and template_response.ubl:
-            ubl_xml = template_response.ubl
+        if ReceiptFormat.UBL_CREDIT_NOTE in accepted and template_response.ubl:
+            ubl_purchase_receipt = template_response.ubl
 
         return CreditNoteEnvelope(
             cheqi_credit_note=cheqi_credit_note,
-            ubl_xml=ubl_xml,
+            ubl_purchase_receipt=ubl_purchase_receipt,
             vat_metadata=template_response.vat_metadata,
         )

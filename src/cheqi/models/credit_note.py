@@ -125,7 +125,7 @@ class CheqiCreditNote(CheqiBaseModel):
     barcodes: Optional[List[Barcode]] = None
     selling_party: Optional[SellingParty] = None
     receiving_party: Optional[ReceivingParty] = None
-    verification_nonce: Optional[str] = None
+    receipt_uuid: Optional[str] = None
 
 
 class CreditNoteTemplateResponse(CheqiBaseModel):
@@ -140,7 +140,7 @@ class CreditNoteEnvelope(CheqiBaseModel):
     """Envelope containing credit note format representations."""
 
     cheqi_credit_note: Optional[CheqiCreditNote] = None
-    ubl_xml: Optional[str] = None
+    ubl_purchase_receipt: Optional[str] = None
     vat_metadata: Optional[VatMetadata] = None
 
 

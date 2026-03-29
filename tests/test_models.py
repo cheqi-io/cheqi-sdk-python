@@ -92,7 +92,7 @@ class TestEnums:
 
     def test_receipt_format_values(self) -> None:
         assert ReceiptFormat.CHEQI.value == "CHEQI"
-        assert ReceiptFormat.UBL_XML.value == "UBL_XML"
+        assert ReceiptFormat.UBL_PURCHASE_RECEIPT.value == "UBL_PURCHASE_RECEIPT"
 
     def test_card_provider_values(self) -> None:
         assert CardProvider.VISA.value == "VISA"
