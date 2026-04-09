@@ -95,7 +95,7 @@ class CreditNoteService:
             template_content = (
                 template_response.cheqi.to_json()
                 if template_response.cheqi
-                else template_response.ubl_purchase_receipt or ""
+                else template_response.ubl or ""
             )
             template_hash = sha256_hex(template_content)
 
