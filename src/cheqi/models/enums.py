@@ -81,7 +81,7 @@ class ReceiptFormat(str, Enum):
     """Supported receipt formats."""
 
     CHEQI = "CHEQI"
-    UBL_XML = "UBL_XML"
+    UBL_PURCHASE_RECEIPT = "UBL_PURCHASE_RECEIPT"
 
 
 class ReceiverType(str, Enum):
