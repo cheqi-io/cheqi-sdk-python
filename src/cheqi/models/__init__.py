@@ -1,6 +1,8 @@
 """Cheqi SDK models."""
 
 from cheqi.models.base import CheqiBaseModel, CheqiDecimal
+from cheqi.models.generated.credit_note_context_envelope import CreditNoteContextEnvelope
+from cheqi.models.generated.receipt_context_envelope import ReceiptContextEnvelope
 from cheqi.models.company import (
     Company,
     CompanyAddress,
@@ -12,6 +14,7 @@ from cheqi.models.company import (
 from cheqi.models.credit_note import (
     CheqiCreditNote,
     CreditNoteCreatedResponse,
+    DecryptedDeliveredCreditNote,
     CreditNoteEnvelope,
     CreditNoteInitiationRequest,
     CreditNoteResult,
@@ -113,6 +116,8 @@ __all__ = [
     "EncryptedReceiptsRequest",
     # Envelopes & results
     "ReceiptEnvelope",
+    "ReceiptContextEnvelope",
+    "CreditNoteContextEnvelope",
     "ConsumingPartyEnvelope",
     "ReceiptCreatedResponse",
     "DeliveryStatus",
@@ -130,6 +135,7 @@ __all__ = [
     "CreditNoteTemplateGenerationRequest",
     "CreditNoteTemplateResponse",
     "CreditNoteEnvelope",
+    "DecryptedDeliveredCreditNote",
     "EncryptedCreditNote",
     "EncryptedCreditNotesRequest",
     "EncryptedCreditNoteInitiationRequest",

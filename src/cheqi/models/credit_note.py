@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from cheqi.models.base import CheqiBaseModel, CheqiDecimal
+from cheqi.models.generated.credit_note_context_envelope import CreditNoteContextEnvelope
 from cheqi.models.enums import ReceiptFormat, ReceiverType, RefundPreference, ReturnCondition
 from cheqi.models.receipt import (
     Barcode,
@@ -140,7 +141,7 @@ class CreditNoteEnvelope(CheqiBaseModel):
     """Envelope containing credit note format representations."""
 
     cheqi_credit_note: Optional[CheqiCreditNote] = None
-    ubl_xml: Optional[str] = None
+    ubl_credit_note: Optional[str] = None
     vat_metadata: Optional[VatMetadata] = None
 
 
@@ -182,6 +183,15 @@ class CreditNoteCreatedResponse(CheqiBaseModel):
     parent_cheqi_receipt_id: Optional[str] = None
     created_at: Optional[datetime] = None
     template_hash: Optional[str] = None
+
+
+class DecryptedDeliveredCreditNote(CheqiBaseModel):
+    """Decrypted delivered credit note plus optional credit note context envelope."""
+
+    credit_note_envelope: CreditNoteEnvelope
+    credit_note_context_envelope: Optional[CreditNoteContextEnvelope] = None
+    raw_json: str
+    raw_credit_note_context_json: Optional[str] = None
 
 
 class CreditNoteDeliveryStatus(str, Enum):

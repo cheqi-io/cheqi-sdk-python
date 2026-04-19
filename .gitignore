@@ -1,17 +1,46 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Python bytecode / extensions
 __pycache__/
 *.py[cod]
 *$py.class
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-.coverage
-htmlcov/
+*.so
+
+# Virtual environments / local Python config
 .env
+.env.*
+.python-version
 .venv/
 venv/
-*.so
+env/
+ENV/
+
+# Packaging / build outputs
+build/
+dist/
+site/
+.eggs/
+*.egg
+*.egg-info/
+pip-wheel-metadata/
+
+# Test / coverage outputs
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# Type checker / linter / tool caches
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+.tox/
+.nox/
+
+# Jupyter
+.ipynb_checkpoints/

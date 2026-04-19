@@ -6,6 +6,7 @@ Compatible with content encrypted by the Java SDK EncryptionService.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 from dataclasses import dataclass
 from typing import Optional
@@ -16,6 +17,9 @@ from cryptography.hazmat.primitives.hashes import SHA256
 
 from cheqi.exceptions import DecryptionError
 from cheqi.models.credit_note import EncryptedCreditNoteInitiationRequest
+from cheqi.models.credit_note import CreditNoteEnvelope, DecryptedDeliveredCreditNote
+from cheqi.models.generated.credit_note_context_envelope import CreditNoteContextEnvelope
+from cheqi.models.generated.encrypted_credit_note_dto import EncryptedCreditNoteDto
 from cheqi.models.encryption import EncryptedReceipt
 from cheqi.utils.pem import parse_private_key
 
@@ -121,6 +125,49 @@ class DecryptionService:
                 e,
             )
             raise DecryptionError(f"Failed to decrypt credit note: {e}") from e
+
+    def decrypt_credit_note_payload(
+        self,
+        encrypted_credit_note: EncryptedCreditNoteDto,
+        private_key_b64: str,
+    ) -> DecryptedDeliveredCreditNote:
+        """Decrypt a delivered encrypted credit note and optional context payload."""
+        try:
+            aes_key = self._rsa_decrypt_key(
+                encrypted_credit_note.encrypted_symmetric_key, private_key_b64
+            )
+            credit_note_content = self._aes_decrypt(
+                encrypted_credit_note.encrypted_credit_note, aes_key
+            )
+
+            context_json = None
+            context = None
+            if (
+                encrypted_credit_note.encrypted_customer_details
+                and encrypted_credit_note.encrypted_customer_aes_key
+            ):
+                context_key = self._rsa_decrypt_key(
+                    encrypted_credit_note.encrypted_customer_aes_key,
+                    private_key_b64,
+                )
+                context_json = self._aes_decrypt(
+                    encrypted_credit_note.encrypted_customer_details,
+                    context_key,
+                )
+                context = CreditNoteContextEnvelope.from_dict(json.loads(context_json))
+
+            return DecryptedDeliveredCreditNote(
+                credit_note_envelope=CreditNoteEnvelope.model_validate_json(
+                    credit_note_content
+                ),
+                credit_note_context_envelope=context,
+                raw_json=credit_note_content,
+                raw_credit_note_context_json=context_json,
+            )
+        except DecryptionError:
+            raise
+        except Exception as e:
+            raise DecryptionError(f"Failed to decrypt delivered credit note: {e}") from e
 
     def _rsa_decrypt_key(self, encrypted_key_b64: str, private_key_b64: str) -> bytes:
         """Decrypt an AES key encrypted with RSA-OAEP."""

@@ -9,6 +9,7 @@ from cheqi.exceptions import CheqiSDKError, CreditNoteProcessingError, ErrorCode
 from cheqi.http.client import CheqiApiClient
 from cheqi.models.credit_note import (
     CreditNoteCreatedResponse,
+    DecryptedDeliveredCreditNote,
     CreditNoteEnvelope,
     CreditNoteResult,
     CreditNoteTemplateGenerationRequest,
@@ -17,6 +18,7 @@ from cheqi.models.credit_note import (
     EncryptedCreditNote,
     EncryptedCreditNoteInitiationRequest,
 )
+from cheqi.models.generated.encrypted_credit_note_dto import EncryptedCreditNoteDto
 from cheqi.models.enums import ReceiptFormat
 from cheqi.models.matching import (
     IdentificationDetails,
@@ -138,6 +140,18 @@ class CreditNoteService:
         decryption_service = DecryptionService()
         return decryption_service.decrypt_credit_note(encrypted_request, private_key_b64)
 
+    def decrypt_delivered_credit_note(
+        self,
+        encrypted_credit_note: EncryptedCreditNoteDto,
+        private_key_b64: str,
+    ) -> DecryptedDeliveredCreditNote:
+        """Decrypt and merge a delivered encrypted credit note."""
+        decryption_service = DecryptionService()
+        decrypted = decryption_service.decrypt_credit_note_payload(
+            encrypted_credit_note, private_key_b64
+        )
+        return self._merge_credit_note_context(decrypted)
+
     def _build_encrypted_credit_notes(
         self,
         match_response: RecipientResolutionResponse,
@@ -173,17 +187,64 @@ class CreditNoteService:
     ) -> CreditNoteEnvelope:
         """Build a credit note envelope with formats accepted by the recipient."""
         cheqi_credit_note = None
-        ubl_xml = None
+        ubl_credit_note = None
 
         accepted = recipient.accepted_formats or []
 
         if ReceiptFormat.CHEQI in accepted and template_response.cheqi:
             cheqi_credit_note = template_response.cheqi
         if ReceiptFormat.UBL_XML in accepted and template_response.ubl:
-            ubl_xml = template_response.ubl
+            ubl_credit_note = template_response.ubl
 
         return CreditNoteEnvelope(
             cheqi_credit_note=cheqi_credit_note,
-            ubl_xml=ubl_xml,
+            ubl_credit_note=ubl_credit_note,
             vat_metadata=template_response.vat_metadata,
+        )
+
+    def _merge_credit_note_context(
+        self, decrypted: DecryptedDeliveredCreditNote
+    ) -> DecryptedDeliveredCreditNote:
+        context = decrypted.credit_note_context_envelope
+        if context is None:
+            return decrypted
+
+        envelope = decrypted.credit_note_envelope.model_copy(deep=True)
+
+        xml_receiving_party = None
+        receiving_party = None
+        xml_payment_means = None
+        if context.receiving_party is not None:
+            xml_receiving_party = context.receiving_party.xml_receiving_party
+            receiving_party = context.receiving_party.receiving_party
+        if context.payment_means is not None:
+            xml_payment_means = context.payment_means.xml_payment_means
+
+        if envelope.ubl_credit_note and xml_receiving_party:
+            envelope.ubl_credit_note = envelope.ubl_credit_note.replace(
+                "<cac:AccountingCustomerParty/>", xml_receiving_party
+            )
+
+        if envelope.ubl_credit_note and xml_payment_means:
+            if "</cac:AccountingCustomerParty>" in envelope.ubl_credit_note:
+                envelope.ubl_credit_note = envelope.ubl_credit_note.replace(
+                    "</cac:AccountingCustomerParty>",
+                    "</cac:AccountingCustomerParty>" + xml_payment_means,
+                )
+            elif "<cac:AccountingCustomerParty/>" in envelope.ubl_credit_note:
+                envelope.ubl_credit_note = envelope.ubl_credit_note.replace(
+                    "<cac:AccountingCustomerParty/>",
+                    "<cac:AccountingCustomerParty/>" + xml_payment_means,
+                )
+
+        if envelope.cheqi_credit_note and receiving_party:
+            envelope.cheqi_credit_note = envelope.cheqi_credit_note.model_copy(
+                update={"receiving_party": receiving_party}
+            )
+
+        return DecryptedDeliveredCreditNote(
+            credit_note_envelope=envelope,
+            credit_note_context_envelope=context,
+            raw_json=decrypted.raw_json,
+            raw_credit_note_context_json=decrypted.raw_credit_note_context_json,
         )
