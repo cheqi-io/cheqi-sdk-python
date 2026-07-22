@@ -20,7 +20,7 @@ import json
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
-from cheqi_generated.models.address_dto import AddressDTO
+from cheqi.models.generated.address_dto import AddressDTO
 from typing import Optional, Set
 from typing_extensions import Self
 

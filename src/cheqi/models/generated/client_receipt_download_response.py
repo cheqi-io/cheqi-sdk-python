@@ -17,19 +17,20 @@ import pprint
 import re  # noqa: F401
 import json
 
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.company_creation_request import CompanyCreationRequest
 from typing import Optional, Set
 from typing_extensions import Self
 
-class ProvisionCompanyRequest(BaseModel):
+class ClientReceiptDownloadResponse(BaseModel):
     """
-    Request payload for trusted partner company provisioning.
+    ClientReceiptDownloadResponse
     """ # noqa: E501
-    company: CompanyCreationRequest
-    admin_email: Optional[StrictStr] = Field(default=None, description="Optional admin email that should receive a company-claim invitation", alias="adminEmail")
-    __properties: ClassVar[List[str]] = ["company", "adminEmail"]
+    cheqi_receipt_id: Optional[StrictStr] = Field(default=None, description="Stable Cheqi receipt identifier minted at upload time, for merchant back-office reconciliation. The customer-facing reference is the download URL itself.", alias="cheqiReceiptId")
+    created_at: Optional[datetime] = Field(default=None, description="Timestamp when Cheqi first accepted this upload.", alias="createdAt")
+    expires_at: Optional[datetime] = Field(default=None, description="Timestamp after which the download link stops resolving.", alias="expiresAt")
+    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "createdAt", "expiresAt"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -49,7 +50,7 @@ class ProvisionCompanyRequest(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of ProvisionCompanyRequest from a JSON string"""
+        """Create an instance of ClientReceiptDownloadResponse from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -70,19 +71,11 @@ class ProvisionCompanyRequest(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of company
-        if self.company:
-            _dict['company'] = self.company.to_dict()
-        # set to None if admin_email (nullable) is None
-        # and model_fields_set contains the field
-        if self.admin_email is None and "admin_email" in self.model_fields_set:
-            _dict['adminEmail'] = None
-
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of ProvisionCompanyRequest from a dict"""
+        """Create an instance of ClientReceiptDownloadResponse from a dict"""
         if obj is None:
             return None
 
@@ -90,8 +83,9 @@ class ProvisionCompanyRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "company": CompanyCreationRequest.from_dict(obj["company"]) if obj.get("company") is not None else None,
-            "adminEmail": obj.get("adminEmail")
+            "cheqiReceiptId": obj.get("cheqiReceiptId"),
+            "createdAt": obj.get("createdAt"),
+            "expiresAt": obj.get("expiresAt")
         })
         return _obj
 

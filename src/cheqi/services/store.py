@@ -25,6 +25,12 @@ class StoreService:
     ) -> List[Store]:
         return self._api_client.get_stores(company_id, active_only, access_token)
 
+    def get_active_stores(
+        self, company_id: UUID, access_token: Optional[str] = None
+    ) -> List[Store]:
+        """Return only active stores, matching the Java SDK convenience method."""
+        return self._api_client.get_stores(company_id, True, access_token)
+
     def get_store(
         self, company_id: UUID, store_id: UUID, access_token: Optional[str] = None
     ) -> Store:

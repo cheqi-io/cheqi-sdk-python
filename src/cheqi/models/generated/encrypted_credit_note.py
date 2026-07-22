@@ -19,7 +19,6 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.receiver_type import ReceiverType
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -30,7 +29,6 @@ class EncryptedCreditNote(BaseModel):
     recipient_id: Optional[StrictStr] = Field(default=None, description="The recipient ID of the credit note", alias="recipientId")
     credit_note_id: Optional[StrictStr] = Field(default=None, description="The credit note ID", alias="creditNoteId")
     original_receipt_id: Optional[StrictStr] = Field(default=None, description="The original receipt ID", alias="originalReceiptId")
-    receiver_type: Optional[ReceiverType] = Field(default=None, alias="receiverType")
     encrypted_credit_note: StrictStr = Field(description="The encrypted credit note", alias="encryptedCreditNote")
     encrypted_symmetric_key: StrictStr = Field(description="Base64-encoded device-specific encrypted symmetric key", alias="encryptedSymmetricKey")
     encrypted_customer_details: StrictStr = Field(description="Base64-encoded encrypted customer details.", alias="encryptedCustomerDetails")
@@ -38,7 +36,7 @@ class EncryptedCreditNote(BaseModel):
     final_hash: Optional[StrictStr] = Field(default=None, alias="finalHash")
     public_key: StrictStr = Field(description="Base64-encoded public key used to encrypt the request", alias="publicKey")
     supplier_party_id: StrictStr = Field(description="Supplier party ID for storage", alias="supplierPartyId")
-    __properties: ClassVar[List[str]] = ["recipientId", "creditNoteId", "originalReceiptId", "receiverType", "encryptedCreditNote", "encryptedSymmetricKey", "encryptedCustomerDetails", "encryptedCustomerAesKey", "finalHash", "publicKey", "supplierPartyId"]
+    __properties: ClassVar[List[str]] = ["recipientId", "creditNoteId", "originalReceiptId", "encryptedCreditNote", "encryptedSymmetricKey", "encryptedCustomerDetails", "encryptedCustomerAesKey", "finalHash", "publicKey", "supplierPartyId"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -94,7 +92,6 @@ class EncryptedCreditNote(BaseModel):
             "recipientId": obj.get("recipientId"),
             "creditNoteId": obj.get("creditNoteId"),
             "originalReceiptId": obj.get("originalReceiptId"),
-            "receiverType": obj.get("receiverType"),
             "encryptedCreditNote": obj.get("encryptedCreditNote"),
             "encryptedSymmetricKey": obj.get("encryptedSymmetricKey"),
             "encryptedCustomerDetails": obj.get("encryptedCustomerDetails"),

@@ -16,11 +16,14 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.hashes import SHA256
 
 from cheqi.exceptions import DecryptionError
-from cheqi.models.credit_note import EncryptedCreditNoteInitiationRequest
-from cheqi.models.credit_note import CreditNoteEnvelope, DecryptedDeliveredCreditNote
-from cheqi.models.generated.credit_note_context_envelope import CreditNoteContextEnvelope
-from cheqi.models.generated.encrypted_credit_note_dto import EncryptedCreditNoteDto
+from cheqi.models.credit_note import (
+    CreditNoteEnvelope,
+    DecryptedDeliveredCreditNote,
+    EncryptedCreditNote,
+    EncryptedCreditNoteInitiationRequest,
+)
 from cheqi.models.encryption import EncryptedReceipt
+from cheqi.models.envelopes import CreditNoteContextEnvelope, ReceiptContextEnvelope, ReceiptEnvelope
 from cheqi.utils.pem import parse_private_key
 
 logger = logging.getLogger("cheqi.decryption")
@@ -32,10 +35,20 @@ _AES_KEY_LENGTH = 32
 
 @dataclass(frozen=True)
 class DecryptedReceipt:
-    """Result of decrypting a receipt."""
+    """Decrypted receipt envelope and separately encrypted customer context."""
 
     receipt_content: str
     customer_details: Optional[str] = None
+    receipt_envelope: Optional[ReceiptEnvelope] = None
+    receipt_context_envelope: Optional[ReceiptContextEnvelope] = None
+
+    @property
+    def raw_json(self) -> str:
+        return self.receipt_content
+
+    @property
+    def raw_receipt_context_json(self) -> Optional[str]:
+        return self.customer_details
 
 
 @dataclass(frozen=True)
@@ -83,9 +96,25 @@ class DecryptionService:
                     encrypted_receipt.encrypted_customer_details, customer_aes_key
                 )
 
+            parsed_receipt = json.loads(receipt_content)
+            receipt_envelope = None
+            if isinstance(parsed_receipt, dict) and any(
+                key in parsed_receipt
+                for key in ("cheqi", "cheqiReceipt", "ublPurchaseReceipt", "ublInvoice", "vatMetaData")
+            ):
+                receipt_envelope = ReceiptEnvelope.model_validate(parsed_receipt)
+
+            receipt_context = (
+                ReceiptContextEnvelope.model_validate(json.loads(customer_details))
+                if customer_details
+                else None
+            )
+
             return DecryptedReceipt(
                 receipt_content=receipt_content,
                 customer_details=customer_details,
+                receipt_envelope=receipt_envelope,
+                receipt_context_envelope=receipt_context,
             )
         except DecryptionError:
             raise
@@ -128,16 +157,16 @@ class DecryptionService:
 
     def decrypt_credit_note_payload(
         self,
-        encrypted_credit_note: EncryptedCreditNoteDto,
+        encrypted_credit_note: EncryptedCreditNote,
         private_key_b64: str,
     ) -> DecryptedDeliveredCreditNote:
         """Decrypt a delivered encrypted credit note and optional context payload."""
         try:
             aes_key = self._rsa_decrypt_key(
-                encrypted_credit_note.encrypted_symmetric_key, private_key_b64
+                encrypted_credit_note.encrypted_symmetric_key or "", private_key_b64
             )
             credit_note_content = self._aes_decrypt(
-                encrypted_credit_note.encrypted_credit_note, aes_key
+                encrypted_credit_note.encrypted_credit_note or "", aes_key
             )
 
             context_json = None
@@ -154,7 +183,7 @@ class DecryptionService:
                     encrypted_credit_note.encrypted_customer_details,
                     context_key,
                 )
-                context = CreditNoteContextEnvelope.from_dict(json.loads(context_json))
+                context = CreditNoteContextEnvelope.model_validate(json.loads(context_json))
 
             return DecryptedDeliveredCreditNote(
                 credit_note_envelope=CreditNoteEnvelope.model_validate_json(

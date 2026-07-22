@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.authorized_card_dto import AuthorizedCardDTO
+from cheqi.models.generated.authorized_card_dto import AuthorizedCardDTO
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -113,7 +113,7 @@ class AuthorizedPaymentAccountDTO(BaseModel):
         })
         return _obj
 
-from cheqi_generated.models.authorized_company_dto import AuthorizedCompanyDTO
+from cheqi.models.generated.authorized_company_dto import AuthorizedCompanyDTO
 # TODO: Rewrite to not use raise_errors
 AuthorizedPaymentAccountDTO.model_rebuild(raise_errors=False)
 

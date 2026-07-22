@@ -9,6 +9,7 @@ class Endpoints:
     TEMPLATE = "/receipt/template"
     CUSTOMER_MATCH = "/recipient/resolve"
     ENCRYPTED_RECEIPT = "/receipt/encrypted"
+    CLIENT_RECEIPT_DOWNLOAD = "/receipt/download"
     ENCRYPTED_CREDIT_NOTE = "/credit-note/encrypted"
     CREDIT_NOTE_TEMPLATE = "/credit-note/template"
     EMAIL_RECEIPT = "/receipt/email"

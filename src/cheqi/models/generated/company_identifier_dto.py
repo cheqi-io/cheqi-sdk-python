@@ -20,7 +20,7 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.company_identifier_type import CompanyIdentifierType
+from cheqi.models.generated.company_identifier_type import CompanyIdentifierType
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -32,10 +32,11 @@ class CompanyIdentifierDTO(BaseModel):
     identifier_type: Optional[CompanyIdentifierType] = Field(default=None, alias="identifierType")
     registration_scheme: Optional[StrictStr] = Field(default=None, description="The local registration scheme or registry name. Use a known value or a custom string for unsupported registries.", alias="registrationScheme")
     value: Optional[StrictStr] = Field(default=None, description="The actual identifier value")
+    label: Optional[StrictStr] = Field(default=None, description="Human-readable display label for this identifier")
     country_code: Optional[StrictStr] = Field(default=None, description="ISO 3166-1 alpha-2 country code", alias="countryCode")
     is_verified: Optional[StrictBool] = Field(default=None, description="Whether this identifier has been verified by Cheqi", alias="isVerified")
     verified_at: Optional[datetime] = Field(default=None, description="Timestamp when this identifier was verified", alias="verifiedAt")
-    __properties: ClassVar[List[str]] = ["id", "identifierType", "registrationScheme", "value", "countryCode", "isVerified", "verifiedAt"]
+    __properties: ClassVar[List[str]] = ["id", "identifierType", "registrationScheme", "value", "label", "countryCode", "isVerified", "verifiedAt"]
 
     @field_validator('registration_scheme')
     def registration_scheme_validate_enum(cls, value):
@@ -102,6 +103,7 @@ class CompanyIdentifierDTO(BaseModel):
             "identifierType": obj.get("identifierType"),
             "registrationScheme": obj.get("registrationScheme"),
             "value": obj.get("value"),
+            "label": obj.get("label"),
             "countryCode": obj.get("countryCode"),
             "isVerified": obj.get("isVerified"),
             "verifiedAt": obj.get("verifiedAt")

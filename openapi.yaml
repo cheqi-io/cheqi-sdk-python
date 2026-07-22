@@ -11,6 +11,7 @@ servers:
   description: Sandbox
 security:
 - cheqi_oauth: []
+- cheqi_api_key: []
 tags:
 - name: Store Management
   description: Endpoints for managing lightweight store/location records under a company.
@@ -143,12 +144,6 @@ paths:
               $ref: "#/components/schemas/UpdateStoreRequest"
         required: true
       responses:
-        "200":
-          description: Store updated successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
           content:
@@ -167,6 +162,12 @@ paths:
             '*/*':
               schema:
                 type: object
+        "200":
+          description: Store updated successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
       security:
       - bearerAuth: []
   /webhook/subscription:
@@ -192,6 +193,12 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
+        "200":
+          description: Webhook subscription created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
         "409":
           description: Duplicate webhook subscription already exists
           content:
@@ -202,12 +209,6 @@ paths:
           description: Insufficient permissions - requires read_receipts scope
           content:
             '*/*':
-              schema:
-                $ref: "#/components/schemas/WebhookResponse"
-        "200":
-          description: Webhook subscription created successfully
-          content:
-            application/json:
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
       security:
@@ -243,12 +244,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
-        "200":
-          description: Recipient successfully resolved and matched
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RecipientResolutionResponse"
         "401":
           description: Authentication required
           content:
@@ -257,6 +252,12 @@ paths:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
         "400":
           description: Invalid identification details provided
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RecipientResolutionResponse"
+        "200":
+          description: Recipient successfully resolved and matched
           content:
             '*/*':
               schema:
@@ -416,6 +417,57 @@ paths:
           description: Invalid email receipt request data
         "201":
           description: Receipt sent successfully via email
+      security:
+      - cheqi_oauth:
+        - write_receipts
+      x-accessible-for: "Company, Client Application"
+  /receipt/download:
+    post:
+      tags:
+      - Receipt Management
+      summary: Upload a client-encrypted receipt for a client-generated download link
+      description: |-
+        Stores the ciphertext behind a download id the SDK generated locally, so the QR code worked before this upload. First write wins: resubmitting the same downloadId with identical bytes returns 200 with the original identifiers (safe retry); different bytes or a different principal conflict with 409 and never replace the stored receipt. Requires write_receipts OAuth scope.
+
+        **Accessible for:** Company, Client Application
+      operationId: uploadClientEncryptedReceipt
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientReceiptDownloadRequest"
+        required: true
+      responses:
+        "201":
+          description: Encrypted receipt stored
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
+        "200":
+          description: Idempotent replay of an identical earlier upload
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
+        "409":
+          description: A different receipt is already stored under this download id
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
+        "400":
+          description: "Invalid download id, IV, or ciphertext"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
+        "403":
+          description: Insufficient permissions - requires write_receipts scope
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
       security:
       - cheqi_oauth:
         - write_receipts
@@ -648,6 +700,12 @@ paths:
               $ref: "#/components/schemas/CreateStoreRequest"
         required: true
       responses:
+        "201":
+          description: Store created successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to create stores for this company
           content:
@@ -660,12 +718,6 @@ paths:
             '*/*':
               schema:
                 type: object
-        "201":
-          description: Store created successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "400":
           description: Invalid request data
           content:
@@ -674,49 +726,6 @@ paths:
                 type: object
       security:
       - bearerAuth: []
-  /company/provision:
-    post:
-      tags:
-      - Company Management
-      summary: Provision company for trusted partner
-      description: |-
-        Creates a new company through a trusted partner integration and grants immediate partner access for bootstrap operations. This endpoint is restricted to trusted partner applications using a client-credentials bearer token and is intended for certified onboarding flows such as POS provisioning. The merchant should still claim the company afterwards.
-
-        **Accessible for:** Client Application
-      operationId: provisionCompany
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ProvisionCompanyRequest"
-        required: true
-      responses:
-        "403":
-          description: Client application is not a trusted partner
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ProvisionCompanyResponse"
-        "201":
-          description: Company provisioned successfully for the trusted partner
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ProvisionCompanyResponse"
-        "409":
-          description: Company already exists and should be connected through OAuth
-            instead
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ProvisionCompanyResponse"
-        "401":
-          description: Invalid client application credentials
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ProvisionCompanyResponse"
-      x-accessible-for: Client Application
   /client-application/{id}/webhook/rotate-secret:
     post:
       tags:
@@ -849,14 +858,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Store deactivated successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store deactivated successfully
           content:
             '*/*':
               schema:
@@ -893,12 +902,6 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Store activated successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
           content:
@@ -907,6 +910,12 @@ paths:
                 $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to activate this store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
+        "200":
+          description: Store activated successfully
           content:
             '*/*':
               schema:
@@ -924,12 +933,6 @@ paths:
         **Accessible for:** Client Application, Company
       operationId: getQueuedReceipts
       responses:
-        "200":
-          description: Queued receipts returned successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ReceiptQueueDto"
         "403":
           description: Insufficient permissions - requires read_receipts scope
           content:
@@ -939,6 +942,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ReceiptQueueDto"
+        "200":
+          description: Queued receipts returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptQueueDto"
       security:
       - cheqi_oauth:
         - read_receipts
@@ -994,6 +1003,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/CompanyReceiptDeliverySettingsResponse"
       x-accessible-for: User
+  /company/identifier-requirements:
+    get:
+      tags:
+      - Company Management
+      description: |2-
+
+
+        **Accessible for:** User
+      operationId: getIdentifierRequirements
+      parameters:
+      - name: countryCode
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CompanyIdentifierRequirement"
+      x-accessible-for: User
   /client-application/authorized-resources:
     get:
       tags:
@@ -1005,6 +1039,12 @@ paths:
         **Accessible for:** Client Application
       operationId: getAuthorizedResources
       responses:
+        "200":
+          description: Authorized resources retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthorizedResourcesResponse"
         "401":
           description: Invalid or missing access token
           content:
@@ -1013,12 +1053,6 @@ paths:
                 $ref: "#/components/schemas/AuthorizedResourcesResponse"
         "403":
           description: Not a client application token
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/AuthorizedResourcesResponse"
-        "200":
-          description: Authorized resources retrieved successfully
           content:
             '*/*':
               schema:
@@ -1158,6 +1192,7 @@ components:
             - RECEIPT_FINALIZED
             - RETURN_REQUESTED
             - CREDIT_NOTE_CREATED
+            - CREDIT_NOTE_FINALIZED
         notificationUrl:
           type: string
       description: Webhook subscription request with URL and event types
@@ -1219,8 +1254,6 @@ components:
             \ and used for display and receipt metadata only."
       description: Card payment details.
     IdentificationDetails:
-      required:
-      - paymentType
       type: object
       properties:
         paymentType:
@@ -1246,15 +1279,18 @@ components:
           description: "The Cheqi receipt ID, only needed for credit notes"
           example: CHQ-12345678-123456-123456
         pairingCode:
+          pattern: "\\d{8}"
           type: string
-          description: A temporary 6-digit pairing code generated by the receipt recipient.
-          example: "847392"
+          description: A temporary 8-digit pairing code generated by the receipt recipient.
+          example: "84739201"
       description: "Identification and payment details used to resolve the receipt\
-        \ recipient. For non-cash payments, you must provide either cardDetails or\
-        \ paymentAccountDetails. For card payments, cardDetails may also include optional\
-        \ lastFourDigits for richer receipt metadata. For cash payments, cardDetails\
-        \ and paymentAccountDetails are not required, but you must provide either\
-        \ recipientEmail or pairingCode."
+        \ recipient. paymentType is optional when pairingCode is supplied because\
+        \ the pairing code carries the customer-selected payment method. A customer\
+        \ locator (cardDetails, paymentAccountDetails, recipientEmail or pairingCode)\
+        \ is optional: when none is supplied the request is treated as an anonymous\
+        \ \"no customer\" receipt, which resolves to the QR-code download fallback\
+        \ route (when downloadFallbackEnabled). The mutual-exclusion rules below still\
+        \ apply so a locator is never paired with an incompatible payment type."
     PaymentAccountDetails:
       required:
       - accountIdentifierType
@@ -1318,19 +1354,22 @@ components:
     RecipientResolutionResponse:
       type: object
       properties:
-        recipients:
-          type: array
-          items:
-            $ref: "#/components/schemas/MatchedRecipient"
-        customerFound:
+        routeFound:
           type: boolean
-          description: Indicates if a customer was found for the given recipient
+          description: Indicates if Cheqi found a delivery route for the receipt
           example: true
+        deliveryRouteType:
+          type: string
+          description: The selected receipt delivery route
+          example: DIGITAL
+          enum:
+          - DIGITAL
+          - EMAIL_FALLBACK
+          - DOWNLOAD_FALLBACK
         matchId:
           type: string
           description: The unique identifier for the matching process
-          example: 123e4567-e89b-12d3-a456-426614174000
-        matchedRecipients:
+        recipients:
           type: array
           description: The list of recipients found for the given recipient
           items:
@@ -1340,9 +1379,6 @@ components:
           description: The expiration time for the matching process
           format: date-time
           example: 2023-01-01T00:00:00Z
-        instructions:
-          type: string
-          description: Instructions on what to do with this response
         buyerCountryCode:
           type: string
           description: The country code of the buyer
@@ -1420,7 +1456,7 @@ components:
     Identifier:
       type: object
       properties:
-        name:
+        type:
           type: string
         value:
           type: string
@@ -1530,7 +1566,6 @@ components:
         one product.
     ReceiptTemplateGenerationRequest:
       required:
-      - buyerCountryCode
       - buyerType
       - formats
       - receiptTemplateRequest
@@ -1546,7 +1581,10 @@ components:
             $ref: "#/components/schemas/ReceiptFormat"
         buyerCountryCode:
           type: string
-          description: "ISO country code of the buyer, used for tax metadata enrichment"
+          description: "ISO country code of the buyer, used for tax metadata enrichment.\
+            \ Optional: when omitted (e.g. an anonymous download fallback with no\
+            \ known buyer), the supplier's country is used, treating the transaction\
+            \ as domestic."
         buyerType:
           $ref: "#/components/schemas/BuyerType"
         taxesApplied:
@@ -1874,6 +1912,10 @@ components:
           type: string
           description: The actual identifier value
           example: "12345678"
+        label:
+          type: string
+          description: Human-readable display label for this identifier
+          example: KVK Number
         countryCode:
           type: string
           description: ISO 3166-1 alpha-2 country code
@@ -1985,6 +2027,10 @@ components:
           type: string
           description: The tax number of the selling party
           example: "123456789"
+        phoneNumber:
+          type: string
+          description: The phone number of the selling party
+          example: +31 20 123 4567
         identifiers:
           type: array
           description: All company identifiers of the selling party
@@ -2043,6 +2089,11 @@ components:
         failureReason:
           type: string
     EncryptedReceiptRequest:
+      required:
+      - encryptedReceipt
+      - encryptedSymmetricKey
+      - publicKey
+      - recipientId
       type: object
       properties:
         recipientId:
@@ -2128,6 +2179,12 @@ components:
           description: Template hash associated with the locally built recipient envelopes.
             This should match the templateHash submitted in the request and can be
             stored for audit and verification.
+        downloadUrl:
+          type: string
+          description: Public self-service download URL for the receipt. Only populated
+            for the QR-code download fallback route (DOWNLOAD_FALLBACK); the merchant
+            terminal renders this as a QR code for the customer to scan.
+          example: https://receipt.cheqi.io/xQ8...token
     EmailReceiptRequest:
       required:
       - cheqiReceipt
@@ -2139,6 +2196,48 @@ components:
         cheqiReceipt:
           $ref: "#/components/schemas/CheqiReceipt"
       description: Email receipt request with customer email and receipt details
+    ClientReceiptDownloadRequest:
+      required:
+      - ciphertext
+      - downloadId
+      type: object
+      properties:
+        downloadId:
+          pattern: "^[A-Za-z0-9_-]{22,64}$"
+          type: string
+          description: "Client-generated download identifier: at least 16 CSPRNG bytes\
+            \ encoded as base64url without padding. Must be exactly the id embedded\
+            \ in the QR URL path. Resubmitting the same id with identical payload\
+            \ bytes is an idempotent replay."
+          example: Zk9qYx3vT1KpN8wL2sRd_g
+        ciphertext:
+          type: string
+          description: "Base64-encoded AES-256-GCM blob framed as iv || ciphertext\
+            \ || tag (12-byte IV, 128-bit tag) of the receipt envelope, encrypted\
+            \ client-side with the key from the QR URL fragment. Cheqi never receives\
+            \ that key and cannot decrypt this payload."
+        templateHash:
+          type: string
+          description: Optional locally computed template hash for audit and reconciliation.
+          nullable: true
+      description: Client-encrypted receipt payload
+    ClientReceiptDownloadResponse:
+      type: object
+      properties:
+        cheqiReceiptId:
+          type: string
+          description: "Stable Cheqi receipt identifier minted at upload time, for\
+            \ merchant back-office reconciliation. The customer-facing reference is\
+            \ the download URL itself."
+          example: CHQ-12345678-123456-123456
+        createdAt:
+          type: string
+          description: Timestamp when Cheqi first accepted this upload.
+          format: date-time
+        expiresAt:
+          type: string
+          description: Timestamp after which the download link stops resolving.
+          format: date-time
     CreditNoteTemplateGenerationRequest:
       required:
       - buyerCountryCode
@@ -2407,8 +2506,6 @@ components:
           type: string
           description: The original receipt ID
           example: UUID
-        receiverType:
-          $ref: "#/components/schemas/ReceiverType"
         encryptedCreditNote:
           type: string
           description: The encrypted credit note
@@ -2463,14 +2560,6 @@ components:
           description: Hash of the credit-note template basis used when building and
             encrypting the recipient envelopes.
       description: Encrypted credit note request with device-specific encryption
-    ReceiverType:
-      type: string
-      description: Type of receiver for this receipt
-      example: WEBHOOK/DEVICE
-      enum:
-      - DEVICE
-      - CLIENT_APPLICATION
-      - COMPANY
     CreditNoteCreatedResponse:
       type: object
       properties:
@@ -2497,7 +2586,6 @@ components:
       - companyEmail
       - companyLegalName
       - companyName
-      - taxNumber
       type: object
       properties:
         companyName:
@@ -2508,10 +2596,6 @@ components:
           type: string
           description: Legal registered name of the company
           example: Example Coffee Shop B.V.
-        taxNumber:
-          type: string
-          description: Tax identification number of the company
-          example: NL123456789B01
         address:
           $ref: "#/components/schemas/AddressDTO"
         companyEmail:
@@ -2555,6 +2639,16 @@ components:
         notificationCodeEnabled:
           type: boolean
           description: Whether notification-code based receipt retrieval is enabled
+          nullable: true
+        emailFallbackEnabled:
+          type: boolean
+          description: Whether receipts may fall back to PDF email delivery when recipient
+            matching does not find a Cheqi recipient
+          nullable: true
+        downloadFallbackEnabled:
+          type: boolean
+          description: Whether receipts may fall back to QR-code download delivery
+            when recipient matching does not find a Cheqi recipient
           nullable: true
       description: Request payload for creating or provisioning a company.
     ContactDetailDto:
@@ -2604,10 +2698,6 @@ components:
           type: string
           description: Legal registered name of the company
           example: Example Coffee Shop B.V.
-        taxNumber:
-          type: string
-          description: Tax identification number of the company
-          example: NL123456789B01
         address:
           $ref: "#/components/schemas/AddressDTO"
         companyEmail:
@@ -2669,6 +2759,16 @@ components:
           type: boolean
           description: Whether notification-code based receipt retrieval is enabled
           nullable: true
+        emailFallbackEnabled:
+          type: boolean
+          description: Whether receipts may fall back to PDF email delivery when recipient
+            matching does not find a Cheqi recipient
+          nullable: true
+        downloadFallbackEnabled:
+          type: boolean
+          description: Whether receipts may fall back to QR-code download delivery
+            when recipient matching does not find a Cheqi recipient
+          nullable: true
       description: Company response body returned by company creation endpoints.
     CompanyRole:
       type: string
@@ -2706,47 +2806,6 @@ components:
         openingHours:
           maxLength: 500
           minLength: 0
-          type: string
-    ProvisionCompanyRequest:
-      required:
-      - company
-      type: object
-      properties:
-        company:
-          $ref: "#/components/schemas/CompanyCreationRequest"
-        adminEmail:
-          type: string
-          description: Optional admin email that should receive a company-claim invitation
-          nullable: true
-          example: owner@example.com
-      description: Request payload for trusted partner company provisioning.
-    ProvisionCompanyResponse:
-      type: object
-      properties:
-        companyId:
-          type: string
-        status:
-          type: string
-        message:
-          type: string
-        partnerProvisioned:
-          type: boolean
-        merchantClaimed:
-          type: boolean
-        provisioningPartnerTier:
-          type: string
-        invitationSent:
-          type: boolean
-        requiresOAuth:
-          type: boolean
-        accessToken:
-          type: string
-        refreshToken:
-          type: string
-        expiresIn:
-          type: integer
-          format: int64
-        tokenType:
           type: string
     WebhookSecretRotationResponse:
       type: object
@@ -2929,6 +2988,16 @@ components:
           type: string
           description: Supplier party ID for storage
           format: uuid
+    ReceiverType:
+      type: string
+      description: Type of receiver for this receipt
+      example: WEBHOOK/DEVICE
+      enum:
+      - DEVICE
+      - CLIENT_APPLICATION
+      - COMPANY
+      - EMAIL_FALLBACK
+      - DOWNLOAD_FALLBACK
     CompanyReceiptDeliverySettingsResponse:
       type: object
       properties:
@@ -2938,6 +3007,33 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CompanyReceiptDeliveryDeviceDto"
+    CompanyIdentifierRequirement:
+      type: object
+      properties:
+        identifierType:
+          $ref: "#/components/schemas/CompanyIdentifierType"
+        registrationScheme:
+          type: string
+          description: Optional registry or local scheme
+          nullable: true
+          example: KVK
+        label:
+          type: string
+          description: User-facing label
+          example: KVK number
+        placeholder:
+          type: string
+          description: Input placeholder
+          example: e.g. 12345678
+        required:
+          type: boolean
+          description: Whether this identifier should be collected for this country
+        receiptRelevant:
+          type: boolean
+          description: Whether this identifier is typically printed on receipts or
+            invoices
+      description: Country-specific company identifier option for onboarding and company
+        creation.
     PublicKeyResponse:
       type: object
       properties:
@@ -2967,8 +3063,6 @@ components:
         companyName:
           type: string
         companyLegalName:
-          type: string
-        taxNumber:
           type: string
         identifiers:
           type: array
@@ -3028,7 +3122,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AuthorizedEmailDTO"
-    EncryptedReceiptDto:
+    EncryptedReceipt:
       type: object
       properties:
         additionalProperties:
@@ -3066,6 +3160,11 @@ components:
     WebhookEventDTO:
       type: object
       properties:
+        clientId:
+          type: string
+          description: Public OAuth client ID of the client application that owns
+            the webhook subscription.
+          nullable: true
         companyId:
           type: string
           format: uuid
@@ -3079,6 +3178,7 @@ components:
           - RECEIPT_FINALIZED
           - RETURN_REQUESTED
           - CREDIT_NOTE_CREATED
+          - CREDIT_NOTE_FINALIZED
         created_at:
           type: string
           format: date-time
@@ -3087,7 +3187,7 @@ components:
         routingIdentifier:
           $ref: "#/components/schemas/RoutingIdentifier"
         encryptedReceipt:
-          $ref: "#/components/schemas/EncryptedReceiptDto"
+          $ref: "#/components/schemas/EncryptedReceipt"
         encryptedCreditNoteInitiationRequest:
           $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequest"
         encryptedCreditNoteDto:
@@ -3195,11 +3295,34 @@ components:
   securitySchemes:
     cheqi_oauth:
       type: oauth2
+      description: OAuth 2.0 for client applications acting on behalf of a company
+        and/or user. Use the authorization_code flow for user-authorized access and
+        the client_credentials flow for trusted partner bootstrap.
       flows:
-        implicit:
-          authorizationUrl: https://test.api.cheqi.io/oauth/authorize
+        clientCredentials:
+          tokenUrl: https://sandbox.api.cheqi.io/oauth2/token
+          refreshUrl: https://sandbox.api.cheqi.io/oauth2/refresh
           scopes:
-            write_receipts: Write receipts
-            read_receipts: Read receipts
-            manage_client_applications: Manage client applications
-            read_client_applications: Read client applications
+            read_receipts: "View receipt details including items, prices, and payment\
+              \ information"
+            write_receipts: Create and modify digital receipts on behalf of your company
+            read_stores: View store/location information
+            write_stores: Create and manage stores/locations for your company
+            company_access: Access company-level information and features
+            account_access: Access account information and settings
+        authorizationCode:
+          authorizationUrl: https://api.cheqi.io/oauth2/authorize
+          tokenUrl: https://sandbox.api.cheqi.io/oauth2/token
+          refreshUrl: https://sandbox.api.cheqi.io/oauth2/refresh
+          scopes:
+            read_receipts: "View receipt details including items, prices, and payment\
+              \ information"
+            write_receipts: Create and modify digital receipts on behalf of your company
+            read_stores: View store/location information
+            write_stores: Create and manage stores/locations for your company
+            company_access: Access company-level information and features
+            account_access: Access account information and settings
+    cheqi_api_key:
+      type: http
+      description: "Company API key. Send it as `Authorization: Bearer sk_...`."
+      scheme: bearer

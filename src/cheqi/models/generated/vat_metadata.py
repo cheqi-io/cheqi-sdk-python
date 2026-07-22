@@ -19,8 +19,8 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.buyer_type import BuyerType
-from cheqi_generated.models.vat_regime import VatRegime
+from cheqi.models.generated.buyer_type import BuyerType
+from cheqi.models.generated.vat_regime import VatRegime
 from typing import Optional, Set
 from typing_extensions import Self
 

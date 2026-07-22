@@ -26,9 +26,9 @@ class Identifier(BaseModel):
     """
     The identifiers for the purchase, given by the seller, for example order reference, transaction number
     """ # noqa: E501
-    name: Optional[StrictStr] = None
+    type: Optional[StrictStr] = None
     value: Optional[StrictStr] = None
-    __properties: ClassVar[List[str]] = ["name", "value"]
+    __properties: ClassVar[List[str]] = ["type", "value"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -81,7 +81,7 @@ class Identifier(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "name": obj.get("name"),
+            "type": obj.get("type"),
             "value": obj.get("value")
         })
         return _obj

@@ -5,16 +5,13 @@ from __future__ import annotations
 import base64
 import re
 
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 from cryptography.hazmat.primitives.serialization import (
-    Encoding,
-    PublicFormat,
     load_der_private_key,
     load_der_public_key,
     load_pem_private_key,
     load_pem_public_key,
 )
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
-
 
 _PEM_HEADER_RE = re.compile(
     r"-----BEGIN [A-Z0-9 ]+-----\s*|-----END [A-Z0-9 ]+-----\s*"

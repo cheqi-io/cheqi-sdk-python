@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 from cheqi.utils.hash import sha256_hex
 from cheqi.utils.rfc8785 import canonicalize, canonicalize_str
 

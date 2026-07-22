@@ -10,7 +10,6 @@ from cheqi.models.matching import IdentificationDetails
 from cheqi.models.payment import CardDetails
 from cheqi.models.receipt import (
     Barcode,
-    CheqiReceipt,
     Discount,
     Product,
     ReceiptTemplateRequest,
@@ -74,7 +73,7 @@ class TestCamelCaseSerialization:
 
 
 class TestDecimalSerialization:
-    """Verify that CheqiDecimal strips trailing zeros in JSON."""
+    """Verify that CheqiDecimal matches Java's JSON-number wire format."""
 
     def test_trailing_zeros_stripped(self) -> None:
         product = Product(
@@ -86,12 +85,13 @@ class TestDecimalSerialization:
         json_str = product.to_json()
         data = json.loads(json_str)
 
-        # 100.00 → "100" (integer-like)
-        assert data["unitPrice"] == "100"
-        # 21.50 → "21.5"
-        assert data["subtotal"] == "21.5"
-        # 121.00 → "121"
-        assert data["total"] == "121"
+        # Values are JSON numbers, not quoted strings. Swift Decimal decoding
+        # relies on this wire type.
+        assert data["unitPrice"] == 100
+        assert data["subtotal"] == 21.5
+        assert data["total"] == 121
+        assert isinstance(data["unitPrice"], int)
+        assert isinstance(data["subtotal"], float)
 
     def test_decimal_precision_preserved(self) -> None:
         tax = Tax(
@@ -103,8 +103,10 @@ class TestDecimalSerialization:
 
         json_str = tax.to_json()
         data = json.loads(json_str)
-        assert data["taxableAmount"] == "99.99"
-        assert data["amount"] == "20.9979"
+        assert data["taxableAmount"] == 99.99
+        assert data["amount"] == 20.9979
+        assert isinstance(data["taxableAmount"], float)
+        assert isinstance(data["amount"], float)
 
 
 class TestNoneExclusion:

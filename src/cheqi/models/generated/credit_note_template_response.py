@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.cheqi_credit_note import CheqiCreditNote
+from cheqi.models.generated.cheqi_credit_note import CheqiCreditNote
 from typing import Optional, Set
 from typing_extensions import Self
 

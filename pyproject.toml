@@ -35,6 +35,7 @@ dev = [
     "pytest-httpx>=0.30",
     "pytest-cov>=4.0",
     "mypy>=1.0",
+    "lxml-stubs>=0.5",
     "ruff>=0.4",
 ]
 
@@ -44,6 +45,7 @@ packages = ["src/cheqi"]
 [tool.ruff]
 target-version = "py39"
 line-length = 120
+exclude = ["src/cheqi/models/generated"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
@@ -52,6 +54,7 @@ select = ["E", "F", "I", "W"]
 python_version = "3.9"
 strict = true
 plugins = ["pydantic.mypy"]
+exclude = "^src/cheqi/models/generated/"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

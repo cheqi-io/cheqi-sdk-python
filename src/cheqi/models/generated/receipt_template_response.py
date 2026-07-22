@@ -19,8 +19,8 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.cheqi_receipt import CheqiReceipt
-from cheqi_generated.models.vat_metadata import VatMetadata
+from cheqi.models.generated.cheqi_receipt import CheqiReceipt
+from cheqi.models.generated.vat_metadata import VatMetadata
 from typing import Optional, Set
 from typing_extensions import Self
 

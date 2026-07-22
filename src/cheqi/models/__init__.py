@@ -1,8 +1,6 @@
 """Cheqi SDK models."""
 
 from cheqi.models.base import CheqiBaseModel, CheqiDecimal
-from cheqi.models.generated.credit_note_context_envelope import CreditNoteContextEnvelope
-from cheqi.models.generated.receipt_context_envelope import ReceiptContextEnvelope
 from cheqi.models.company import (
     Company,
     CompanyAddress,
@@ -14,18 +12,23 @@ from cheqi.models.company import (
 from cheqi.models.credit_note import (
     CheqiCreditNote,
     CreditNoteCreatedResponse,
-    DecryptedDeliveredCreditNote,
     CreditNoteEnvelope,
     CreditNoteInitiationRequest,
     CreditNoteResult,
     CreditNoteTemplateGenerationRequest,
     CreditNoteTemplateRequest,
     CreditNoteTemplateResponse,
+    DecryptedDeliveredCreditNote,
     EncryptedCreditNote,
     EncryptedCreditNoteInitiationRequest,
     EncryptedCreditNotesRequest,
     RefundBankAccount,
     ReturnLineItem,
+)
+from cheqi.models.download import (
+    ClientReceiptDownloadRequest,
+    ClientReceiptDownloadResponse,
+    DownloadLink,
 )
 from cheqi.models.encryption import (
     EncryptedReceipt,
@@ -50,12 +53,17 @@ from cheqi.models.enums import (
 )
 from cheqi.models.envelopes import (
     ConsumingPartyEnvelope,
+    CreditNoteContextEnvelope,
     DeliveryStatus,
+    PaymentMeansEnvelope,
+    ReceiptContextEnvelope,
     ReceiptCreatedResponse,
     ReceiptEnvelope,
     ReceiptResult,
+    ReceivingPartyEnvelope,
 )
 from cheqi.models.matching import (
+    DeliveryRouteType,
     IdentificationDetails,
     Recipient,
     RecipientResolutionResponse,
@@ -114,14 +122,20 @@ __all__ = [
     "EncryptedReceipt",
     "EncryptedReceiptRequestDto",
     "EncryptedReceiptsRequest",
+    "DownloadLink",
+    "ClientReceiptDownloadRequest",
+    "ClientReceiptDownloadResponse",
     # Envelopes & results
     "ReceiptEnvelope",
     "ReceiptContextEnvelope",
     "CreditNoteContextEnvelope",
     "ConsumingPartyEnvelope",
+    "ReceivingPartyEnvelope",
+    "PaymentMeansEnvelope",
     "ReceiptCreatedResponse",
     "DeliveryStatus",
     "ReceiptResult",
+    "DeliveryRouteType",
     # Company
     "Company",
     "CompanyAddress",

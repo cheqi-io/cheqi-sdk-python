@@ -19,9 +19,9 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List
-from cheqi_generated.models.buyer_type import BuyerType
-from cheqi_generated.models.credit_note_template_request import CreditNoteTemplateRequest
-from cheqi_generated.models.receipt_format import ReceiptFormat
+from cheqi.models.generated.buyer_type import BuyerType
+from cheqi.models.generated.credit_note_template_request import CreditNoteTemplateRequest
+from cheqi.models.generated.receipt_format import ReceiptFormat
 from typing import Optional, Set
 from typing_extensions import Self
 

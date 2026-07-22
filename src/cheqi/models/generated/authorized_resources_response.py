@@ -19,9 +19,9 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.authorized_company_dto import AuthorizedCompanyDTO
-from cheqi_generated.models.authorized_email_dto import AuthorizedEmailDTO
-from cheqi_generated.models.authorized_payment_account_dto import AuthorizedPaymentAccountDTO
+from cheqi.models.generated.authorized_company_dto import AuthorizedCompanyDTO
+from cheqi.models.generated.authorized_email_dto import AuthorizedEmailDTO
+from cheqi.models.generated.authorized_payment_account_dto import AuthorizedPaymentAccountDTO
 from typing import Optional, Set
 from typing_extensions import Self
 

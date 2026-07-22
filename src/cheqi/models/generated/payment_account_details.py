@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.account_identifier_type import AccountIdentifierType
+from cheqi.models.generated.account_identifier_type import AccountIdentifierType
 from typing import Optional, Set
 from typing_extensions import Self
 

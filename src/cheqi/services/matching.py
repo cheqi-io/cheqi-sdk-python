@@ -25,13 +25,15 @@ class MatchingService:
     ) -> RecipientResolutionResponse:
         """Match a customer using the provided identification details.
 
-        At least one identifier must be present: pairing code, card details,
-        payment account details, email, or cheqi receipt ID.
+        A customer locator may be supplied through a pairing code, card details,
+        payment account details, email, or Cheqi receipt ID. A payment type by
+        itself is also valid and represents the anonymous download-fallback case.
         """
         if not self._has_valid_identifiers(identification_details):
             raise ValueError(
-                "IdentificationDetails must contain at least one identifier "
-                "(card details, payment account details, email, pairing code, or cheqi receipt ID)"
+                "IdentificationDetails must contain a customer identifier or payment type "
+                "(card details, payment account details, email, pairing code, Cheqi receipt ID, "
+                "or payment type for anonymous fallback)"
             )
 
         self._log_available_identifiers(identification_details)
@@ -64,6 +66,7 @@ class MatchingService:
             or self._has_email(details)
             or self._has_pairing_code(details)
             or self._has_cheqi_receipt_id(details)
+            or details.payment_type is not None
         )
 
     def _has_card_details(self, details: IdentificationDetails) -> bool:
@@ -98,4 +101,6 @@ class MatchingService:
             ids.append("CheqiReceiptId")
         if self._has_pairing_code(details):
             ids.append("PairingCode")
+        if details.payment_type is not None:
+            ids.append("PaymentType")
         logger.debug("Available identifiers: %s", ", ".join(ids))

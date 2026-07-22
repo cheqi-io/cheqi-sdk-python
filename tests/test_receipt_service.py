@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 
-from cheqi.exceptions import CheqiSDKError
-from cheqi.models.matching import IdentificationDetails
-from cheqi.models.receipt import ReceiptTemplateRequest
-from cheqi.services.encryption import EncryptionService
+from cheqi.models.enums import PaymentType
+from cheqi.models.matching import IdentificationDetails, RecipientResolutionResponse
 from cheqi.services.matching import MatchingService
 
 
@@ -22,7 +22,7 @@ class TestMatchingServiceValidation:
 
         matching = MatchingService(api_client=None)  # type: ignore[arg-type]
 
-        with pytest.raises(ValueError, match="at least one identifier"):
+        with pytest.raises(ValueError, match="customer identifier or payment type"):
             matching.match_customer(details)
 
     def test_valid_email_identifier(self) -> None:
@@ -35,3 +35,18 @@ class TestMatchingServiceValidation:
         with pytest.raises(Exception):
             # Will fail because api_client is None, but past validation
             matching.match_customer(details)
+
+    def test_payment_type_only_is_valid_for_anonymous_download_fallback(self) -> None:
+        details = IdentificationDetails(payment_type=PaymentType.CASH)
+        api_client = MagicMock()
+        api_client.match_customer.return_value = RecipientResolutionResponse(
+            route_found=True,
+            delivery_route_type="DOWNLOAD_FALLBACK",
+            recipients=[],
+        )
+        matching = MatchingService(api_client=api_client)
+
+        response = matching.match_customer(details)
+
+        assert response.route_found
+        api_client.match_customer.assert_called_once_with(details, None)

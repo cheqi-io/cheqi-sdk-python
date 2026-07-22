@@ -20,14 +20,14 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional, Union
-from cheqi_generated.models.charge import Charge
-from cheqi_generated.models.discount import Discount
-from cheqi_generated.models.identifier import Identifier
-from cheqi_generated.models.period import Period
-from cheqi_generated.models.product import Product
-from cheqi_generated.models.receiving_party import ReceivingParty
-from cheqi_generated.models.selling_party import SellingParty
-from cheqi_generated.models.tax import Tax
+from cheqi.models.generated.charge import Charge
+from cheqi.models.generated.discount import Discount
+from cheqi.models.generated.identifier import Identifier
+from cheqi.models.generated.period import Period
+from cheqi.models.generated.product import Product
+from cheqi.models.generated.receiving_party import ReceivingParty
+from cheqi.models.generated.selling_party import SellingParty
+from cheqi.models.generated.tax import Tax
 from typing import Optional, Set
 from typing_extensions import Self
 

@@ -19,8 +19,8 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.company_identifier_dto import CompanyIdentifierDTO
-from cheqi_generated.models.party_address import PartyAddress
+from cheqi.models.generated.company_identifier_dto import CompanyIdentifierDTO
+from cheqi.models.generated.party_address import PartyAddress
 from typing import Optional, Set
 from typing_extensions import Self
 

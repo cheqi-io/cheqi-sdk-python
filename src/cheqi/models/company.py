@@ -6,12 +6,15 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
+from pydantic import AliasChoices, Field
+
 from cheqi.models.base import CheqiBaseModel
 
 
 class CompanyAddress(CheqiBaseModel):
     """Address for company/store provisioning (richer than receipt Address)."""
 
+    id: Optional[int] = None
     street_name: Optional[str] = None
     additional_street_name: Optional[str] = None
     address_line: Optional[str] = None
@@ -54,7 +57,18 @@ class CreateStoreRequest(CheqiBaseModel):
 
     store_name: Optional[str] = None
     store_code: Optional[str] = None
-    address: Optional[CompanyAddress] = None
+    address_dto: Optional[CompanyAddress] = Field(
+        default=None,
+        validation_alias=AliasChoices("addressDto", "address_dto", "address"),
+        serialization_alias="addressDto",
+    )
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+    opening_hours: Optional[str] = None
+
+    @property
+    def address(self) -> Optional[CompanyAddress]:
+        return self.address_dto
 
 
 class Store(CheqiBaseModel):
@@ -64,7 +78,19 @@ class Store(CheqiBaseModel):
     company_id: Optional[UUID] = None
     store_name: Optional[str] = None
     store_code: Optional[str] = None
-    address: Optional[CompanyAddress] = None
+    address_dto: Optional[CompanyAddress] = Field(
+        default=None,
+        validation_alias=AliasChoices("addressDto", "address_dto", "address"),
+        serialization_alias="addressDto",
+    )
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+    opening_hours: Optional[str] = None
+    active: Optional[bool] = None
     is_active: Optional[bool] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    @property
+    def address(self) -> Optional[CompanyAddress]:
+        return self.address_dto

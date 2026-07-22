@@ -1,7 +1,8 @@
-"""Credit note service for end-to-end credit note processing."""
+"""End-to-end encrypted credit-note processing."""
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import List, Optional
 
@@ -9,32 +10,31 @@ from cheqi.exceptions import CheqiSDKError, CreditNoteProcessingError, ErrorCode
 from cheqi.http.client import CheqiApiClient
 from cheqi.models.credit_note import (
     CreditNoteCreatedResponse,
-    DecryptedDeliveredCreditNote,
     CreditNoteEnvelope,
+    CreditNoteInitiationRequest,
     CreditNoteResult,
     CreditNoteTemplateGenerationRequest,
     CreditNoteTemplateRequest,
     CreditNoteTemplateResponse,
+    DecryptedDeliveredCreditNote,
     EncryptedCreditNote,
     EncryptedCreditNoteInitiationRequest,
 )
-from cheqi.models.generated.encrypted_credit_note_dto import EncryptedCreditNoteDto
 from cheqi.models.enums import ReceiptFormat
-from cheqi.models.matching import (
-    IdentificationDetails,
-    Recipient,
-    RecipientResolutionResponse,
-)
-from cheqi.services.decryption import DecryptedCreditNote, DecryptionService
+from cheqi.models.matching import IdentificationDetails, Recipient, RecipientResolutionResponse
+from cheqi.services.decryption import DecryptionService
 from cheqi.services.encryption import EncryptionService
 from cheqi.services.matching import MatchingService
 from cheqi.utils.hash import sha256_hex
 
 logger = logging.getLogger("cheqi.credit_note")
 
+_PARTY_PLACEHOLDER = "<cac:AccountingCustomerParty/>"
+_PARTY_CLOSING_TAG = "</cac:AccountingCustomerParty>"
+
 
 class CreditNoteService:
-    """Service for handling credit note operations."""
+    """Match, template, encrypt, deliver, decrypt, and merge credit notes."""
 
     def __init__(
         self,
@@ -45,78 +45,56 @@ class CreditNoteService:
         self._api_client = api_client
         self._encryption_service = encryption_service
         self._matching_service = matching_service
+        self._decryption_service = DecryptionService()
 
     def process_complete_credit_note(
         self,
         identification_details: IdentificationDetails,
         credit_note_request: CreditNoteTemplateRequest,
-        parent_cheqi_receipt_id: str,
+        parent_cheqi_receipt_id: Optional[str] = None,
         access_token: Optional[str] = None,
     ) -> CreditNoteResult:
-        """Complete credit note processing workflow.
+        """Run recipient resolution through encrypted credit-note delivery."""
+        if identification_details is None or credit_note_request is None:
+            self._validation_error("Identification details and credit note request are required")
+        original_receipt_id = parent_cheqi_receipt_id or identification_details.cheqi_receipt_id
+        if not original_receipt_id or not original_receipt_id.strip():
+            self._validation_error("Original receipt ID (cheqiReceiptId) cannot be null or empty")
+        assert original_receipt_id is not None
 
-        1. Match customer
-        2. Generate credit note template
-        3. Encrypt for all recipients
-        4. Send to backend
-        """
         try:
-            match_response = self._matching_service.match_customer(
-                identification_details, access_token
-            )
-
-            if not match_response.customer_found:
+            match_response = self._matching_service.match_customer(identification_details, access_token)
+            if not match_response.route_found and not (identification_details.recipient_email or "").strip():
                 return CreditNoteResult.customer_not_found()
 
-            # Determine formats
-            determined_formats: List[ReceiptFormat] = []
-            if match_response.recipients:
-                seen: set[ReceiptFormat] = set()
-                for r in match_response.recipients:
-                    if r.accepted_formats:
-                        for fmt in r.accepted_formats:
-                            if fmt not in seen:
-                                seen.add(fmt)
-                                determined_formats.append(fmt)
-
-            # Generate template
-            gen_request = CreditNoteTemplateGenerationRequest(
+            formats = self._determine_formats(match_response)
+            generation_request = CreditNoteTemplateGenerationRequest(
                 credit_note_template_request=credit_note_request,
-                receipt_formats=determined_formats,
+                formats=formats,
+                buyer_country_code=match_response.buyer_country_code,
+                buyer_type=match_response.buyer_type.value if match_response.buyer_type else None,
+                taxes_applied=True,
             )
-            template_response = self._api_client.generate_credit_note_template(
-                gen_request, access_token
-            )
+            template = self._api_client.generate_credit_note_template(generation_request, access_token)
 
-            # Build encrypted credit notes
-            encrypted_notes = self._build_encrypted_credit_notes(
-                match_response, template_response
-            )
+            if not match_response.route_found:
+                return CreditNoteResult.customer_not_found()
 
-            # Compute hash
-            template_content = (
-                template_response.cheqi.to_json()
-                if template_response.cheqi
-                else template_response.ubl or ""
-            )
-            template_hash = sha256_hex(template_content)
-
-            # Send
-            created_response = self._api_client.send_encrypted_credit_notes(
-                match_response.match_id or "",
-                parent_cheqi_receipt_id,
+            encrypted_notes = self._build_encrypted_credit_notes(match_response, template)
+            template_content = template.cheqi.to_json() if template.cheqi else template.ubl_credit_note or ""
+            response = self.send_encrypted_credit_notes(
+                original_receipt_id,
                 encrypted_notes,
-                template_hash,
+                sha256_hex(template_content),
+                match_response,
                 access_token,
             )
-
-            return CreditNoteResult.delivered_to_app(created_response, template_content)
-
+            return CreditNoteResult.delivered_to_app(response, template_content)
         except CheqiSDKError:
             raise
-        except Exception as e:
-            logger.error("Credit note processing failed: %s", e)
-            raise CreditNoteProcessingError(f"Credit note processing failed: {e}") from e
+        except Exception as exc:
+            logger.error("Credit note processing failed: %s", exc)
+            raise CreditNoteProcessingError(f"Credit note processing failed: {exc}") from exc
 
     def generate_credit_note_template(
         self,
@@ -124,30 +102,66 @@ class CreditNoteService:
         receipt_formats: List[ReceiptFormat],
         access_token: Optional[str] = None,
     ) -> CreditNoteTemplateResponse:
-        """Generate a credit note template from transaction data."""
-        gen_request = CreditNoteTemplateGenerationRequest(
+        generation_request = CreditNoteTemplateGenerationRequest(
             credit_note_template_request=request,
-            receipt_formats=receipt_formats,
+            formats=receipt_formats,
+            buyer_country_code=request.buyer_country_code,
+            taxes_applied=True,
         )
-        return self._api_client.generate_credit_note_template(gen_request, access_token)
+        return self._api_client.generate_credit_note_template(generation_request, access_token)
+
+    def send_encrypted_credit_notes(
+        self,
+        parent_cheqi_receipt_id: str,
+        encrypted_credit_notes: List[EncryptedCreditNote],
+        template_hash: str,
+        match_response: RecipientResolutionResponse,
+        access_token: Optional[str] = None,
+    ) -> CreditNoteCreatedResponse:
+        if not encrypted_credit_notes:
+            self._validation_error("Encrypted credit notes cannot be empty")
+        if not template_hash or not template_hash.strip():
+            self._validation_error("Template hash cannot be null or empty")
+        if not match_response or not match_response.route_found:
+            raise CheqiSDKError(
+                "Cannot send credit notes: customer was not found during matching",
+                error_code=ErrorCodes.CUSTOMER_NOT_FOUND,
+                http_status_code=400,
+            )
+        return self._api_client.send_encrypted_credit_notes(
+            match_response.match_id or "",
+            parent_cheqi_receipt_id,
+            encrypted_credit_notes,
+            template_hash,
+            access_token,
+        )
+
+    def create_encrypted_credit_note(
+        self, credit_note_envelope: str, recipient: Recipient
+    ) -> EncryptedCreditNote:
+        if not credit_note_envelope or not credit_note_envelope.strip():
+            self._validation_error("Credit note envelope cannot be null or empty")
+        if recipient is None:
+            self._validation_error("Recipient cannot be null")
+        return self._encryption_service.encrypt_credit_note_for_recipient(
+            credit_note_envelope, recipient
+        )
 
     def decrypt_credit_note_request(
         self,
         encrypted_request: EncryptedCreditNoteInitiationRequest,
         private_key_b64: str,
-    ) -> DecryptedCreditNote:
-        """Decrypt an encrypted credit note initiation request."""
-        decryption_service = DecryptionService()
-        return decryption_service.decrypt_credit_note(encrypted_request, private_key_b64)
+    ) -> CreditNoteInitiationRequest:
+        """Decrypt and parse a customer credit-note initiation request."""
+        decrypted = self._decryption_service.decrypt_credit_note(encrypted_request, private_key_b64)
+        return CreditNoteInitiationRequest.model_validate(json.loads(decrypted.content))
 
     def decrypt_delivered_credit_note(
         self,
-        encrypted_credit_note: EncryptedCreditNoteDto,
+        encrypted_credit_note: EncryptedCreditNote,
         private_key_b64: str,
     ) -> DecryptedDeliveredCreditNote:
-        """Decrypt and merge a delivered encrypted credit note."""
-        decryption_service = DecryptionService()
-        decrypted = decryption_service.decrypt_credit_note_payload(
+        decrypted = self._decryption_service.decrypt_credit_note_payload(
             encrypted_credit_note, private_key_b64
         )
         return self._merge_credit_note_context(decrypted)
@@ -157,94 +171,73 @@ class CreditNoteService:
         match_response: RecipientResolutionResponse,
         template_response: CreditNoteTemplateResponse,
     ) -> List[EncryptedCreditNote]:
-        """Build encrypted credit notes for all recipients."""
-        encrypted_notes: List[EncryptedCreditNote] = []
-
-        for recipient in match_response.recipients or []:
-            envelope = self._build_envelope_for_recipient(recipient, template_response)
-            envelope_json = envelope.to_json()
-
-            encrypted = self._encryption_service.encrypt_credit_note_for_recipient(
-                envelope_json, recipient
+        return [
+            self.create_encrypted_credit_note(
+                self._build_envelope_for_recipient(recipient, template_response).to_json(), recipient
             )
+            for recipient in match_response.recipients or []
+        ]
 
-            encrypted_with_formats = EncryptedCreditNote(
-                recipient_id=encrypted.recipient_id,
-                receiver_type=encrypted.receiver_type,
-                public_key=encrypted.public_key,
-                encrypted_credit_note=encrypted.encrypted_credit_note,
-                encrypted_symmetric_key=encrypted.encrypted_symmetric_key,
-                receipt_formats=recipient.accepted_formats,
-            )
-            encrypted_notes.append(encrypted_with_formats)
-
-        return encrypted_notes
-
+    @staticmethod
     def _build_envelope_for_recipient(
-        self,
         recipient: Recipient,
         template_response: CreditNoteTemplateResponse,
     ) -> CreditNoteEnvelope:
-        """Build a credit note envelope with formats accepted by the recipient."""
-        cheqi_credit_note = None
-        ubl_credit_note = None
-
         accepted = recipient.accepted_formats or []
-
-        if ReceiptFormat.CHEQI in accepted and template_response.cheqi:
-            cheqi_credit_note = template_response.cheqi
-        if ReceiptFormat.UBL_XML in accepted and template_response.ubl:
-            ubl_credit_note = template_response.ubl
-
         return CreditNoteEnvelope(
-            cheqi_credit_note=cheqi_credit_note,
-            ubl_credit_note=ubl_credit_note,
-            vat_metadata=template_response.vat_metadata,
+            cheqi_credit_note=(
+                template_response.cheqi if ReceiptFormat.CHEQI in accepted else None
+            ),
+            ubl_credit_note=(
+                template_response.ubl_credit_note
+                if ReceiptFormat.UBL_CREDIT_NOTE in accepted
+                else None
+            ),
         )
 
+    @staticmethod
+    def _determine_formats(match_response: RecipientResolutionResponse) -> List[ReceiptFormat]:
+        formats: List[ReceiptFormat] = []
+        for recipient in match_response.recipients or []:
+            for receipt_format in recipient.accepted_formats or []:
+                if receipt_format not in formats:
+                    formats.append(receipt_format)
+        return formats
+
+    @staticmethod
     def _merge_credit_note_context(
-        self, decrypted: DecryptedDeliveredCreditNote
+        decrypted: DecryptedDeliveredCreditNote,
     ) -> DecryptedDeliveredCreditNote:
         context = decrypted.credit_note_context_envelope
         if context is None:
             return decrypted
+        envelope = decrypted.credit_note_envelope
+        party_context = context.receiving_party
+        payment_context = context.payment_means
+        xml = envelope.ubl_credit_note
 
-        envelope = decrypted.credit_note_envelope.model_copy(deep=True)
-
-        xml_receiving_party = None
-        receiving_party = None
-        xml_payment_means = None
-        if context.receiving_party is not None:
-            xml_receiving_party = context.receiving_party.xml_receiving_party
-            receiving_party = context.receiving_party.receiving_party
-        if context.payment_means is not None:
-            xml_payment_means = context.payment_means.xml_payment_means
-
-        if envelope.ubl_credit_note and xml_receiving_party:
-            envelope.ubl_credit_note = envelope.ubl_credit_note.replace(
-                "<cac:AccountingCustomerParty/>", xml_receiving_party
-            )
-
-        if envelope.ubl_credit_note and xml_payment_means:
-            if "</cac:AccountingCustomerParty>" in envelope.ubl_credit_note:
-                envelope.ubl_credit_note = envelope.ubl_credit_note.replace(
-                    "</cac:AccountingCustomerParty>",
-                    "</cac:AccountingCustomerParty>" + xml_payment_means,
+        if xml and party_context and party_context.xml_receiving_party:
+            xml = xml.replace(_PARTY_PLACEHOLDER, party_context.xml_receiving_party)
+        if xml and payment_context and payment_context.xml_payment_means:
+            if _PARTY_CLOSING_TAG in xml:
+                xml = xml.replace(
+                    _PARTY_CLOSING_TAG,
+                    _PARTY_CLOSING_TAG + payment_context.xml_payment_means,
                 )
-            elif "<cac:AccountingCustomerParty/>" in envelope.ubl_credit_note:
-                envelope.ubl_credit_note = envelope.ubl_credit_note.replace(
-                    "<cac:AccountingCustomerParty/>",
-                    "<cac:AccountingCustomerParty/>" + xml_payment_means,
+            elif _PARTY_PLACEHOLDER in xml:
+                xml = xml.replace(
+                    _PARTY_PLACEHOLDER,
+                    _PARTY_PLACEHOLDER + payment_context.xml_payment_means,
                 )
 
-        if envelope.cheqi_credit_note and receiving_party:
-            envelope.cheqi_credit_note = envelope.cheqi_credit_note.model_copy(
-                update={"receiving_party": receiving_party}
-            )
-
-        return DecryptedDeliveredCreditNote(
-            credit_note_envelope=envelope,
-            credit_note_context_envelope=context,
-            raw_json=decrypted.raw_json,
-            raw_credit_note_context_json=decrypted.raw_credit_note_context_json,
+        cheqi = envelope.cheqi_credit_note
+        if cheqi and party_context and party_context.receiving_party:
+            cheqi = cheqi.model_copy(update={"receiving_party": party_context.receiving_party})
+        merged_envelope = envelope.model_copy(
+            update={"ubl_credit_note": xml, "cheqi_credit_note": cheqi}
         )
+        return decrypted.model_copy(update={"credit_note_envelope": merged_envelope})
+
+    @staticmethod
+    def _validation_error(message: str) -> None:
+        raise CheqiSDKError(message, error_code=ErrorCodes.VALIDATION_ERROR, http_status_code=400)

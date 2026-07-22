@@ -19,6 +19,13 @@ class Environment(str, Enum):
     def base_url(self) -> str:
         return self.value
 
+    @property
+    def receipt_download_base_url(self) -> str:
+        """Customer-facing origin used for encrypted receipt download links."""
+        if self is Environment.PRODUCTION:
+            return "https://receipt.cheqi.io"
+        return "https://sandbox.receipt.cheqi.io"
+
 
 class CheqiSDKConfig:
     """Immutable SDK configuration.
@@ -31,12 +38,14 @@ class CheqiSDKConfig:
         *,
         environment: Optional[Environment] = None,
         custom_api_endpoint: Optional[str] = None,
+        receipt_download_base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         private_key: Optional[str] = None,
         timeout_seconds: int = 30,
         max_retries: int = 3,
     ) -> None:
         # Resolve API endpoint
+        self._environment = environment if not custom_api_endpoint else None
         if custom_api_endpoint:
             self._api_endpoint = custom_api_endpoint
         elif environment:
@@ -46,6 +55,11 @@ class CheqiSDKConfig:
 
         self._api_key = api_key
         self._private_key = private_key
+        self._receipt_download_base_url = (
+            receipt_download_base_url
+            if receipt_download_base_url is not None
+            else self._environment.receipt_download_base_url if self._environment else None
+        )
 
         if timeout_seconds <= 0:
             raise ValueError(f"Timeout must be positive, got: {timeout_seconds}")
@@ -71,6 +85,14 @@ class CheqiSDKConfig:
     @property
     def api_endpoint(self) -> str:
         return self._api_endpoint
+
+    @property
+    def environment(self) -> Optional[Environment]:
+        return self._environment
+
+    @property
+    def receipt_download_base_url(self) -> Optional[str]:
+        return self._receipt_download_base_url
 
     @property
     def api_key(self) -> Optional[str]:

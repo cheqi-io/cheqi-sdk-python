@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID
+
+from pydantic import AliasChoices, Field
 
 from cheqi.models.base import CheqiBaseModel, CheqiDecimal
 from cheqi.models.enums import BarcodeType, RecipientEntityType, UnitCode
@@ -218,10 +221,19 @@ class VatMetadata(CheqiBaseModel):
     supplier_country: Optional[str] = None
     buyer_country: Optional[str] = None
     cross_border: Optional[bool] = None
-    recipient_entity_type: Optional[RecipientEntityType] = None
+    buyer_type: Optional[RecipientEntityType] = Field(
+        default=None,
+        validation_alias=AliasChoices("buyerType", "buyer_type", "recipientEntityType", "recipient_entity_type"),
+        serialization_alias="buyerType",
+    )
     vat_on_receipt: Optional[bool] = None
     vat_regime: Optional[str] = None
     taxes_applied: Optional[bool] = None
+
+    @property
+    def recipient_entity_type(self) -> Optional[RecipientEntityType]:
+        """Backward-compatible alias for ``buyer_type``."""
+        return self.buyer_type
 
 
 class ReceiptTemplateRequest(CheqiBaseModel):
@@ -247,8 +259,27 @@ class ReceiptTemplateRequest(CheqiBaseModel):
     note: Optional[str] = None
     # VAT metadata — not serialized in the inner request JSON, used by API client
     buyer_country_code: Optional[str] = None
-    recipient_entity_type: Optional[RecipientEntityType] = None
+    buyer_type: Optional[RecipientEntityType] = Field(
+        default=None,
+        validation_alias=AliasChoices("buyerType", "buyer_type", "recipientEntityType", "recipient_entity_type"),
+        serialization_alias="buyerType",
+    )
     taxes_applied: Optional[bool] = None
+
+    @property
+    def recipient_entity_type(self) -> Optional[RecipientEntityType]:
+        """Backward-compatible alias for ``buyer_type``."""
+        return self.buyer_type
+
+    def to_dict(self) -> dict[str, object]:
+        """Serialize only the inner template fields; VAT context belongs to the wrapper."""
+        data = super().to_dict()
+        for field in ("buyerCountryCode", "buyerType", "taxesApplied"):
+            data.pop(field, None)
+        return data
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), separators=(",", ":"), ensure_ascii=False)
 
     def add_product(self, product: Product) -> ReceiptTemplateRequest:
         """Return a new request with an additional product."""
@@ -288,6 +319,16 @@ class ReceiptTemplateRequest(CheqiBaseModel):
 class ReceiptTemplateResponse(CheqiBaseModel):
     """Response from receipt template generation."""
 
-    ubl: Optional[str] = None
+    ubl_purchase_receipt: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("ublPurchaseReceipt", "ubl_purchase_receipt", "ubl"),
+        serialization_alias="ublPurchaseReceipt",
+    )
+    ubl_invoice: Optional[str] = None
     cheqi: Optional[CheqiReceipt] = None
     vat_metadata: Optional[VatMetadata] = None
+
+    @property
+    def ubl(self) -> Optional[str]:
+        """Backward-compatible alias for ``ubl_purchase_receipt``."""
+        return self.ubl_purchase_receipt

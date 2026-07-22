@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import List, Optional
 from uuid import UUID
 
+from pydantic import AliasChoices, Field
+
 from cheqi.models.base import CheqiBaseModel, CheqiDecimal
-from cheqi.models.generated.credit_note_context_envelope import CreditNoteContextEnvelope
-from cheqi.models.enums import ReceiptFormat, ReceiverType, RefundPreference, ReturnCondition
+from cheqi.models.enums import ReceiptFormat, RefundPreference, ReturnCondition
+from cheqi.models.envelopes import CreditNoteContextEnvelope
 from cheqi.models.receipt import (
     Barcode,
     Charge,
-    CheqiReceipt,
     Discount,
     Identifier,
     Period,
@@ -48,6 +50,7 @@ class CreditNoteInitiationRequest(CheqiBaseModel):
     cheqi_receipt_id: Optional[str] = None
     receipt_id: Optional[str] = None
     return_reason: Optional[str] = None
+    return_reason_description: Optional[str] = None
     line_items: Optional[List[ReturnLineItem]] = None
     refund_preference: Optional[RefundPreference] = None
     refund_bank_account: Optional[RefundBankAccount] = None
@@ -62,7 +65,13 @@ class CreditNoteTemplateRequest(CheqiBaseModel):
     identifiers: Optional[List[Identifier]] = None
     issue_date: Optional[datetime] = None
     currency: Optional[str] = None
-    receipt_subtotal: Optional[CheqiDecimal] = None
+    credit_note_subtotal: Optional[CheqiDecimal] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "creditNoteSubtotal", "credit_note_subtotal", "receiptSubtotal", "receipt_subtotal"
+        ),
+        serialization_alias="creditNoteSubtotal",
+    )
     total_before_tax: Optional[CheqiDecimal] = None
     total_tax_amount: Optional[CheqiDecimal] = None
     total_amount: Optional[CheqiDecimal] = None
@@ -76,6 +85,19 @@ class CreditNoteTemplateRequest(CheqiBaseModel):
     barcodes: Optional[List[Barcode]] = None
     note: Optional[str] = None
     buyer_country_code: Optional[str] = None
+
+    @property
+    def receipt_subtotal(self) -> Optional[CheqiDecimal]:
+        """Backward-compatible alias for ``credit_note_subtotal``."""
+        return self.credit_note_subtotal
+
+    def to_dict(self) -> dict[str, object]:
+        data = super().to_dict()
+        data.pop("buyerCountryCode", None)
+        return data
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), separators=(",", ":"), ensure_ascii=False)
 
     def add_product(self, product: Product) -> CreditNoteTemplateRequest:
         existing = list(self.products) if self.products else []
@@ -102,18 +124,37 @@ class CreditNoteTemplateGenerationRequest(CheqiBaseModel):
     """Wrapper for credit note template request with format info."""
 
     credit_note_template_request: Optional[CreditNoteTemplateRequest] = None
-    receipt_formats: Optional[List[ReceiptFormat]] = None
+    formats: Optional[List[ReceiptFormat]] = Field(
+        default=None,
+        validation_alias=AliasChoices("formats", "receiptFormats", "receipt_formats"),
+        serialization_alias="formats",
+    )
+    buyer_country_code: Optional[str] = None
+    buyer_type: Optional[str] = None
+    taxes_applied: Optional[bool] = None
+
+    @property
+    def receipt_formats(self) -> Optional[List[ReceiptFormat]]:
+        """Backward-compatible alias for ``formats``."""
+        return self.formats
 
 
 class CheqiCreditNote(CheqiBaseModel):
     """Full credit note model returned by the backend."""
 
+    cheqi_credit_note_id: Optional[str] = None
     document_number: Optional[str] = None
     originator_document_reference: Optional[str] = None
     identifiers: Optional[List[Identifier]] = None
     issue_date: Optional[datetime] = None
     currency: Optional[str] = None
-    receipt_subtotal: Optional[CheqiDecimal] = None
+    credit_note_subtotal: Optional[CheqiDecimal] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "creditNoteSubtotal", "credit_note_subtotal", "receiptSubtotal", "receipt_subtotal"
+        ),
+        serialization_alias="creditNoteSubtotal",
+    )
     total_before_tax: Optional[CheqiDecimal] = None
     total_tax_amount: Optional[CheqiDecimal] = None
     total_amount: Optional[CheqiDecimal] = None
@@ -126,15 +167,36 @@ class CheqiCreditNote(CheqiBaseModel):
     barcodes: Optional[List[Barcode]] = None
     selling_party: Optional[SellingParty] = None
     receiving_party: Optional[ReceivingParty] = None
-    verification_nonce: Optional[str] = None
+    receipt_uuid: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("receiptUuid", "receipt_uuid", "verificationNonce", "verification_nonce"),
+        serialization_alias="receiptUuid",
+    )
+
+    @property
+    def receipt_subtotal(self) -> Optional[CheqiDecimal]:
+        return self.credit_note_subtotal
+
+    @property
+    def verification_nonce(self) -> Optional[str]:
+        return self.receipt_uuid
 
 
 class CreditNoteTemplateResponse(CheqiBaseModel):
     """Response from credit note template generation."""
 
-    ubl: Optional[str] = None
+    ubl_credit_note: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("ublCreditNote", "ubl_credit_note", "ubl"),
+        serialization_alias="ublCreditNote",
+    )
     cheqi: Optional[CheqiCreditNote] = None
     vat_metadata: Optional[VatMetadata] = None
+
+    @property
+    def ubl(self) -> Optional[str]:
+        """Backward-compatible alias for ``ubl_credit_note``."""
+        return self.ubl_credit_note
 
 
 class CreditNoteEnvelope(CheqiBaseModel):
@@ -151,11 +213,12 @@ class EncryptedCreditNote(CheqiBaseModel):
     recipient_id: Optional[str] = None
     credit_note_id: Optional[str] = None
     original_receipt_id: Optional[str] = None
-    receiver_type: Optional[ReceiverType] = None
     encrypted_credit_note: Optional[str] = None
     encrypted_symmetric_key: Optional[str] = None
+    encrypted_customer_details: Optional[str] = None
+    encrypted_customer_aes_key: Optional[str] = None
+    final_hash: Optional[str] = None
     public_key: Optional[str] = None
-    receipt_formats: Optional[List[ReceiptFormat]] = None
 
 
 class EncryptedCreditNotesRequest(CheqiBaseModel):
@@ -197,8 +260,10 @@ class DecryptedDeliveredCreditNote(CheqiBaseModel):
 class CreditNoteDeliveryStatus(str, Enum):
     """Delivery status for credit note processing results."""
 
-    DELIVERED_TO_APP = "DELIVERED_TO_APP"
-    DELIVERED_VIA_EMAIL = "DELIVERED_VIA_EMAIL"
+    DELIVERED_DIGITAL = "DELIVERED_DIGITAL"
+    DELIVERED_TO_APP = "DELIVERED_DIGITAL"
+    DELIVERED_EMAIL = "DELIVERED_EMAIL"
+    DELIVERED_VIA_EMAIL = "DELIVERED_EMAIL"
     CUSTOMER_NOT_FOUND = "CUSTOMER_NOT_FOUND"
     FAILED = "FAILED"
 
@@ -210,8 +275,11 @@ class CreditNoteResult(CheqiBaseModel):
     delivery_status: Optional[CreditNoteDeliveryStatus] = None
     cheqi_receipt_id: Optional[str] = None
     parent_cheqi_receipt_id: Optional[str] = None
+    created_at: Optional[datetime] = None
     template_hash: Optional[str] = None
     canonical_json: Optional[str] = None
+    email_address: Optional[str] = None
+    message: Optional[str] = None
 
     @classmethod
     def delivered_to_app(
@@ -219,13 +287,19 @@ class CreditNoteResult(CheqiBaseModel):
     ) -> CreditNoteResult:
         return cls(
             success=True,
-            delivery_status=CreditNoteDeliveryStatus.DELIVERED_TO_APP,
+            delivery_status=CreditNoteDeliveryStatus.DELIVERED_DIGITAL,
             cheqi_receipt_id=response.cheqi_receipt_id,
             parent_cheqi_receipt_id=response.parent_cheqi_receipt_id,
+            created_at=response.created_at,
             template_hash=response.template_hash,
             canonical_json=canonical_json,
+            message="Receipt delivered to customer's Cheqi app",
         )
 
     @classmethod
     def customer_not_found(cls) -> CreditNoteResult:
-        return cls(success=False, delivery_status=CreditNoteDeliveryStatus.CUSTOMER_NOT_FOUND)
+        return cls(
+            success=False,
+            delivery_status=CreditNoteDeliveryStatus.CUSTOMER_NOT_FOUND,
+            message="Customer not found with provided payment details",
+        )

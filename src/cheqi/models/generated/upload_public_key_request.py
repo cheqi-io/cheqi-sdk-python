@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List
-from cheqi_generated.models.key_algorithm import KeyAlgorithm
+from cheqi.models.generated.key_algorithm import KeyAlgorithm
 from typing import Optional, Set
 from typing_extensions import Self
 
