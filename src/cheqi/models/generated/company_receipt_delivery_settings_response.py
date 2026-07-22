@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.company_receipt_delivery_device_dto import CompanyReceiptDeliveryDeviceDto
+from cheqi.models.generated.company_receipt_delivery_device_dto import CompanyReceiptDeliveryDeviceDto
 from typing import Optional, Set
 from typing_extensions import Self
 

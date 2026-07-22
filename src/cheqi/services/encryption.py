@@ -56,7 +56,6 @@ class EncryptionService:
             return EncryptedReceiptRequestDto(
                 recipient_id=recipient.id,
                 public_key=recipient.public_key,
-                receiver_type=recipient.receiver_type,
                 encrypted_receipt=encrypted_data_b64,
                 encrypted_symmetric_key=encrypted_key_b64,
             )
@@ -75,7 +74,6 @@ class EncryptionService:
 
             return EncryptedCreditNote(
                 recipient_id=recipient.id,
-                receiver_type=recipient.receiver_type,
                 public_key=recipient.public_key,
                 encrypted_credit_note=encrypted_data_b64,
                 encrypted_symmetric_key=encrypted_key_b64,

@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.notification_display_code import NotificationDisplayCode
+from cheqi.models.generated.notification_display_code import NotificationDisplayCode
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -27,11 +27,11 @@ class EncryptedReceiptRequest(BaseModel):
     """
     Recipient-specific encrypted receipt payloads. Each item contains ciphertext for one recipient envelope plus the wrapped symmetric key and verification metadata.
     """ # noqa: E501
-    recipient_id: Optional[StrictStr] = Field(default=None, description="Temporary recipient identifier returned by recipient resolution for a single matched recipient. This is not the final device or client-application id.", alias="recipientId")
-    encrypted_receipt: Optional[StrictStr] = Field(default=None, description="Base64 ciphertext of the receipt envelope.", alias="encryptedReceipt")
-    encrypted_symmetric_key: Optional[StrictStr] = Field(default=None, description="Wrapped symmetric content-encryption key for this recipient. Encrypt the content key with the recipient public key and submit the wrapped value here.", alias="encryptedSymmetricKey")
+    recipient_id: StrictStr = Field(description="Temporary recipient identifier returned by recipient resolution for a single matched recipient. This is not the final device or client-application id.", alias="recipientId")
+    encrypted_receipt: StrictStr = Field(description="Base64 ciphertext of the receipt envelope.", alias="encryptedReceipt")
+    encrypted_symmetric_key: StrictStr = Field(description="Wrapped symmetric content-encryption key for this recipient. Encrypt the content key with the recipient public key and submit the wrapped value here.", alias="encryptedSymmetricKey")
     final_hash: Optional[StrictStr] = Field(default=None, description="Final hash of the canonicalized CHEQI JSON receipt contained in the plaintext envelope. Used for downstream verification and integrity checks.", alias="finalHash")
-    public_key: Optional[StrictStr] = Field(default=None, description="Recipient public key that was used to encrypt the symmetric content key and ciphertext payload.", alias="publicKey")
+    public_key: StrictStr = Field(description="Recipient public key that was used to encrypt the symmetric content key and ciphertext payload.", alias="publicKey")
     supplier_party_id: Optional[StrictStr] = Field(default=None, description="The id of the selling party", alias="supplierPartyId")
     notification_display_code: Optional[NotificationDisplayCode] = Field(default=None, alias="notificationDisplayCode")
     __properties: ClassVar[List[str]] = ["recipientId", "encryptedReceipt", "encryptedSymmetricKey", "finalHash", "publicKey", "supplierPartyId", "notificationDisplayCode"]

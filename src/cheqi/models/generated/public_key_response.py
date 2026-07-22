@@ -20,7 +20,7 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.key_algorithm import KeyAlgorithm
+from cheqi.models.generated.key_algorithm import KeyAlgorithm
 from typing import Optional, Set
 from typing_extensions import Self
 

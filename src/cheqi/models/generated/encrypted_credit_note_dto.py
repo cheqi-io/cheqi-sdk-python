@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.receiver_type import ReceiverType
+from cheqi.models.generated.receiver_type import ReceiverType
 from typing import Optional, Set
 from typing_extensions import Self
 

@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, StrictStr
 from typing import Any, ClassVar, Dict, List
-from cheqi_generated.models.barcode_type import BarcodeType
+from cheqi.models.generated.barcode_type import BarcodeType
 from typing import Optional, Set
 from typing_extensions import Self
 

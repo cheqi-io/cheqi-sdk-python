@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.company_identifier_dto import CompanyIdentifierDTO
+from cheqi.models.generated.company_identifier_dto import CompanyIdentifierDTO
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -30,10 +30,9 @@ class AuthorizedCompanyDTO(BaseModel):
     id: Optional[StrictStr] = None
     company_name: Optional[StrictStr] = Field(default=None, alias="companyName")
     company_legal_name: Optional[StrictStr] = Field(default=None, alias="companyLegalName")
-    tax_number: Optional[StrictStr] = Field(default=None, alias="taxNumber")
     identifiers: Optional[List[CompanyIdentifierDTO]] = None
     payment_accounts: Optional[List[AuthorizedPaymentAccountDTO]] = Field(default=None, alias="paymentAccounts")
-    __properties: ClassVar[List[str]] = ["id", "companyName", "companyLegalName", "taxNumber", "identifiers", "paymentAccounts"]
+    __properties: ClassVar[List[str]] = ["id", "companyName", "companyLegalName", "identifiers", "paymentAccounts"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -103,13 +102,12 @@ class AuthorizedCompanyDTO(BaseModel):
             "id": obj.get("id"),
             "companyName": obj.get("companyName"),
             "companyLegalName": obj.get("companyLegalName"),
-            "taxNumber": obj.get("taxNumber"),
             "identifiers": [CompanyIdentifierDTO.from_dict(_item) for _item in obj["identifiers"]] if obj.get("identifiers") is not None else None,
             "paymentAccounts": [AuthorizedPaymentAccountDTO.from_dict(_item) for _item in obj["paymentAccounts"]] if obj.get("paymentAccounts") is not None else None
         })
         return _obj
 
-from cheqi_generated.models.authorized_payment_account_dto import AuthorizedPaymentAccountDTO
+from cheqi.models.generated.authorized_payment_account_dto import AuthorizedPaymentAccountDTO
 # TODO: Rewrite to not use raise_errors
 AuthorizedCompanyDTO.model_rebuild(raise_errors=False)
 

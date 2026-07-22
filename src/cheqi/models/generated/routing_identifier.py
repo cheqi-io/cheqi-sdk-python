@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.routing_identifier_type import RoutingIdentifierType
+from cheqi.models.generated.routing_identifier_type import RoutingIdentifierType
 from typing import Optional, Set
 from typing_extensions import Self
 

@@ -20,10 +20,10 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.encrypted_credit_note_dto import EncryptedCreditNoteDto
-from cheqi_generated.models.encrypted_credit_note_initiation_request import EncryptedCreditNoteInitiationRequest
-from cheqi_generated.models.encrypted_receipt_dto import EncryptedReceiptDto
-from cheqi_generated.models.routing_identifier import RoutingIdentifier
+from cheqi.models.generated.encrypted_credit_note_dto import EncryptedCreditNoteDto
+from cheqi.models.generated.encrypted_credit_note_initiation_request import EncryptedCreditNoteInitiationRequest
+from cheqi.models.generated.encrypted_receipt import EncryptedReceipt
+from cheqi.models.generated.routing_identifier import RoutingIdentifier
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -31,19 +31,20 @@ class WebhookEventDTO(BaseModel):
     """
     Payload delivered to registered webhook notification URLs when subscribed events occur.
     """ # noqa: E501
+    client_id: Optional[StrictStr] = Field(default=None, description="Public OAuth client ID of the client application that owns the webhook subscription.", alias="clientId")
     company_id: Optional[StrictStr] = Field(default=None, alias="companyId")
     user_id: Optional[StrictStr] = Field(default=None, alias="userId")
     event: Optional[StrictStr] = None
     created_at: Optional[datetime] = None
     cheqi_receipt_id: Optional[StrictStr] = Field(default=None, alias="cheqiReceiptId")
     routing_identifier: Optional[RoutingIdentifier] = Field(default=None, alias="routingIdentifier")
-    encrypted_receipt: Optional[EncryptedReceiptDto] = Field(default=None, alias="encryptedReceipt")
+    encrypted_receipt: Optional[EncryptedReceipt] = Field(default=None, alias="encryptedReceipt")
     encrypted_credit_note_initiation_request: Optional[EncryptedCreditNoteInitiationRequest] = Field(default=None, alias="encryptedCreditNoteInitiationRequest")
     encrypted_credit_note_dto: Optional[EncryptedCreditNoteDto] = Field(default=None, alias="encryptedCreditNoteDto")
     final_hash: Optional[StrictStr] = Field(default=None, alias="finalHash")
     finalized_at: Optional[datetime] = Field(default=None, alias="finalizedAt")
     device_id: Optional[StrictStr] = Field(default=None, alias="deviceId")
-    __properties: ClassVar[List[str]] = ["companyId", "userId", "event", "created_at", "cheqiReceiptId", "routingIdentifier", "encryptedReceipt", "encryptedCreditNoteInitiationRequest", "encryptedCreditNoteDto", "finalHash", "finalizedAt", "deviceId"]
+    __properties: ClassVar[List[str]] = ["clientId", "companyId", "userId", "event", "created_at", "cheqiReceiptId", "routingIdentifier", "encryptedReceipt", "encryptedCreditNoteInitiationRequest", "encryptedCreditNoteDto", "finalHash", "finalizedAt", "deviceId"]
 
     @field_validator('event')
     def event_validate_enum(cls, value):
@@ -51,8 +52,8 @@ class WebhookEventDTO(BaseModel):
         if value is None:
             return value
 
-        if value not in set(['RECEIPT_CREATED', 'RECEIPT_FINALIZED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED']):
-            raise ValueError("must be one of enum values ('RECEIPT_CREATED', 'RECEIPT_FINALIZED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED')")
+        if value not in set(['RECEIPT_CREATED', 'RECEIPT_FINALIZED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED', 'CREDIT_NOTE_FINALIZED']):
+            raise ValueError("must be one of enum values ('RECEIPT_CREATED', 'RECEIPT_FINALIZED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED', 'CREDIT_NOTE_FINALIZED')")
         return value
 
     model_config = ConfigDict(
@@ -106,6 +107,11 @@ class WebhookEventDTO(BaseModel):
         # override the default output from pydantic by calling `to_dict()` of encrypted_credit_note_dto
         if self.encrypted_credit_note_dto:
             _dict['encryptedCreditNoteDto'] = self.encrypted_credit_note_dto.to_dict()
+        # set to None if client_id (nullable) is None
+        # and model_fields_set contains the field
+        if self.client_id is None and "client_id" in self.model_fields_set:
+            _dict['clientId'] = None
+
         return _dict
 
     @classmethod
@@ -118,13 +124,14 @@ class WebhookEventDTO(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
+            "clientId": obj.get("clientId"),
             "companyId": obj.get("companyId"),
             "userId": obj.get("userId"),
             "event": obj.get("event"),
             "created_at": obj.get("created_at"),
             "cheqiReceiptId": obj.get("cheqiReceiptId"),
             "routingIdentifier": RoutingIdentifier.from_dict(obj["routingIdentifier"]) if obj.get("routingIdentifier") is not None else None,
-            "encryptedReceipt": EncryptedReceiptDto.from_dict(obj["encryptedReceipt"]) if obj.get("encryptedReceipt") is not None else None,
+            "encryptedReceipt": EncryptedReceipt.from_dict(obj["encryptedReceipt"]) if obj.get("encryptedReceipt") is not None else None,
             "encryptedCreditNoteInitiationRequest": EncryptedCreditNoteInitiationRequest.from_dict(obj["encryptedCreditNoteInitiationRequest"]) if obj.get("encryptedCreditNoteInitiationRequest") is not None else None,
             "encryptedCreditNoteDto": EncryptedCreditNoteDto.from_dict(obj["encryptedCreditNoteDto"]) if obj.get("encryptedCreditNoteDto") is not None else None,
             "finalHash": obj.get("finalHash"),

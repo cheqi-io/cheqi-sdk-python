@@ -29,6 +29,8 @@ class ReceiverType(str, Enum):
     DEVICE = 'DEVICE'
     CLIENT_APPLICATION = 'CLIENT_APPLICATION'
     COMPANY = 'COMPANY'
+    EMAIL_FALLBACK = 'EMAIL_FALLBACK'
+    DOWNLOAD_FALLBACK = 'DOWNLOAD_FALLBACK'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

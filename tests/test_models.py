@@ -5,7 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 from cheqi.config import CheqiSDKConfig, Environment
-from cheqi.models.company import Company, CompanyAddress, ProvisionCompanyRequest
+from cheqi.models.company import Company, CompanyAddress, CreateStoreRequest
+from cheqi.models.credit_note import CreditNoteTemplateRequest
 from cheqi.models.enums import (
     CardProvider,
     PaymentMethod,
@@ -37,6 +38,7 @@ class TestSDKConfig:
         assert config.api_key == "sk_test_123"
         assert config.timeout_seconds == 30
         assert config.max_retries == 3
+        assert config.receipt_download_base_url == "https://sandbox.receipt.cheqi.io"
 
     def test_config_with_custom_endpoint(self) -> None:
         config = CheqiSDKConfig(
@@ -44,6 +46,7 @@ class TestSDKConfig:
             api_key="sk_test_123",
         )
         assert config.api_endpoint == "https://custom.api.example.com"
+        assert config.receipt_download_base_url is None
 
     def test_config_requires_endpoint(self) -> None:
         try:
@@ -163,3 +166,20 @@ class TestCompanyModels:
         data = company.to_dict()
         assert data["name"] == "Test Corp"
         assert data["address"]["countryIsoCode"] == "NL"
+
+    def test_store_request_uses_current_address_dto_wire_name(self) -> None:
+        request = CreateStoreRequest(
+            store_name="Amsterdam",
+            store_code="AMS",
+            address=CompanyAddress(city_name="Amsterdam"),
+        )
+
+        assert request.to_dict()["addressDto"] == {"cityName": "Amsterdam"}
+
+
+class TestCreditNoteModels:
+    def test_credit_note_uses_current_subtotal_wire_name(self) -> None:
+        request = CreditNoteTemplateRequest(receipt_subtotal="10.00", buyer_country_code="NL")
+
+        assert request.receipt_subtotal == Decimal("10.00")
+        assert request.to_dict() == {"creditNoteSubtotal": 10}

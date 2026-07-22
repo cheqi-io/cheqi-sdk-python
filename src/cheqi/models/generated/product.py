@@ -19,12 +19,12 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional, Union
-from cheqi_generated.models.barcode import Barcode
-from cheqi_generated.models.charge import Charge
-from cheqi_generated.models.discount import Discount
-from cheqi_generated.models.period import Period
-from cheqi_generated.models.tax import Tax
-from cheqi_generated.models.unit_code import UnitCode
+from cheqi.models.generated.barcode import Barcode
+from cheqi.models.generated.charge import Charge
+from cheqi.models.generated.discount import Discount
+from cheqi.models.generated.period import Period
+from cheqi.models.generated.tax import Tax
+from cheqi.models.generated.unit_code import UnitCode
 from typing import Optional, Set
 from typing_extensions import Self
 

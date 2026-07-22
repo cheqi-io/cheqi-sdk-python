@@ -23,7 +23,7 @@ jobs:
         run: python -m pip install ".[dev]"
 
       - name: Check OpenAPI spec drift
-        run: make spec-check ENV=test
+        run: make spec-check ENV=prod
 
       - name: Run lint
         run: make lint

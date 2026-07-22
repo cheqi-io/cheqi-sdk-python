@@ -26,6 +26,7 @@ from cheqi.models.credit_note import (
     EncryptedCreditNote,
     EncryptedCreditNotesRequest,
 )
+from cheqi.models.download import ClientReceiptDownloadRequest, ClientReceiptDownloadResponse
 from cheqi.models.encryption import EncryptedReceiptRequestDto, EncryptedReceiptsRequest
 from cheqi.models.enums import ReceiptFormat
 from cheqi.models.envelopes import ReceiptCreatedResponse
@@ -34,7 +35,7 @@ from cheqi.models.receipt import ReceiptTemplateRequest, ReceiptTemplateResponse
 
 logger = logging.getLogger("cheqi.http")
 
-_USER_AGENT = "CheqiSDK-Python/0.1.2"
+_USER_AGENT = "CheqiSDK-Python/0.2.0"
 
 
 @runtime_checkable
@@ -67,6 +68,12 @@ class CheqiApiClient(Protocol):
         template_hash: str,
         access_token: Optional[str] = None,
     ) -> ReceiptCreatedResponse: ...
+
+    def upload_client_encrypted_receipt(
+        self,
+        request: ClientReceiptDownloadRequest,
+        access_token: Optional[str] = None,
+    ) -> ClientReceiptDownloadResponse: ...
 
     def send_encrypted_credit_notes(
         self,
@@ -274,15 +281,15 @@ class DefaultCheqiApiClient:
         receipt_formats: List[ReceiptFormat],
         access_token: Optional[str] = None,
     ) -> ReceiptTemplateResponse:
-        body = {
+        body: Dict[str, Any] = {
             "receiptTemplateRequest": request.to_dict(),
             "formats": [f.value for f in receipt_formats],
         }
         # Include VAT metadata if present
         if request.buyer_country_code:
             body["buyerCountryCode"] = request.buyer_country_code
-        if request.recipient_entity_type:
-            body["recipientEntityType"] = request.recipient_entity_type.value
+        if request.buyer_type:
+            body["buyerType"] = request.buyer_type.value
         if request.taxes_applied is not None:
             body["taxesApplied"] = request.taxes_applied
 
@@ -335,6 +342,19 @@ class DefaultCheqiApiClient:
         )
         return ReceiptCreatedResponse.model_validate(data)
 
+    def upload_client_encrypted_receipt(
+        self,
+        request: ClientReceiptDownloadRequest,
+        access_token: Optional[str] = None,
+    ) -> ClientReceiptDownloadResponse:
+        data = self._post(
+            Endpoints.CLIENT_RECEIPT_DOWNLOAD,
+            request.to_dict(),
+            "uploadClientEncryptedReceipt",
+            access_token,
+        )
+        return ClientReceiptDownloadResponse.model_validate(data)
+
     def send_encrypted_credit_notes(
         self,
         match_id: str,
@@ -363,7 +383,10 @@ class DefaultCheqiApiClient:
         receipt_json: str,
         access_token: Optional[str] = None,
     ) -> None:
-        body = {"email": customer_email, "receipt": json.loads(receipt_json) if isinstance(receipt_json, str) else receipt_json}
+        body = {
+            "customerEmail": customer_email,
+            "cheqiReceipt": json.loads(receipt_json) if isinstance(receipt_json, str) else receipt_json,
+        }
         self._post(Endpoints.EMAIL_RECEIPT, body, "sendReceiptViaEmail", access_token)
 
     # ===== Company Operations =====

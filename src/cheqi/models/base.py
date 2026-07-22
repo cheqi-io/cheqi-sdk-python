@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -11,20 +11,27 @@ from pydantic.functional_serializers import PlainSerializer
 from typing_extensions import Annotated
 
 
-def _strip_trailing_zeros(v: Decimal) -> str:
-    """Strip trailing zeros from a Decimal for JSON serialization.
+def _decimal_to_json_number(v: Decimal) -> Union[int, float]:
+    """Serialize a Decimal as a JSON number with no insignificant zeros.
 
-    Matches Java BigDecimal behavior where 100.00 serializes as "100"
-    and 21.50 serializes as "21.5".
+    Java's shared ObjectMapper calls ``JsonGenerator.writeNumber`` after
+    stripping trailing zeros. Returning a string here would instead produce
+    quoted JSON (``"21.5"``), which Swift's ``Decimal`` decoder rejects.
     """
     normalized = v.normalize()
-    # Avoid scientific notation for small numbers
     if normalized == normalized.to_integral_value():
-        return str(int(normalized))
-    return str(normalized)
+        return int(normalized)
+    return float(normalized)
 
 
-CheqiDecimal = Annotated[Decimal, PlainSerializer(_strip_trailing_zeros, when_used="json")]
+CheqiDecimal = Annotated[
+    Decimal,
+    PlainSerializer(
+        _decimal_to_json_number,
+        return_type=Union[int, float],
+        when_used="json",
+    ),
+]
 
 
 class CheqiBaseModel(BaseModel):

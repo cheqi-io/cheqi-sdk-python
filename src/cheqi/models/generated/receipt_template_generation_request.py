@@ -18,10 +18,10 @@ import re  # noqa: F401
 import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-from typing import Any, ClassVar, Dict, List
-from cheqi_generated.models.buyer_type import BuyerType
-from cheqi_generated.models.receipt_format import ReceiptFormat
-from cheqi_generated.models.receipt_template_request import ReceiptTemplateRequest
+from typing import Any, ClassVar, Dict, List, Optional
+from cheqi.models.generated.buyer_type import BuyerType
+from cheqi.models.generated.receipt_format import ReceiptFormat
+from cheqi.models.generated.receipt_template_request import ReceiptTemplateRequest
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -31,7 +31,7 @@ class ReceiptTemplateGenerationRequest(BaseModel):
     """ # noqa: E501
     receipt_template_request: ReceiptTemplateRequest = Field(alias="receiptTemplateRequest")
     formats: List[ReceiptFormat] = Field(description="List of formats for the receipt template")
-    buyer_country_code: StrictStr = Field(description="ISO country code of the buyer, used for tax metadata enrichment", alias="buyerCountryCode")
+    buyer_country_code: Optional[StrictStr] = Field(default=None, description="ISO country code of the buyer, used for tax metadata enrichment. Optional: when omitted (e.g. an anonymous download fallback with no known buyer), the supplier's country is used, treating the transaction as domestic.", alias="buyerCountryCode")
     buyer_type: BuyerType = Field(alias="buyerType")
     taxes_applied: StrictBool = Field(description="Whether taxes were applied to this transaction. Set to false when no taxes apply (e.g. US sales tax not charged, non-VAT jurisdiction). When false, the taxes list can be empty in the ReceiptTemplateRequest.", alias="taxesApplied")
     __properties: ClassVar[List[str]] = ["receiptTemplateRequest", "formats", "buyerCountryCode", "buyerType", "taxesApplied"]

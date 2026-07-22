@@ -30,7 +30,8 @@ class ReceiptCreatedResponse(BaseModel):
     cheqi_receipt_id: Optional[StrictStr] = Field(default=None, description="Stable Cheqi receipt identifier assigned to the submitted receipt.", alias="cheqiReceiptId")
     created_at: Optional[datetime] = Field(default=None, description="Timestamp when Cheqi accepted and queued the encrypted receipt submission.", alias="createdAt")
     template_hash: Optional[StrictStr] = Field(default=None, description="Template hash associated with the locally built recipient envelopes. This should match the templateHash submitted in the request and can be stored for audit and verification.", alias="templateHash")
-    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "createdAt", "templateHash"]
+    download_url: Optional[StrictStr] = Field(default=None, description="Public self-service download URL for the receipt. Only populated for the QR-code download fallback route (DOWNLOAD_FALLBACK); the merchant terminal renders this as a QR code for the customer to scan.", alias="downloadUrl")
+    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "createdAt", "templateHash", "downloadUrl"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -85,7 +86,8 @@ class ReceiptCreatedResponse(BaseModel):
         _obj = cls.model_validate({
             "cheqiReceiptId": obj.get("cheqiReceiptId"),
             "createdAt": obj.get("createdAt"),
-            "templateHash": obj.get("templateHash")
+            "templateHash": obj.get("templateHash"),
+            "downloadUrl": obj.get("downloadUrl")
         })
         return _obj
 

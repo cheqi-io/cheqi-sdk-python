@@ -19,8 +19,8 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.company_identifier_dto import CompanyIdentifierDTO
-from cheqi_generated.models.party_address import PartyAddress
+from cheqi.models.generated.company_identifier_dto import CompanyIdentifierDTO
+from cheqi.models.generated.party_address import PartyAddress
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -31,9 +31,10 @@ class SellingParty(BaseModel):
     company_name: Optional[StrictStr] = Field(default=None, description="The name of the company", alias="companyName")
     company_legal_name: Optional[StrictStr] = Field(default=None, description="The legal name of the company", alias="companyLegalName")
     tax_number: Optional[StrictStr] = Field(default=None, description="The tax number of the selling party", alias="taxNumber")
+    phone_number: Optional[StrictStr] = Field(default=None, description="The phone number of the selling party", alias="phoneNumber")
     identifiers: Optional[List[CompanyIdentifierDTO]] = Field(default=None, description="All company identifiers of the selling party")
     address: Optional[PartyAddress] = None
-    __properties: ClassVar[List[str]] = ["companyName", "companyLegalName", "taxNumber", "identifiers", "address"]
+    __properties: ClassVar[List[str]] = ["companyName", "companyLegalName", "taxNumber", "phoneNumber", "identifiers", "address"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -99,6 +100,7 @@ class SellingParty(BaseModel):
             "companyName": obj.get("companyName"),
             "companyLegalName": obj.get("companyLegalName"),
             "taxNumber": obj.get("taxNumber"),
+            "phoneNumber": obj.get("phoneNumber"),
             "identifiers": [CompanyIdentifierDTO.from_dict(_item) for _item in obj["identifiers"]] if obj.get("identifiers") is not None else None,
             "address": PartyAddress.from_dict(obj["address"]) if obj.get("address") is not None else None
         })

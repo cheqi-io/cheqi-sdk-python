@@ -19,8 +19,8 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.payment_means_envelope import PaymentMeansEnvelope
-from cheqi_generated.models.receiving_party_envelope import ReceivingPartyEnvelope
+from cheqi.models.generated.payment_means_envelope import PaymentMeansEnvelope
+from cheqi.models.generated.receiving_party_envelope import ReceivingPartyEnvelope
 from typing import Optional, Set
 from typing_extensions import Self
 

@@ -18,10 +18,10 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.buyer_type import BuyerType
-from cheqi_generated.models.matched_recipient import MatchedRecipient
+from cheqi.models.generated.buyer_type import BuyerType
+from cheqi.models.generated.matched_recipient import MatchedRecipient
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -29,15 +29,24 @@ class RecipientResolutionResponse(BaseModel):
     """
     RecipientResolutionResponse
     """ # noqa: E501
-    recipients: Optional[List[MatchedRecipient]] = None
-    customer_found: Optional[StrictBool] = Field(default=None, description="Indicates if a customer was found for the given recipient", alias="customerFound")
+    route_found: Optional[StrictBool] = Field(default=None, description="Indicates if Cheqi found a delivery route for the receipt", alias="routeFound")
+    delivery_route_type: Optional[StrictStr] = Field(default=None, description="The selected receipt delivery route", alias="deliveryRouteType")
     match_id: Optional[StrictStr] = Field(default=None, description="The unique identifier for the matching process", alias="matchId")
-    matched_recipients: Optional[List[MatchedRecipient]] = Field(default=None, description="The list of recipients found for the given recipient", alias="matchedRecipients")
+    recipients: Optional[List[MatchedRecipient]] = Field(default=None, description="The list of recipients found for the given recipient")
     expires_at: Optional[datetime] = Field(default=None, description="The expiration time for the matching process", alias="expiresAt")
-    instructions: Optional[StrictStr] = Field(default=None, description="Instructions on what to do with this response")
     buyer_country_code: Optional[StrictStr] = Field(default=None, description="The country code of the buyer", alias="buyerCountryCode")
     buyer_type: Optional[BuyerType] = Field(default=None, alias="buyerType")
-    __properties: ClassVar[List[str]] = ["recipients", "customerFound", "matchId", "matchedRecipients", "expiresAt", "instructions", "buyerCountryCode", "buyerType"]
+    __properties: ClassVar[List[str]] = ["routeFound", "deliveryRouteType", "matchId", "recipients", "expiresAt", "buyerCountryCode", "buyerType"]
+
+    @field_validator('delivery_route_type')
+    def delivery_route_type_validate_enum(cls, value):
+        """Validates the enum"""
+        if value is None:
+            return value
+
+        if value not in set(['DIGITAL', 'EMAIL_FALLBACK', 'DOWNLOAD_FALLBACK']):
+            raise ValueError("must be one of enum values ('DIGITAL', 'EMAIL_FALLBACK', 'DOWNLOAD_FALLBACK')")
+        return value
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -85,13 +94,6 @@ class RecipientResolutionResponse(BaseModel):
                 if _item_recipients:
                     _items.append(_item_recipients.to_dict())
             _dict['recipients'] = _items
-        # override the default output from pydantic by calling `to_dict()` of each item in matched_recipients (list)
-        _items = []
-        if self.matched_recipients:
-            for _item_matched_recipients in self.matched_recipients:
-                if _item_matched_recipients:
-                    _items.append(_item_matched_recipients.to_dict())
-            _dict['matchedRecipients'] = _items
         return _dict
 
     @classmethod
@@ -104,12 +106,11 @@ class RecipientResolutionResponse(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "recipients": [MatchedRecipient.from_dict(_item) for _item in obj["recipients"]] if obj.get("recipients") is not None else None,
-            "customerFound": obj.get("customerFound"),
+            "routeFound": obj.get("routeFound"),
+            "deliveryRouteType": obj.get("deliveryRouteType"),
             "matchId": obj.get("matchId"),
-            "matchedRecipients": [MatchedRecipient.from_dict(_item) for _item in obj["matchedRecipients"]] if obj.get("matchedRecipients") is not None else None,
+            "recipients": [MatchedRecipient.from_dict(_item) for _item in obj["recipients"]] if obj.get("recipients") is not None else None,
             "expiresAt": obj.get("expiresAt"),
-            "instructions": obj.get("instructions"),
             "buyerCountryCode": obj.get("buyerCountryCode"),
             "buyerType": obj.get("buyerType")
         })

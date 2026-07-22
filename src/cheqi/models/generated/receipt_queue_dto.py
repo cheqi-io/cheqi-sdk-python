@@ -20,9 +20,9 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.document_type import DocumentType
-from cheqi_generated.models.receipt_format import ReceiptFormat
-from cheqi_generated.models.routing_identifier import RoutingIdentifier
+from cheqi.models.generated.document_type import DocumentType
+from cheqi.models.generated.receipt_format import ReceiptFormat
+from cheqi.models.generated.routing_identifier import RoutingIdentifier
 from typing import Optional, Set
 from typing_extensions import Self
 

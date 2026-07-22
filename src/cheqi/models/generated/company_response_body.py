@@ -20,11 +20,11 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.address_dto import AddressDTO
-from cheqi_generated.models.company_identifier_dto import CompanyIdentifierDTO
-from cheqi_generated.models.company_role import CompanyRole
-from cheqi_generated.models.contact_detail_dto import ContactDetailDto
-from cheqi_generated.models.return_processing_mode import ReturnProcessingMode
+from cheqi.models.generated.address_dto import AddressDTO
+from cheqi.models.generated.company_identifier_dto import CompanyIdentifierDTO
+from cheqi.models.generated.company_role import CompanyRole
+from cheqi.models.generated.contact_detail_dto import ContactDetailDto
+from cheqi.models.generated.return_processing_mode import ReturnProcessingMode
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -35,7 +35,6 @@ class CompanyResponseBody(BaseModel):
     id: Optional[StrictStr] = Field(default=None, description="Unique company identifier")
     company_name: Optional[StrictStr] = Field(default=None, description="Display name of the company", alias="companyName")
     company_legal_name: Optional[StrictStr] = Field(default=None, description="Legal registered name of the company", alias="companyLegalName")
-    tax_number: Optional[StrictStr] = Field(default=None, description="Tax identification number of the company", alias="taxNumber")
     address: Optional[AddressDTO] = None
     company_email: Optional[StrictStr] = Field(default=None, description="Primary company email address", alias="companyEmail")
     phone_number: Optional[StrictStr] = Field(default=None, description="Primary company phone number", alias="phoneNumber")
@@ -51,7 +50,9 @@ class CompanyResponseBody(BaseModel):
     account_paused: Optional[StrictBool] = Field(default=None, description="Whether the company account is currently paused", alias="accountPaused")
     account_paused_reason: Optional[StrictStr] = Field(default=None, description="Reason the company account is paused, when applicable", alias="accountPausedReason")
     notification_code_enabled: Optional[StrictBool] = Field(default=None, description="Whether notification-code based receipt retrieval is enabled", alias="notificationCodeEnabled")
-    __properties: ClassVar[List[str]] = ["id", "companyName", "companyLegalName", "taxNumber", "address", "companyEmail", "phoneNumber", "contactDetails", "identifiers", "website", "returnDays", "companyReceiptText", "companyLogoUrl", "companyLogoUrlExpiresAt", "returnProcessingMode", "userRole", "accountPaused", "accountPausedReason", "notificationCodeEnabled"]
+    email_fallback_enabled: Optional[StrictBool] = Field(default=None, description="Whether receipts may fall back to PDF email delivery when recipient matching does not find a Cheqi recipient", alias="emailFallbackEnabled")
+    download_fallback_enabled: Optional[StrictBool] = Field(default=None, description="Whether receipts may fall back to QR-code download delivery when recipient matching does not find a Cheqi recipient", alias="downloadFallbackEnabled")
+    __properties: ClassVar[List[str]] = ["id", "companyName", "companyLegalName", "address", "companyEmail", "phoneNumber", "contactDetails", "identifiers", "website", "returnDays", "companyReceiptText", "companyLogoUrl", "companyLogoUrlExpiresAt", "returnProcessingMode", "userRole", "accountPaused", "accountPausedReason", "notificationCodeEnabled", "emailFallbackEnabled", "downloadFallbackEnabled"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -164,6 +165,16 @@ class CompanyResponseBody(BaseModel):
         if self.notification_code_enabled is None and "notification_code_enabled" in self.model_fields_set:
             _dict['notificationCodeEnabled'] = None
 
+        # set to None if email_fallback_enabled (nullable) is None
+        # and model_fields_set contains the field
+        if self.email_fallback_enabled is None and "email_fallback_enabled" in self.model_fields_set:
+            _dict['emailFallbackEnabled'] = None
+
+        # set to None if download_fallback_enabled (nullable) is None
+        # and model_fields_set contains the field
+        if self.download_fallback_enabled is None and "download_fallback_enabled" in self.model_fields_set:
+            _dict['downloadFallbackEnabled'] = None
+
         return _dict
 
     @classmethod
@@ -179,7 +190,6 @@ class CompanyResponseBody(BaseModel):
             "id": obj.get("id"),
             "companyName": obj.get("companyName"),
             "companyLegalName": obj.get("companyLegalName"),
-            "taxNumber": obj.get("taxNumber"),
             "address": AddressDTO.from_dict(obj["address"]) if obj.get("address") is not None else None,
             "companyEmail": obj.get("companyEmail"),
             "phoneNumber": obj.get("phoneNumber"),
@@ -194,7 +204,9 @@ class CompanyResponseBody(BaseModel):
             "userRole": obj.get("userRole"),
             "accountPaused": obj.get("accountPaused"),
             "accountPausedReason": obj.get("accountPausedReason"),
-            "notificationCodeEnabled": obj.get("notificationCodeEnabled")
+            "notificationCodeEnabled": obj.get("notificationCodeEnabled"),
+            "emailFallbackEnabled": obj.get("emailFallbackEnabled"),
+            "downloadFallbackEnabled": obj.get("downloadFallbackEnabled")
         })
         return _obj
 

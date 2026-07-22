@@ -82,6 +82,8 @@ class ReceiptFormat(str, Enum):
 
     CHEQI = "CHEQI"
     UBL_PURCHASE_RECEIPT = "UBL_PURCHASE_RECEIPT"
+    UBL_INVOICE = "UBL_INVOICE"
+    UBL_CREDIT_NOTE = "UBL_CREDIT_NOTE"
 
 
 class ReceiverType(str, Enum):
@@ -91,6 +93,8 @@ class ReceiverType(str, Enum):
     DEVICE = "DEVICE"
     CLIENT_APPLICATION = "CLIENT_APPLICATION"
     COMPANY = "COMPANY"
+    EMAIL_FALLBACK = "EMAIL_FALLBACK"
+    DOWNLOAD_FALLBACK = "DOWNLOAD_FALLBACK"
 
 
 class RecipientEntityType(str, Enum):

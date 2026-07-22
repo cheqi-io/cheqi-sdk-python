@@ -11,10 +11,12 @@ from cheqi.exceptions import (
     ReceiptProcessingError,
 )
 from cheqi.sdk import CheqiSDK
+from cheqi.services.download import DownloadService
 
 __all__ = [
     "CheqiSDK",
     "CheqiSDKConfig",
+    "DownloadService",
     "Environment",
     "CheqiSDKError",
     "CheqiApiError",

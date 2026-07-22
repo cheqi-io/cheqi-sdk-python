@@ -19,7 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi_generated.models.webhook_dto import WebhookDTO
+from cheqi.models.generated.webhook_dto import WebhookDTO
 from typing import Optional, Set
 from typing_extensions import Self
 
