@@ -55,10 +55,10 @@ spec-check:
 	@rm -f openapi.yaml.tmp
 
 test:
-	uv run pytest
+	python -m pytest
 
 lint:
-	uv run ruff check src/ tests/
+	python -m ruff check src/ tests/
 
 typecheck:
-	uv run mypy src/
+	python -m mypy src/
