@@ -1,176 +1,108 @@
-"""Cheqi SDK models."""
+"""Public model surface for the current Cheqi API contract."""
 
 from cheqi.models.base import CheqiBaseModel, CheqiDecimal
-from cheqi.models.company import (
-    Company,
-    CompanyAddress,
-    CreateStoreRequest,
-    ProvisionCompanyRequest,
-    ProvisionCompanyResponse,
-    Store,
-)
 from cheqi.models.credit_note import (
-    CheqiCreditNote,
-    CreditNoteCreatedResponse,
-    CreditNoteEnvelope,
     CreditNoteInitiationRequest,
     CreditNoteResult,
-    CreditNoteTemplateGenerationRequest,
-    CreditNoteTemplateRequest,
-    CreditNoteTemplateResponse,
-    DecryptedDeliveredCreditNote,
-    EncryptedCreditNote,
     EncryptedCreditNoteInitiationRequest,
-    EncryptedCreditNotesRequest,
+    EncryptedCreditNoteInitiationRequestResponse,
     RefundBankAccount,
-    ReturnLineItem,
-)
-from cheqi.models.download import (
-    ClientReceiptDownloadRequest,
-    ClientReceiptDownloadResponse,
-    DownloadLink,
-)
-from cheqi.models.encryption import (
-    EncryptedReceipt,
-    EncryptedReceiptRequestDto,
-    EncryptedReceiptsRequest,
-)
-from cheqi.models.enums import (
-    AccountIdentifierType,
-    BarcodeType,
-    CardProvider,
-    KeyAlgorithm,
-    PaymentMethod,
-    PaymentType,
-    ReceiptFormat,
-    ReceiptStatus,
-    ReceiverType,
-    RecipientEntityType,
     RefundPreference,
-    ReturnCondition,
-    UnitCode,
-    VatRegime,
+    ReturnLineItem,
+    ReturnReasonCode,
+    WebhookCreditNoteInitiationRequest,
 )
-from cheqi.models.envelopes import (
-    ConsumingPartyEnvelope,
-    CreditNoteContextEnvelope,
-    DeliveryStatus,
-    PaymentMeansEnvelope,
-    ReceiptContextEnvelope,
-    ReceiptCreatedResponse,
-    ReceiptEnvelope,
-    ReceiptResult,
-    ReceivingPartyEnvelope,
-)
-from cheqi.models.matching import (
-    DeliveryRouteType,
-    IdentificationDetails,
-    Recipient,
-    RecipientResolutionResponse,
-)
-from cheqi.models.payment import CardDetails, Payment, PaymentAccountDetails
+from cheqi.models.download import DownloadLink
+from cheqi.models.generated.card_details import CardDetails
+from cheqi.models.generated.cheqi_receipt import CheqiReceipt
+from cheqi.models.generated.client_receipt_download_request import ClientReceiptDownloadRequest
+from cheqi.models.generated.client_receipt_download_response import ClientReceiptDownloadResponse
+from cheqi.models.generated.create_store_request import CreateStoreRequest
+from cheqi.models.generated.encrypted_credit_note_envelope import EncryptedCreditNoteEnvelope
+from cheqi.models.generated.encrypted_receipt_delivery_response import EncryptedReceiptDeliveryResponse
+from cheqi.models.generated.encrypted_receipt_envelope import EncryptedReceiptEnvelope
+from cheqi.models.generated.encrypted_receipt_payload import EncryptedReceiptPayload
+from cheqi.models.generated.identification_details import IdentificationDetails
+from cheqi.models.generated.matched_recipient import MatchedRecipient
+from cheqi.models.generated.payment_account_details import PaymentAccountDetails
+from cheqi.models.generated.payment_details import PaymentDetails
+from cheqi.models.generated.payment_type import PaymentType
+from cheqi.models.generated.receipt_envelope import ReceiptEnvelope
+from cheqi.models.generated.receipt_envelope_document import ReceiptEnvelopeDocument
+from cheqi.models.generated.receipt_format import ReceiptFormat
+from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
+from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
+from cheqi.models.generated.store_dto import StoreDTO
+from cheqi.models.generated.tax_category_code import TaxCategoryCode
+from cheqi.models.generated.webhook_receipt_envelope import WebhookReceiptEnvelope
 from cheqi.models.receipt import (
-    Address,
     Barcode,
+    BarcodeType,
     Charge,
-    CheqiReceipt,
-    CompanyIdentifier,
+    DeliveryRouteType,
     Discount,
-    Identifier,
-    ItemClassification,
-    PaymentInfo,
+    FiscalizationData,
+    FiscalizationStatus,
+    JurisdictionalData,
+    JurisdictionField,
+    JurisdictionLegalText,
     Period,
     Product,
-    ReceiptTemplateRequest,
-    ReceiptTemplateResponse,
-    ReceivingParty,
-    SellingParty,
+    ReceiptPayload,
+    ReceiptResult,
     Tax,
-    VatMetadata,
+    UnitCode,
 )
 
 __all__ = [
+    "Barcode",
+    "BarcodeType",
+    "CardDetails",
+    "Charge",
     "CheqiBaseModel",
     "CheqiDecimal",
-    # Receipt models
-    "Product",
-    "Tax",
-    "Discount",
-    "Charge",
-    "Barcode",
-    "Period",
-    "Identifier",
-    "ItemClassification",
-    "Address",
-    "SellingParty",
-    "ReceivingParty",
-    "CompanyIdentifier",
-    "PaymentInfo",
     "CheqiReceipt",
-    "VatMetadata",
-    "ReceiptTemplateRequest",
-    "ReceiptTemplateResponse",
-    # Payment
-    "Payment",
-    "CardDetails",
-    "PaymentAccountDetails",
-    # Matching
-    "IdentificationDetails",
-    "Recipient",
-    "RecipientResolutionResponse",
-    # Encryption
-    "EncryptedReceipt",
-    "EncryptedReceiptRequestDto",
-    "EncryptedReceiptsRequest",
-    "DownloadLink",
     "ClientReceiptDownloadRequest",
     "ClientReceiptDownloadResponse",
-    # Envelopes & results
-    "ReceiptEnvelope",
-    "ReceiptContextEnvelope",
-    "CreditNoteContextEnvelope",
-    "ConsumingPartyEnvelope",
-    "ReceivingPartyEnvelope",
-    "PaymentMeansEnvelope",
-    "ReceiptCreatedResponse",
-    "DeliveryStatus",
-    "ReceiptResult",
-    "DeliveryRouteType",
-    # Company
-    "Company",
-    "CompanyAddress",
-    "Store",
     "CreateStoreRequest",
-    "ProvisionCompanyRequest",
-    "ProvisionCompanyResponse",
-    # Credit note
-    "CheqiCreditNote",
-    "CreditNoteTemplateRequest",
-    "CreditNoteTemplateGenerationRequest",
-    "CreditNoteTemplateResponse",
-    "CreditNoteEnvelope",
-    "DecryptedDeliveredCreditNote",
-    "EncryptedCreditNote",
-    "EncryptedCreditNotesRequest",
-    "EncryptedCreditNoteInitiationRequest",
-    "CreditNoteCreatedResponse",
-    "CreditNoteResult",
     "CreditNoteInitiationRequest",
-    "ReturnLineItem",
-    "RefundBankAccount",
-    # Enums
-    "PaymentMethod",
+    "CreditNoteResult",
+    "DeliveryRouteType",
+    "Discount",
+    "DownloadLink",
+    "EncryptedCreditNoteEnvelope",
+    "EncryptedCreditNoteInitiationRequest",
+    "EncryptedCreditNoteInitiationRequestResponse",
+    "EncryptedReceiptDeliveryResponse",
+    "EncryptedReceiptEnvelope",
+    "EncryptedReceiptPayload",
+    "FiscalizationData",
+    "FiscalizationStatus",
+    "IdentificationDetails",
+    "JurisdictionField",
+    "JurisdictionLegalText",
+    "JurisdictionalData",
+    "MatchedRecipient",
+    "PaymentAccountDetails",
+    "PaymentDetails",
     "PaymentType",
-    "CardProvider",
-    "ReceiptStatus",
+    "Period",
+    "Product",
+    "ReceiptEnvelope",
+    "ReceiptEnvelopeDocument",
     "ReceiptFormat",
-    "ReceiverType",
-    "RecipientEntityType",
-    "VatRegime",
-    "AccountIdentifierType",
-    "BarcodeType",
-    "KeyAlgorithm",
-    "UnitCode",
-    "ReturnCondition",
+    "ReceiptPayload",
+    "ReceiptResult",
+    "ReceiptSubmissionResponse",
+    "RecipientResolutionResponse",
+    "RefundBankAccount",
     "RefundPreference",
+    "ReturnLineItem",
+    "ReturnReasonCode",
+    "StoreDTO",
+    "Tax",
+    "TaxCategoryCode",
+    "UnitCode",
+    "WebhookCreditNoteInitiationRequest",
+    "WebhookReceiptEnvelope",
 ]

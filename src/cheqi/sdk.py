@@ -6,34 +6,18 @@ from typing import Optional
 
 from cheqi.config import CheqiSDKConfig, Environment
 from cheqi.http.client import DefaultCheqiApiClient
-from cheqi.models.encryption import EncryptedReceipt
-from cheqi.services.company import CompanyService
 from cheqi.services.credit_note import CreditNoteService
-from cheqi.services.decryption import DecryptedReceipt, DecryptionService
+from cheqi.services.decryption import DecryptionService
 from cheqi.services.download import DownloadService
 from cheqi.services.encryption import EncryptionService
 from cheqi.services.matching import MatchingService
 from cheqi.services.receipt import ReceiptService
-from cheqi.services.receipt_processor import ReceiptProcessor
 from cheqi.services.store import StoreService
 from cheqi.services.verification import VerificationService
 
 
 class CheqiSDK:
-    """Main entry point for the Cheqi SDK providing end-to-end encrypted receipt processing.
-
-    Example usage::
-
-        sdk = CheqiSDK(
-            environment=Environment.PRODUCTION,
-            api_key="sk_live_...",
-        )
-
-        # Process a receipt
-        result = sdk.receipt_service.process_complete_receipt(
-            identification_details, receipt_request, access_token
-        )
-    """
+    """Resolve, locally encrypt, and submit definitive receipt payloads."""
 
     def __init__(
         self,
@@ -55,10 +39,8 @@ class CheqiSDK:
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
         )
-
         self._verification_service = VerificationService()
         self._decryption_service = DecryptionService()
-        self._receipt_processor = ReceiptProcessor()
         self._download_service = DownloadService()
         self._encryption_service = EncryptionService()
         self._api_client = DefaultCheqiApiClient(self._config)
@@ -70,10 +52,11 @@ class CheqiSDK:
             self._download_service,
             self._config.receipt_download_base_url,
         )
-        self._company_service = CompanyService(self._api_client)
         self._store_service = StoreService(self._api_client)
         self._credit_note_service = CreditNoteService(
-            self._api_client, self._encryption_service, self._matching_service
+            self._api_client,
+            self._encryption_service,
+            self._matching_service,
         )
 
     @property
@@ -105,10 +88,6 @@ class CheqiSDK:
         return self._credit_note_service
 
     @property
-    def company_service(self) -> CompanyService:
-        return self._company_service
-
-    @property
     def store_service(self) -> StoreService:
         return self._store_service
 
@@ -120,15 +99,7 @@ class CheqiSDK:
     def api_client(self) -> DefaultCheqiApiClient:
         return self._api_client
 
-    def process_encrypted_receipt(
-        self, encrypted_receipt: EncryptedReceipt, private_key: str
-    ) -> DecryptedReceipt:
-        """Decrypt a receipt and merge its recipient context into every format."""
-        decrypted = self._decryption_service.decrypt_receipt(encrypted_receipt, private_key)
-        return self._receipt_processor.merge(decrypted)
-
     def close(self) -> None:
-        """Close the SDK and release resources."""
         self._api_client.close()
 
     def __enter__(self) -> CheqiSDK:

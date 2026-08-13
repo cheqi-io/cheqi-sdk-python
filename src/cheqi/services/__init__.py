@@ -1,3 +1,21 @@
-from cheqi.services.download import DownloadService
+"""Public Cheqi SDK services."""
 
-__all__ = ["DownloadService"]
+from cheqi.services.credit_note import CreditNoteService
+from cheqi.services.decryption import DecryptionService
+from cheqi.services.download import DownloadService
+from cheqi.services.encryption import EncryptionService
+from cheqi.services.matching import MatchingService
+from cheqi.services.receipt import ReceiptService
+from cheqi.services.store import StoreService
+from cheqi.services.verification import VerificationService
+
+__all__ = [
+    "CreditNoteService",
+    "DecryptionService",
+    "DownloadService",
+    "EncryptionService",
+    "MatchingService",
+    "ReceiptService",
+    "StoreService",
+    "VerificationService",
+]

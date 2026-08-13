@@ -34,7 +34,7 @@ from typing_extensions import Self
 
 class CheqiReceipt(BaseModel):
     """
-    Cheqi JSON receipt payload. Include this when the recipient accepts the CHEQI format.
+    CheqiReceipt
     """ # noqa: E501
     total_amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="The total amount of the receipt", alias="totalAmount")
     document_number: Optional[StrictStr] = Field(default=None, description="The document number of the receipt, given by the seller, for example invoice number.", alias="documentNumber")

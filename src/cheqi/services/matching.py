@@ -41,7 +41,7 @@ class MatchingService:
         try:
             response = self._api_client.match_customer(identification_details, access_token)
 
-            if response.customer_found:
+            if response.route_found:
                 count = len(response.recipients) if response.recipients else 0
                 logger.info("Customer matched successfully: %d recipients found", count)
             else:
@@ -73,7 +73,7 @@ class MatchingService:
         if not details.card_details:
             return False
         card = details.card_details
-        return bool(card.payment_account_number or card.payment_account_reference)
+        return bool(card.payment_account_reference)
 
     def _has_payment_account(self, details: IdentificationDetails) -> bool:
         if not details.payment_account_details:

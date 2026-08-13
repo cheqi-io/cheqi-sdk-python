@@ -19,6 +19,8 @@ tags:
 - name: Client Application Management
   description: "Endpoints for managing OAuth2 client applications, including registration,\
     \ secret management, and public key configuration"
+- name: OAuth2 Authorization
+  description: Authorize a company integration and request company-bound access tokens
 - name: Credit Note Management
   description: "Endpoints for creating, managing, and retrieving credit notes (refund\
     \ receipts)"
@@ -34,6 +36,182 @@ tags:
   description: Endpoints for managing webhook subscriptions to receive real-time event
     notifications
 paths:
+  /oauth2/authorize:
+    get:
+      tags:
+      - OAuth2 Authorization
+      summary: Initiate OAuth2 authorization
+      description: Initiates the OAuth2 authorization flow. Redirects to the frontend
+        authorization page where users can approve or deny access.
+      operationId: authorize
+      parameters:
+      - name: client_id
+        in: query
+        description: Client application ID
+        required: true
+        schema:
+          type: string
+      - name: scope
+        in: query
+        description: Requested OAuth scopes (space-separated)
+        required: true
+        schema:
+          type: string
+      - name: state
+        in: query
+        description: State parameter for CSRF protection
+        required: true
+        schema:
+          type: string
+      - name: redirect_uri
+        in: query
+        description: Redirect URI after authorization
+        required: true
+        schema:
+          type: string
+      - name: code_challenge
+        in: query
+        description: PKCE S256 code challenge
+        required: true
+        schema:
+          type: string
+      - name: code_challenge_method
+        in: query
+        description: PKCE challenge method; only S256 is supported
+        required: true
+        schema:
+          type: string
+      - name: company_id
+        in: query
+        description: Requested company context
+        required: false
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "302":
+          description: Redirect to the authorization page
+          headers:
+            Location:
+              description: Authorization page URL
+              style: simple
+              schema:
+                type: string
+                format: uri
+        "400":
+          description: Invalid OAuth2 parameters
+      security: []
+  /oauth2/authorization-code/exchange:
+    post:
+      tags:
+      - OAuth2 Authorization
+      summary: Exchange authorization code
+      description: Consume a one-time authorization code and return the approved Grant
+        metadata.
+      operationId: exchangeAuthorizationCode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthorizationCodeExchangeRequest"
+        required: true
+      responses:
+        "401":
+          description: Invalid client credentials
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CompanyAuthorizationResponse"
+        "200":
+          description: Authorization code exchanged successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CompanyAuthorizationResponse"
+        "400":
+          description: "Invalid, expired, or already used authorization code"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CompanyAuthorizationResponse"
+      security: []
+  /oauth2/grants/{grantId}:
+    get:
+      tags:
+      - OAuth2 Authorization
+      summary: Get Grant details
+      description: Returns the current Company and Store metadata for the Grant bound
+        to the access token.
+      operationId: getGrantDetails
+      parameters:
+      - name: grantId
+        in: path
+        description: Grant identifier
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: Grant details retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthGrantDetailsResponse"
+        "404":
+          description: Grant not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthGrantDetailsResponse"
+        "403":
+          description: The token is not authorized for this Grant or lacks read_stores
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthGrantDetailsResponse"
+  /oauth2/token:
+    post:
+      tags:
+      - OAuth2 Authorization
+      summary: OAuth token exchange
+      description: Request a short-lived Company token for an approved Grant.
+      operationId: getToken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientCredentialsTokenRequest"
+        required: true
+      responses:
+        "401":
+          description: Invalid client credentials
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
+        "400":
+          description: Invalid authorization code or request parameters
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
+        "200":
+          description: OAuth exchange completed successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
+              examples:
+                Client credentials response:
+                  summary: Company access token
+                  description: Client credentials response
+                  value:
+                    access_token: opaque-access-token
+                    token_type: bearer
+                    expires_in: 900
+                    scope: receipts.issue
+      security: []
   /company/{id}/receipt-delivery/devices/{deviceId}:
     put:
       tags:
@@ -113,8 +291,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-      security:
-      - bearerAuth: []
     put:
       tags:
       - Store Management
@@ -150,12 +326,6 @@ paths:
             '*/*':
               schema:
                 type: object
-        "200":
-          description: Store updated successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to update this store
           content:
@@ -168,8 +338,12 @@ paths:
             '*/*':
               schema:
                 type: object
-      security:
-      - bearerAuth: []
+        "200":
+          description: Store updated successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
   /webhook/subscription:
     post:
       tags:
@@ -219,9 +393,9 @@ paths:
     post:
       tags:
       - Recipient Management
-      summary: Resolve receipt recipient
+      summary: Resolve receipt processing devices
       description: |-
-        Resolves and matches a receipt recipient based on the provided identification details (email, phone number, IBAN, or card number). Returns the matched recipient's details if found, enabling receipt delivery to the correct user.
+        Matches the customer from the provided identification details and returns one temporary recipient for every device owned by the matched customer. Each device receives an independently encrypted generation request. Downstream wallet and third-party recipients are resolved later for exactly one processing device.
 
         **Accessible for:** Company, Client Application
       operationId: matchCustomer
@@ -266,52 +440,13 @@ paths:
       - cheqi_oauth:
         - write_receipts
       x-accessible-for: "Company, Client Application"
-  /receipt/template:
-    post:
-      tags:
-      - Receipt Management
-      summary: Generate receipt template
-      description: |-
-        Generates a receipt template without matched customer context. The response contains the requested receipt representations, such as CHEQI JSON and optional UBL XML, plus VAT metadata for the transaction. Requires write_receipts OAuth scope.
-
-        **Accessible for:** Company, Client Application
-      operationId: createReceiptTemplate
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ReceiptTemplateGenerationRequest"
-        required: true
-      responses:
-        "400":
-          description: Invalid template request data
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptTemplateResponse"
-        "403":
-          description: Insufficient permissions - requires write_receipts scope
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptTemplateResponse"
-        "201":
-          description: Receipt template created successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptTemplateResponse"
-      security:
-      - cheqi_oauth:
-        - write_receipts
-      x-accessible-for: "Company, Client Application"
-  /receipt/queue/acknowledge/received:
+  /receipts/queue/acknowledge/received:
     post:
       tags:
       - Receipt Management
       summary: Acknowledge queued receipts
       description: |-
-        Acknowledges successfully processed queued receipts for the authenticated company or client application. Requires read_receipts OAuth scope.
+        Acknowledges successfully processed queued receipts for the authenticated company or client application. Requires the read_receipts scope.
 
         **Accessible for:** Client Application, Company
       operationId: acknowledgeQueuedReceipts
@@ -330,13 +465,13 @@ paths:
       - cheqi_oauth:
         - read_receipts
       x-accessible-for: "Client Application, Company"
-  /receipt/queue/acknowledge/failed-permanent:
+  /receipts/queue/acknowledge/failed-permanent:
     post:
       tags:
       - Receipt Management
       summary: Acknowledge permanent failure for queued receipts
       description: |-
-        Marks queued receipts as permanently failed for the authenticated company or client application. Requires read_receipts OAuth scope.
+        Marks queued receipts as permanently failed for the authenticated company or client application. Requires the read_receipts scope.
 
         **Accessible for:** Client Application, Company
       operationId: acknowledgeQueuedReceiptsPermanentFailure
@@ -359,9 +494,9 @@ paths:
     post:
       tags:
       - Receipt Management
-      summary: Submit encrypted receipt
+      summary: Submit an encrypted receipt payload
       description: |-
-        Submits recipient-specific encrypted purchase receipts to the queue for delivery. Each encryptedReceipt value must be the ciphertext of a plaintext envelope assembled locally from the receipt template plus customer context envelope for that recipient. Requires write_receipts OAuth scope.
+        Queues independently encrypted definitive receipt payloads for the devices returned by POST /recipient/resolve. The backend never decrypts these requests.
 
         **Accessible for:** Company, Client Application
       operationId: submitEncryptedReceipt
@@ -369,27 +504,33 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/EncryptedReceiptsRequest"
+              $ref: "#/components/schemas/EncryptedReceiptEnvelope"
         required: true
       responses:
         "403":
-          description: Insufficient permissions - requires write_receipts scope
+          description: Insufficient permissions
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ReceiptCreatedResponse"
-        "201":
-          description: Receipt created successfully
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
+        "409":
+          description: Conflicting replay for this matchId
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ReceiptCreatedResponse"
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "400":
-          description: Invalid encrypted receipt data
+          description: Invalid encrypted generation request
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ReceiptCreatedResponse"
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
+        "202":
+          description: Encrypted receipt payload accepted for on-device formatting
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
       security:
       - cheqi_oauth:
         - write_receipts
@@ -400,7 +541,7 @@ paths:
       - Receipt Management
       summary: Send receipt via email
       description: |-
-        Sends a purchase receipt directly to a customer via email. The receipt is delivered as a PDF attachment. Requires write_receipts OAuth scope.
+        Sends a purchase receipt directly to a customer via email. The receipt is delivered as a PDF attachment. Requires the write_receipts scope.
 
         **Accessible for:** Company, Client Application
       operationId: submitReceiptWithEmail
@@ -427,7 +568,7 @@ paths:
       - Receipt Management
       summary: Upload a client-encrypted receipt for a client-generated download link
       description: |-
-        Stores the ciphertext behind a download id the SDK generated locally, so the QR code worked before this upload. First write wins: resubmitting the same downloadId with identical bytes returns 200 with the original identifiers (safe retry); different bytes or a different principal conflict with 409 and never replace the stored receipt. Requires write_receipts OAuth scope.
+        Stores the ciphertext behind a download id the SDK generated locally, so the QR code worked before this upload. First write wins: resubmitting the same downloadId with identical bytes returns 200 with the original identifiers (safe retry); different bytes or a different principal conflict with 409 and never replace the stored receipt. Requires the write_receipts scope.
 
         **Accessible for:** Company, Client Application
       operationId: uploadClientEncryptedReceipt
@@ -456,61 +597,115 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "200":
-          description: Idempotent replay of an identical earlier upload
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
         "201":
           description: Encrypted receipt stored
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
+        "200":
+          description: Idempotent replay of an identical earlier upload
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
       security:
       - cheqi_oauth:
         - write_receipts
       x-accessible-for: "Company, Client Application"
-  /credit-note/template:
+  /oauth2/company-grants/{grantId}/suspend:
     post:
       tags:
-      - Credit Note Management
-      summary: Generate credit note template
-      description: |-
-        Generates a UBL-compliant credit note template without customer personal data. The template can be used by the SDK to inject customer information and encrypt the credit note. Requires write_receipts OAuth scope.
+      - OAuth2 Company Grants
+      summary: Suspend a company grant immediately
+      description: |2-
 
-        **Accessible for:** Company, Client Application
-      operationId: createReceiptTemplate_1
+
+        **Accessible for:** User
+      operationId: suspend
+      parameters:
+      - name: grantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreditNoteTemplateGenerationRequest"
+              $ref: "#/components/schemas/CompanyGrantActionRequest"
         required: true
       responses:
-        "400":
-          description: Invalid template request data
+        "200":
+          description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CreditNoteTemplateResponse"
-        "403":
-          description: Insufficient permissions - requires write_receipts scope
+                $ref: "#/components/schemas/CompanyGrantResponse"
+      x-accessible-for: User
+  /oauth2/company-grants/{grantId}/revoke:
+    post:
+      tags:
+      - OAuth2 Company Grants
+      summary: Revoke a company grant immediately
+      description: |2-
+
+
+        **Accessible for:** User
+      operationId: revoke
+      parameters:
+      - name: grantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyGrantActionRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CreditNoteTemplateResponse"
-        "201":
-          description: Credit note template created successfully
+                $ref: "#/components/schemas/CompanyGrantResponse"
+      x-accessible-for: User
+  /oauth2/company-grants/{grantId}/reactivate:
+    post:
+      tags:
+      - OAuth2 Company Grants
+      summary: Reactivate a suspended company grant
+      description: |2-
+
+
+        **Accessible for:** User
+      operationId: reactivate
+      parameters:
+      - name: grantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyGrantActionRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CreditNoteTemplateResponse"
-      security:
-      - cheqi_oauth:
-        - write_receipts
-      x-accessible-for: "Company, Client Application"
+                $ref: "#/components/schemas/CompanyGrantResponse"
+      x-accessible-for: User
   /credit-note/initiate:
     post:
       tags:
@@ -547,9 +742,9 @@ paths:
     post:
       tags:
       - Credit Note Management
-      summary: Submit encrypted credit note
+      summary: Submit encrypted credit-note generation input
       description: |-
-        Submits an encrypted credit note to the queue for delivery to customer devices. The credit note is encrypted with customer device keys for end-to-end privacy.
+        Submits independently encrypted credit-note generation input for every matched owner device. Devices generate CHEQI JSON and any requested UBL CreditNote locally.
 
         **Accessible for:** Company, Client Application
       operationId: submitEncryptedReceipt_1
@@ -557,7 +752,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/EncryptedCreditNotesRequest"
+              $ref: "#/components/schemas/EncryptedCreditNoteEnvelope"
         required: true
       responses:
         "400":
@@ -565,19 +760,19 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CreditNoteCreatedResponse"
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "403":
           description: Insufficient permissions - requires write_receipts scope
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CreditNoteCreatedResponse"
-        "201":
-          description: Encrypted credit note queued successfully
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
+        "202":
+          description: Encrypted credit-note generation job accepted
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CreditNoteCreatedResponse"
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
       security:
       - cheqi_oauth:
         - write_receipts
@@ -612,19 +807,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CompanyResponseBody"
+                $ref: "#/components/schemas/CompanyResponse"
         "404":
           description: Parent company not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CompanyResponseBody"
+                $ref: "#/components/schemas/CompanyResponse"
         "201":
           description: Child company created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CompanyResponseBody"
+                $ref: "#/components/schemas/CompanyResponse"
       x-accessible-for: User
   /company/{companyId}/stores:
     get:
@@ -674,8 +869,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/StoreDTO"
-      security:
-      - bearerAuth: []
     post:
       tags:
       - Store Management
@@ -700,18 +893,18 @@ paths:
               $ref: "#/components/schemas/CreateStoreRequest"
         required: true
       responses:
-        "403":
-          description: Not authorized to create stores for this company
-          content:
-            '*/*':
-              schema:
-                type: object
         "201":
           description: Store created successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
+        "403":
+          description: Not authorized to create stores for this company
+          content:
+            '*/*':
+              schema:
+                type: object
         "404":
           description: Company not found
           content:
@@ -724,45 +917,6 @@ paths:
             '*/*':
               schema:
                 type: object
-      security:
-      - bearerAuth: []
-  /client-application/{id}/webhook/rotate-secret:
-    post:
-      tags:
-      - Client Application Management
-      summary: Rotate webhook signing secret
-      description: |-
-        Generates a new signing secret for all webhook subscriptions owned by this client application. Only the owning company or admin users can rotate the secret. The old secret will be invalidated immediately.
-
-        **Accessible for:** User, Company
-      operationId: rotateWebhookSecret
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: Secret rotated successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WebhookSecretRotationResponse"
-        "403":
-          description: Not authorized to rotate webhook secret for this client application
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WebhookSecretRotationResponse"
-        "404":
-          description: Client application not found
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WebhookSecretRotationResponse"
-      x-accessible-for: "User, Company"
   /client-application/{clientApplicationId}/public-key:
     get:
       tags:
@@ -834,6 +988,68 @@ paths:
         "404":
           description: Client application not found
       x-accessible-for: "Company, User"
+  /oauth2/company-grants/{grantId}:
+    patch:
+      tags:
+      - OAuth2 Company Grants
+      summary: "Update scopes, stores, or billing for a company grant"
+      description: |2-
+
+
+        **Accessible for:** User
+      operationId: update
+      parameters:
+      - name: grantId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCompanyGrantRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CompanyGrantResponse"
+      x-accessible-for: User
+  /credit-note/requests/{requestId}/status:
+    patch:
+      tags:
+      - Credit Note Management
+      summary: Update a return request status
+      description: |-
+        Updates the lifecycle status of an encrypted customer return request. The encrypted per-product request remains opaque to Cheqi.
+
+        **Accessible for:** Company, Client Application
+      operationId: updateRequestStatus
+      parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCreditNoteRequestStatusRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequestResponse"
+      x-accessible-for: "Company, Client Application"
   /company/{companyId}/stores/{storeId}/deactivate:
     patch:
       tags:
@@ -876,8 +1092,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-      security:
-      - bearerAuth: []
   /company/{companyId}/stores/{storeId}/activate:
     patch:
       tags:
@@ -908,27 +1122,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "403":
-          description: Not authorized to activate this store
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "200":
           description: Store activated successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-      security:
-      - bearerAuth: []
-  /receipt/queue:
+        "403":
+          description: Not authorized to activate this store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
+  /receipts/queue:
     get:
       tags:
       - Receipt Management
       summary: Get queued encrypted receipts
       description: |-
-        Returns pending encrypted receipts for the authenticated company or client application. Receipts remain in the queue until they are explicitly acknowledged or marked as permanently failed. Requires read_receipts OAuth scope.
+        Returns pending encrypted receipts for the authenticated company or client application. Receipts remain in the queue until they are explicitly acknowledged or marked as permanently failed. Requires the read_receipts scope.
 
         **Accessible for:** Client Application, Company
       operationId: getQueuedReceipts
@@ -938,7 +1150,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ReceiptQueueDto"
+                $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
         "403":
           description: Insufficient permissions - requires read_receipts scope
           content:
@@ -947,11 +1159,38 @@ paths:
                 uniqueItems: true
                 type: array
                 items:
-                  $ref: "#/components/schemas/ReceiptQueueDto"
+                  $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
       security:
       - cheqi_oauth:
         - read_receipts
       x-accessible-for: "Client Application, Company"
+  /oauth2/company-grants/company/{companyId}:
+    get:
+      tags:
+      - OAuth2 Company Grants
+      summary: List the integration grants for an issuer company
+      description: |2-
+
+
+        **Accessible for:** User
+      operationId: list
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CompanyGrantResponse"
+      x-accessible-for: User
   /credit-note:
     get:
       tags:
@@ -964,11 +1203,11 @@ paths:
       operationId: getAllCreditNotes
       responses:
         "200":
-          description: Credit notes retrieved successfully
+          description: Return requests retrieved successfully
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/EncryptedCreditNoteDto"
+                $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequestResponse"
         "403":
           description: Not authorized to access credit notes
           content:
@@ -976,7 +1215,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/EncryptedCreditNoteDto"
+                  $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequestResponse"
       x-accessible-for: "Company, Client Application"
   /company/{id}/receipt-delivery/devices:
     get:
@@ -1189,10 +1428,8 @@ components:
             type: string
             enum:
             - RECEIPT_CREATED
-            - RECEIPT_FINALIZED
             - RETURN_REQUESTED
             - CREDIT_NOTE_CREATED
-            - CREDIT_NOTE_FINALIZED
         notificationUrl:
           type: string
       description: Webhook subscription request with URL and event types
@@ -1321,6 +1558,7 @@ components:
     BuyerType:
       type: string
       description: Type of recipient entity
+      example: BUSINESS/CONSUMER
       enum:
       - BUSINESS
       - CONSUMER
@@ -1385,13 +1623,104 @@ components:
           example: NL
         buyerType:
           $ref: "#/components/schemas/BuyerType"
+    AcknowledgeRequest:
+      type: object
+      properties:
+        receiptIds:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+    PermanentFailureAcknowledgeRequest:
+      type: object
+      properties:
+        receiptIds:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+        failureReason:
+          type: string
+    EncryptedReceiptEnvelope:
+      required:
+      - deviceDeliveries
+      - matchId
+      type: object
+      properties:
+        matchId:
+          type: string
+          description: Device-processing match ID returned by POST /recipient/resolve.
+        childCompanyId:
+          type: string
+          description: Deprecated compatibility field. It may only equal the company
+            in the authentication context and no longer grants parent-to-child issuance.
+          format: uuid
+          deprecated: true
+        storeId:
+          type: string
+          description: "Optional store/location issuing the receipt. It must be owned\
+            \ by the company in the authentication context, which remains the legal\
+            \ receipt issuer."
+          format: uuid
+        deviceDeliveries:
+          type: array
+          description: Independently encrypted copies of the definitive receipt payload
+            for the matched devices.
+          items:
+            $ref: "#/components/schemas/EncryptedReceiptPayload"
+      description: Encrypted definitive receipt payloads submitted for on-device formatting.
+    EncryptedReceiptPayload:
+      required:
+      - deviceRecipientId
+      - encryptedAesKey
+      - encryptedContent
+      type: object
+      properties:
+        deviceRecipientId:
+          type: string
+          description: Temporary device recipient ID returned by the recipient-resolution
+            endpoint.
+        encryptedContent:
+          type: string
+          description: "Base64-encoded AES-256-GCM ciphertext for this device. After\
+            \ decryption, the plaintext JSON must conform to the ReceiptPayload schema\
+            \ shown under Receipt Management. Cheqi never receives or decrypts that\
+            \ plaintext."
+        encryptedAesKey:
+          type: string
+          description: Base64-encoded AES content key encrypted with this device's
+            public key.
+      description: One encrypted definitive receipt payload addressed to an owner
+        device.
+    ReceiptSubmissionResponse:
+      type: object
+      properties:
+        cheqiReceiptId:
+          type: string
+          description: Stable Cheqi receipt identifier assigned to the processing
+            job.
+        matchId:
+          type: string
+        status:
+          type: string
+          description: Processing status of an encrypted receipt payload submission.
+          enum:
+          - PENDING
+          - CLAIMED
+          - COMPLETED
+          - FAILED_PERMANENT
+        createdAt:
+          type: string
+          format: date-time
+      description: Acknowledgement of an accepted encrypted receipt payload submission.
     Barcode:
+      required:
+      - data
+      - type
       type: object
       properties:
         type:
-          type: string
-          description: The type of barcode or scannable code
-          example: QR_CODE
+          $ref: "#/components/schemas/BarcodeType"
         data:
           type: string
           description: The data encoded in the barcode
@@ -1400,17 +1729,7 @@ components:
           type: string
           description: A human-readable label for the barcode
           example: Return code
-      description: Optional list of barcodes or QR codes embedded in the receipt
-    BarcodeType:
-      type: string
-      description: The type of barcode or scannable code
-      enum:
-      - QR_CODE
-      - EAN_13
-      - EAN_8
-      - CODE_128
-      - UPC_A
-      - DATA_MATRIX
+      description: Issuer-supplied receipt-level barcodes or QR-code payloads.
     Charge:
       required:
       - amount
@@ -1430,373 +1749,7 @@ components:
           description: "The charge label, for example \"Shipping fee\" or \"Service\
             \ fee\""
           example: Shipping
-      description: "The list of charges applied to the receipt on total receipt level.\
-        \ Example: service fee, shipping fee, etc."
-    Discount:
-      required:
-      - amount
-      type: object
-      properties:
-        amount:
-          type: number
-          description: The total discount amount
-          example: 5.0
-        percentage:
-          type: number
-          description: The percentage discount
-          format: double
-          example: 20
-        label:
-          type: string
-          description: A human-readable label for the discount
-          example: Black Friday
-      description: "The list of discounts applied to the receipt on total receipt\
-        \ level. Example: discount on total receipt level, 20% discount on complete\
-        \ order, etc."
-    Identifier:
-      type: object
-      properties:
-        type:
-          type: string
-        value:
-          type: string
-      description: "The identifiers for the purchase, given by the seller, for example\
-        \ order reference, transaction number"
-      example: "ORD-12356, TRN-12356"
-    Period:
-      required:
-      - endDate
-      - startDate
-      type: object
-      properties:
-        startDate:
-          type: string
-          description: The start date of the period
-          format: date-time
-          example: 2024-01-01T00:00:00Z
-        endDate:
-          type: string
-          description: The end date of the period
-          format: date-time
-          example: 2024-01-01T00:00:00Z
-        description:
-          type: string
-          description: Human-readable description of the period
-          example: Monthly subscription - January 2024
-      description: The billing or service period covered by this receipt. Use this
-        when the purchase covers a specific time range rather than a single point
-        in time.
-    Product:
-      required:
-      - brandName
-      - identifier
-      - name
-      - quantity
-      - subtotal
-      - taxes
-      - total
-      - unitCode
-      - unitPrice
-      type: object
-      properties:
-        name:
-          type: string
-          description: The product name
-          example: Product Name
-        brandName:
-          type: string
-          description: The brand name
-          example: Brand Name
-        identifier:
-          type: string
-          description: "The identifier or article number of the product, this can\
-            \ for example also be a SKU/EAN code."
-          example: "123456"
-        description:
-          type: string
-          description: The description of the product
-        quantity:
-          type: number
-          description: The quantity of this item
-          format: double
-          example: 20
-        baseQuantity:
-          type: number
-          description: The base quantity of this item
-          format: double
-          example: 20
-        unitCode:
-          $ref: "#/components/schemas/UnitCode"
-        period:
-          $ref: "#/components/schemas/Period"
-        unitPrice:
-          type: number
-          description: The unit price of this item
-          example: 10.0
-        discounts:
-          type: array
-          description: The discounts applied to this line item
-          items:
-            $ref: "#/components/schemas/Discount"
-        charges:
-          type: array
-          description: The extra charges applied to this line item
-          items:
-            $ref: "#/components/schemas/Charge"
-        taxes:
-          type: array
-          description: The taxes applied to this line item
-          items:
-            $ref: "#/components/schemas/Tax"
-        subtotal:
-          type: number
-          description: "The line subtotal, before tax. Typically: quantity * unitPrice\
-            \ - discounts + charges (net)."
-          example: 10.0
-        total:
-          type: number
-          description: "The line total, after tax. Typically: subtotal + tax amounts\
-            \ (gross)."
-          example: 10.0
-        barcodes:
-          type: array
-          items:
-            $ref: "#/components/schemas/Barcode"
-      description: The list of products included in the receipt. Must contain at least
-        one product.
-    ReceiptTemplateGenerationRequest:
-      required:
-      - buyerType
-      - formats
-      - receiptTemplateRequest
-      - taxesApplied
-      type: object
-      properties:
-        receiptTemplateRequest:
-          $ref: "#/components/schemas/ReceiptTemplateRequest"
-        formats:
-          type: array
-          description: List of formats for the receipt template
-          items:
-            $ref: "#/components/schemas/ReceiptFormat"
-        buyerCountryCode:
-          type: string
-          description: "ISO country code of the buyer, used for tax metadata enrichment.\
-            \ Optional: when omitted (e.g. an anonymous download fallback with no\
-            \ known buyer), the supplier's country is used, treating the transaction\
-            \ as domestic."
-        buyerType:
-          $ref: "#/components/schemas/BuyerType"
-        taxesApplied:
-          type: boolean
-          description: "Whether taxes were applied to this transaction. Set to false\
-            \ when no taxes apply (e.g. US sales tax not charged, non-VAT jurisdiction).\
-            \ When false, the taxes list can be empty in the ReceiptTemplateRequest."
-      description: Receipt template request with transaction details
-    ReceiptTemplateRequest:
-      required:
-      - currency
-      - documentNumber
-      - issueDate
-      - products
-      - receiptSubtotal
-      - totalAmount
-      - totalBeforeTax
-      - totalTaxAmount
-      type: object
-      properties:
-        childCompanyId:
-          type: string
-          description: "The UUID of the child company (franchisee location or branch\
-            \ store) issuing this receipt. Required for franchise organizations managing\
-            \ multiple locations. If not provided, the receipt will be issued under\
-            \ the parent company."
-          format: uuid
-          example: 550e8400-e29b-41d4-a716-446655440000
-        documentNumber:
-          type: string
-          description: "This document number is a unique identifier provided by the\
-            \ seller, you use this number to uniquely identify this value in your\
-            \ system."
-          example: "INVOICE-123456, RECEIPT-123456"
-        identifiers:
-          type: array
-          description: "A list of identifiers for the receipt. For example order number,\
-            \ purchase order number, etc."
-          example: "ORDER-123456, PURCHASE-ORDER-123456s"
-          items:
-            $ref: "#/components/schemas/Identifier"
-        issueDate:
-          type: string
-          description: The date when the purchase receipt was issued.
-          format: date-time
-          example: 2022-01-01T00:00:00Z
-        currency:
-          type: string
-          description: The currency in which the purchase receipt is issued.
-          example: "EUR, USD, GBP"
-        receiptSubtotal:
-          type: number
-          description: "The subtotal of the purchase receipt, calculated as the sum\
-            \ of all line items before any overall purchase receipt-level adjustments\
-            \ or taxes. This amount represents the total value of goods or services\
-            \ listed on the invoice."
-          example: 100.0
-        totalBeforeTax:
-          type: number
-          description: "The total amount of the purchase receipt excluding taxes,\
-            \ but including any overall discounts or charges. This amount may differ\
-            \ from the purchase receipt subtotal if there are purchase receipt-level\
-            \ adjustments."
-          example: 100.0
-        totalTaxAmount:
-          type: number
-          description: The total tax amount for the purchase receipt. This should
-            equal the sum of all tax amounts in the taxes list.
-          example: 100.0
-        totalAmount:
-          type: number
-          description: The total amount charged to the customer. Should equal totalBeforeTax
-            + totalTaxAmount.
-          example: 100.0
-        products:
-          type: array
-          description: The list of products included in the purchase receipt. Must
-            contain at least one product.
-          items:
-            $ref: "#/components/schemas/Product"
-        discounts:
-          type: array
-          description: "Overall discounts applied at the purchase receipt level (not\
-            \ product-specific). Examples: \"Loyalty discount\", \"Coupon code\",\
-            \ \"Volume discount\""
-          items:
-            $ref: "#/components/schemas/Discount"
-        charges:
-          type: array
-          description: "Overall charges applied at the purchase receipt level (not\
-            \ product-specific). Examples: \"Delivery fee\", \"Administration free\"\
-            , \"Services charge\""
-          items:
-            $ref: "#/components/schemas/Charge"
-        taxes:
-          type: array
-          description: "Tax breakdown for the purchase receipt. Each Tax entry represents\
-            \ a tax category applied to the purchase receipt (e.g., VAT 21%, VAT 9%).\
-            \ The total tax amount is the sum of all tax amounts in this list."
-          items:
-            $ref: "#/components/schemas/Tax"
-        transactionDate:
-          type: string
-          description: The date when the purchase transaction was initiated. Only
-            needed when different from the issue date.
-          format: date-time
-        purchaseDate:
-          type: string
-          description: The date when the purchase was made. Only needed when different
-            from the issue date.
-          format: date-time
-        period:
-          $ref: "#/components/schemas/Period"
-        note:
-          type: string
-          description: A note that the seller wants to include on the credit note
-        barcodes:
-          type: array
-          description: "Optional list of barcodes or QR codes to embed in the receipt.\
-            \ These can be used for returns, loyalty programs, tickets, or any other\
-            \ scannable codes."
-          items:
-            $ref: "#/components/schemas/Barcode"
-      description: Receipt template request with transaction details
-    Tax:
-      required:
-      - rate
-      - taxableAmount
-      - type
-      type: object
-      properties:
-        rate:
-          type: number
-          description: The tax rate as a percentage (e.g. 21.0 for 21%)
-          format: double
-          example: 21.0
-        type:
-          type: string
-          description: "The type of tax, e.g. \"VAT\", \"GST\", \"Sales Tax\""
-          example: VAT
-        amount:
-          type: number
-          description: The calculated tax amount
-          example: 10.0
-        taxableAmount:
-          type: number
-          description: The total taxable amount for this tax rate
-          example: 10.0
-        label:
-          type: string
-          description: The label of the tax
-          example: VAT 21%
-      description: The list of taxes applied to the receipt
-    UnitCode:
-      type: string
-      description: Unit of measure codes based on UN/ECE Recommendation 20
-      example: C62
-      enum:
-      - C62
-      - EA
-      - KGM
-      - GRM
-      - MGM
-      - TNE
-      - LBR
-      - ONZ
-      - LTR
-      - MLT
-      - CLT
-      - HLT
-      - MTQ
-      - CMQ
-      - GLL
-      - GLI
-      - MTR
-      - CMT
-      - MMT
-      - KMT
-      - INH
-      - FOT
-      - YRD
-      - SMI
-      - MTK
-      - CMK
-      - FTK
-      - INK
-      - SEC
-      - MIN
-      - HUR
-      - DAY
-      - WEE
-      - MON
-      - ANN
-      - SET
-      - PR
-      - DZN
-      - NMP
-      - XPK
-      - BX
-      - CT
-      - CS
-      - PK
-      - PF
-      - BO
-      - CA
-      - BG
-      - E48
-      - ACT
-      - E51
-      - AD
-      - 2P
-      - 4L
+      description: Issuer-supplied receipt-level charges.
     CheqiReceipt:
       type: object
       properties:
@@ -1879,8 +1832,6 @@ components:
         receiptUuid:
           type: string
           description: The verification nonce of the receipt
-      description: Cheqi JSON receipt payload. Include this when the recipient accepts
-        the CHEQI format.
     CompanyIdentifierDTO:
       type: object
       properties:
@@ -1897,6 +1848,8 @@ components:
             value or a custom string for unsupported registries.
           example: KVK
           enum:
+          - BN
+          - KENNITALA
           - KVK
           - HRB
           - HRA
@@ -1940,6 +1893,51 @@ components:
       - EIN
       - DUNS
       - OTHER
+    Discount:
+      required:
+      - amount
+      type: object
+      properties:
+        amount:
+          type: number
+          description: The total discount amount
+          example: 5.0
+        percentage:
+          type: number
+          description: The percentage discount
+          format: double
+          example: 20
+        label:
+          type: string
+          description: A human-readable label for the discount
+          example: Black Friday
+      description: Issuer-supplied receipt-level discounts.
+    EmailReceiptRequest:
+      required:
+      - cheqiReceipt
+      - customerEmail
+      type: object
+      properties:
+        customerEmail:
+          type: string
+        cheqiReceipt:
+          $ref: "#/components/schemas/CheqiReceipt"
+      description: Email receipt request with customer email and receipt details
+    Identifier:
+      required:
+      - type
+      - value
+      type: object
+      properties:
+        type:
+          type: string
+          description: The type of identifier
+          example: ORDER_NUMBER/DEBITOR_NUMBER
+        value:
+          type: string
+          description: The value of the identifier
+          example: "123456"
+      description: Additional issuer-supplied receipt references.
     PartyAddress:
       type: object
       properties:
@@ -1954,24 +1952,105 @@ components:
         country:
           type: string
       description: The addressDto of the receiving party
-    ReceiptTemplateResponse:
+    Period:
+      required:
+      - endDate
+      - startDate
       type: object
       properties:
-        ublPurchaseReceipt:
+        startDate:
           type: string
-          description: "UBL 2.4 XML receipt template as a serialized XML string following\
-            \ the PurchaseReceipt schema. See [UBL XML Receipt Format](https://docs.cheqi.io/receipts/ubl-format)\
-            \ for the full structure and field reference."
-          example: <?xml version="1.0" encoding="UTF-8"?><PurchaseReceipt xmlns="urn:oasis:names:specification:ubl:schema:xsd:PurchaseReceipt-2">...</PurchaseReceipt>
-        ublInvoice:
+          description: The start date of the period
+          format: date-time
+          example: 2024-01-01T00:00:00Z
+        endDate:
           type: string
-          description: UBL 2.4 XML Invoice template as a serialized XML string following
-            the Invoice schema. Widely supported by accounting systems.
-          example: <?xml version="1.0" encoding="UTF-8"?><Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">...</Invoice>
-        cheqi:
-          $ref: "#/components/schemas/CheqiReceipt"
-        vatMetadata:
-          $ref: "#/components/schemas/VatMetadata"
+          description: The end date of the periodo
+          format: date-time
+          example: 2024-01-01T00:00:00Z
+        description:
+          type: string
+          description: Human-readable description of the period
+          example: Monthly subscription - January 2024
+      description: Optional billing or service period covered by the receipt.
+    Product:
+      required:
+      - identifier
+      - name
+      - quantity
+      - subtotal
+      - taxes
+      - total
+      - unitCode
+      - unitPrice
+      type: object
+      properties:
+        name:
+          type: string
+          description: The product name
+          example: Product Name
+        brandName:
+          type: string
+          description: The brand name
+          example: Brand Name
+        identifier:
+          type: string
+          description: "The identifier or article number of the product, this can\
+            \ for example also be a SKU/EAN code."
+          example: "123456"
+        description:
+          type: string
+          description: The description of the product
+        quantity:
+          type: number
+          description: The quantity of this item
+          format: double
+          example: 20
+        baseQuantity:
+          type: number
+          description: The base quantity of this item
+          format: double
+          example: 20
+        unitCode:
+          $ref: "#/components/schemas/UnitCode"
+        period:
+          $ref: "#/components/schemas/Period"
+        unitPrice:
+          type: number
+          description: The unit price of this item
+          example: 10.0
+        discounts:
+          type: array
+          description: The discounts applied to this line item
+          items:
+            $ref: "#/components/schemas/Discount"
+        charges:
+          type: array
+          description: The extra charges applied to this line item
+          items:
+            $ref: "#/components/schemas/Charge"
+        taxes:
+          type: array
+          description: The taxes applied to this line item
+          items:
+            $ref: "#/components/schemas/Tax"
+        subtotal:
+          type: number
+          description: "The line subtotal, before tax. Typically: quantity * unitPrice\
+            \ - discounts + charges (net)."
+          example: 10.0
+        total:
+          type: number
+          description: "The line total, after tax. Typically: subtotal + tax amounts\
+            \ (gross)."
+          example: 10.0
+        barcodes:
+          type: array
+          description: "Barcodes attached to this line item (e.g. ticket codes, return\
+            \ codes)"
+          items:
+            $ref: "#/components/schemas/Barcode"
+      description: Issuer-supplied receipt line items.
     ReceivingParty:
       type: object
       properties:
@@ -2039,163 +2118,116 @@ components:
         address:
           $ref: "#/components/schemas/PartyAddress"
       description: The selling party of the receipt.
-    VatMetadata:
-      type: object
-      properties:
-        supplierCountry:
-          type: string
-        buyerCountry:
-          type: string
-        crossBorder:
-          type: boolean
-        buyerType:
-          $ref: "#/components/schemas/BuyerType"
-        vatOnReceipt:
-          type: boolean
-        vatRegime:
-          $ref: "#/components/schemas/VatRegime"
-        taxesApplied:
-          type: boolean
-      description: VAT metadata that accompanies the receipt formats and supports
-        verification and tax handling.
-    VatRegime:
-      type: string
-      description: The VAT regime compute for given selling party and recipient
-      enum:
-      - DOMESTIC
-      - DOMESTIC_NO_VAT
-      - REVERSE_CHARGE_EU
-      - REVERSE_CHARGE_NON_EU
-      - INTRA_EU_VAT_CHARGED
-      - EXPORT
-      - FOREIGN_VAT
-      - TAX_EXEMPT
-    AcknowledgeRequest:
-      type: object
-      properties:
-        receiptIds:
-          uniqueItems: true
-          type: array
-          items:
-            type: string
-    PermanentFailureAcknowledgeRequest:
-      type: object
-      properties:
-        receiptIds:
-          uniqueItems: true
-          type: array
-          items:
-            type: string
-        failureReason:
-          type: string
-    EncryptedReceiptRequest:
+    Tax:
       required:
-      - encryptedReceipt
-      - encryptedSymmetricKey
-      - publicKey
-      - recipientId
-      type: object
-      properties:
-        recipientId:
-          type: string
-          description: Temporary recipient identifier returned by recipient resolution
-            for a single matched recipient. This is not the final device or client-application
-            id.
-        encryptedReceipt:
-          type: string
-          description: Base64 ciphertext of the receipt envelope.
-        encryptedSymmetricKey:
-          type: string
-          description: Wrapped symmetric content-encryption key for this recipient.
-            Encrypt the content key with the recipient public key and submit the wrapped
-            value here.
-        finalHash:
-          type: string
-          description: Final hash of the canonicalized CHEQI JSON receipt contained
-            in the plaintext envelope. Used for downstream verification and integrity
-            checks.
-        publicKey:
-          type: string
-          description: Recipient public key that was used to encrypt the symmetric
-            content key and ciphertext payload.
-        supplierPartyId:
-          type: string
-          description: The id of the selling party
-          format: uuid
-        notificationDisplayCode:
-          $ref: "#/components/schemas/NotificationDisplayCode"
-      description: Recipient-specific encrypted receipt payloads. Each item contains
-        ciphertext for one recipient envelope plus the wrapped symmetric key and verification
-        metadata.
-    EncryptedReceiptsRequest:
-      required:
-      - encryptedReceiptRequests
-      - matchId
-      - templateHash
-      type: object
-      properties:
-        encryptedReceiptRequests:
-          uniqueItems: true
-          type: array
-          description: Recipient-specific encrypted receipt payloads. Each item contains
-            ciphertext for one recipient envelope plus the wrapped symmetric key and
-            verification metadata.
-          items:
-            $ref: "#/components/schemas/EncryptedReceiptRequest"
-        matchId:
-          type: string
-          description: Match identifier returned by the recipient resolution step.
-            Every recipientId in encryptedReceiptRequests must belong to this match.
-        templateHash:
-          type: string
-          description: Hash of the receipt template basis used when building and encrypting
-            the recipient envelopes. Submit the same hash that was produced during
-            local envelope construction.
-      description: Encrypted receipt request with device-specific encryption
-    NotificationDisplayCode:
-      required:
-      - data
+      - rate
+      - taxableAmount
       - type
       type: object
       properties:
+        rate:
+          type: number
+          description: The tax rate as a percentage (e.g. 21.0 for 21%)
+          format: double
+          example: 21.0
         type:
-          $ref: "#/components/schemas/BarcodeType"
-        data:
           type: string
-    ReceiptCreatedResponse:
-      type: object
-      properties:
-        cheqiReceiptId:
+          description: "The type of tax, e.g. \"VAT\", \"GST\", \"Sales Tax\""
+          example: VAT
+        amount:
+          type: number
+          description: The calculated tax amount
+          example: 10.0
+        taxableAmount:
+          type: number
+          description: The total taxable amount for this tax rate
+          example: 10.0
+        label:
           type: string
-          description: Stable Cheqi receipt identifier assigned to the submitted receipt.
-          example: CHQ-12345678-123456-123456
-        createdAt:
+          description: The label of the tax
+          example: VAT 21%
+        category:
+          $ref: "#/components/schemas/TaxCategoryCode"
+        exemptionReasonCode:
           type: string
-          description: Timestamp when Cheqi accepted and queued the encrypted receipt
-            submission.
-          format: date-time
-        templateHash:
+          description: Tax exemption reason code. Written to UBL only when category
+            is EXEMPT.
+          example: VATEX-EU-132
+        exemptionReason:
           type: string
-          description: Template hash associated with the locally built recipient envelopes.
-            This should match the templateHash submitted in the request and can be
-            stored for audit and verification.
-        downloadUrl:
-          type: string
-          description: Public self-service download URL for the receipt. Only populated
-            for the QR-code download fallback route (DOWNLOAD_FALLBACK); the merchant
-            terminal renders this as a QR code for the customer to scan.
-          example: https://receipt.cheqi.io/xQ8...token
-    EmailReceiptRequest:
-      required:
-      - cheqiReceipt
-      - customerEmail
-      type: object
-      properties:
-        customerEmail:
-          type: string
-        cheqiReceipt:
-          $ref: "#/components/schemas/CheqiReceipt"
-      description: Email receipt request with customer email and receipt details
+          description: Tax exemption reason. Written to UBL only when category is
+            EXEMPT.
+          example: Exempt supply
+      description: Issuer-supplied receipt-level tax breakdown.
+    TaxCategoryCode:
+      type: string
+      description: Semantic tax category used to map the tax to the correct UBL UNCL5305
+        code
+      example: STANDARD
+      enum:
+      - STANDARD
+      - ZERO_RATED
+      - EXEMPT
+      - OUTSIDE_SCOPE
+    UnitCode:
+      type: string
+      description: Unit of measure codes based on UN/ECE Recommendation 20
+      example: C62
+      enum:
+      - C62
+      - EA
+      - KGM
+      - GRM
+      - MGM
+      - TNE
+      - LBR
+      - ONZ
+      - LTR
+      - MLT
+      - CLT
+      - HLT
+      - MTQ
+      - CMQ
+      - GLL
+      - GLI
+      - MTR
+      - CMT
+      - MMT
+      - KMT
+      - INH
+      - FOT
+      - YRD
+      - SMI
+      - MTK
+      - CMK
+      - FTK
+      - INK
+      - SEC
+      - MIN
+      - HUR
+      - DAY
+      - WEE
+      - MON
+      - ANN
+      - SET
+      - PR
+      - DZN
+      - NMP
+      - XPK
+      - BX
+      - CT
+      - CS
+      - PK
+      - PF
+      - BO
+      - CA
+      - BG
+      - E48
+      - ACT
+      - E51
+      - AD
+      - 2P
+      - 4L
     ClientReceiptDownloadRequest:
       required:
       - ciphertext
@@ -2238,236 +2270,181 @@ components:
           type: string
           description: Timestamp after which the download link stops resolving.
           format: date-time
-    CreditNoteTemplateGenerationRequest:
-      required:
-      - buyerCountryCode
-      - buyerType
-      - creditNoteTemplateRequest
-      - formats
-      - taxesApplied
+    ClientCredentialsTokenRequest:
       type: object
       properties:
-        creditNoteTemplateRequest:
-          $ref: "#/components/schemas/CreditNoteTemplateRequest"
-        formats:
-          type: array
-          description: List of formats for the receipt template
-          items:
-            $ref: "#/components/schemas/ReceiptFormat"
-        buyerCountryCode:
+        scope:
           type: string
-          description: "ISO country code of the buyer, used for tax metadata enrichment"
-        buyerType:
-          $ref: "#/components/schemas/BuyerType"
-        taxesApplied:
-          type: boolean
-          description: "Whether taxes were applied to this transaction. Set to false\
-            \ when no taxes apply (e.g. US sales tax not charged, non-VAT jurisdiction).\
-            \ When false, the taxes list can be empty."
-      description: Credit note template request with refund details
-    CreditNoteTemplateRequest:
-      required:
-      - creditNoteSubtotal
-      - currency
-      - documentNumber
-      - issueDate
-      - originatorDocumentReference
-      - products
-      - taxes
-      - totalAmount
-      - totalBeforeTax
-      - totalTaxAmount
-      type: object
-      properties:
-        childCompanyId:
+          description: Requested OAuth scope
+          example: write_receipts
+        grant_type:
           type: string
-          description: "The UUID of the child company (franchisee location or branch\
-            \ store) issuing this credit note. Required for franchise organizations\
-            \ managing multiple locations. If not provided, the receipt will be issued\
-            \ under the parent company."
+          description: OAuth grant type
+          example: client_credentials
+          enum:
+          - client_credentials
+        client_id:
+          type: string
+          description: Client application identifier
+          example: your_client_id
+        client_secret:
+          type: string
+          description: Client application secret
+          example: your_client_secret
+        grant_id:
+          type: string
+          description: Explicit Company Grant to use
           format: uuid
-          example: 550e8400-e29b-41d4-a716-446655440000
-        documentNumber:
-          type: string
-          description: "This document number is a unique identifier provided by the\
-            \ seller, you use this number to uniquely identify this value in your\
-            \ system."
-          example: CREDIT-NOTE-123456
-        originatorDocumentReference:
-          type: string
-          description: This is the document number of the original purchase receipt
-            this credit note refers to.
-          example: RECEIPT-123456
-        identifiers:
-          type: array
-          description: "A list of identifiers for the credit note. For example order\
-            \ number, purchase order number, etc."
-          example: "ORDER-123456, PURCHASE-ORDER-123456s"
-          items:
-            $ref: "#/components/schemas/Identifier"
-        issueDate:
-          type: string
-          description: The date when the credit note was issued.
-          format: date-time
-          example: 2022-01-01T00:00:00Z
-        currency:
-          type: string
-          description: The currency in which the credit note is issued.
-          example: "EUR, USD, GBP"
-        creditNoteSubtotal:
-          type: number
-          description: "The subtotal of the credit note, calculated as the sum of\
-            \ all line items before any overall credit note-level adjustments or taxes.\
-            \ This amount represents the total value of goods or services listed on\
-            \ the credit note."
-          example: 100.0
-        totalBeforeTax:
-          type: number
-          description: "The total amount of the credit note excluding taxes, but including\
-            \ any overall discounts or charges. This amount may differ from the creditNoteSubtotal\
-            \ if there are invoice-level adjustments."
-          example: 100.0
-        totalTaxAmount:
-          type: number
-          description: The total tax amount for the credit note. This should equal
-            the sum of all tax amounts in the taxes list.
-          example: 100.0
-        totalAmount:
-          type: number
-          description: The total amount charged to the customer. Should equal totalBeforeTax
-            + totalTaxAmount.
-          example: 100.0
-        products:
-          type: array
-          description: The list of products included in the credit note. Must contain
-            at least one product.
-          items:
-            $ref: "#/components/schemas/Product"
-        discounts:
-          type: array
-          description: "Overall discounts applied at the credit note level (not product-specific).\
-            \ Examples: \"Loyalty discount\", \"Coupon code\", \"Volume discount\""
-          items:
-            $ref: "#/components/schemas/Discount"
-        period:
-          $ref: "#/components/schemas/Period"
-        charges:
-          type: array
-          description: "Overall charges applied at the credit note level (not product-specific).\
-            \ Examples: \"Delivery fee\", \"Administration free\", \"Services charge\""
-          items:
-            $ref: "#/components/schemas/Charge"
-        taxes:
-          type: array
-          description: "Tax breakdown for the credit note. Each Tax entry represents\
-            \ a tax category applied to the credit note (e.g., VAT 21%, VAT 9%). The\
-            \ total tax amount is the sum of all tax amounts in this list."
-          items:
-            $ref: "#/components/schemas/Tax"
-        note:
-          type: string
-          description: A note that the seller wants to include on the credit note
-      description: Receipt template request with transaction details
-    CheqiCreditNote:
+          example: 9f5968f2-93b7-4b4e-a1c3-7220a92f7d98
+      description: Client credentials token request
+    OAuthTokenExchangeResponse:
       type: object
       properties:
-        cheqiCreditNoteId:
+        access_token:
           type: string
-          description: The unique identifier of the Cheqi credit note
-          example: CHQ-CN-12345678-123456-123456
-        documentNumber:
+        token_type:
           type: string
-          description: "The document number of the credit note, given by the seller."
-          example: CN-12356
-        originatorDocumentReference:
+          enum:
+          - authorization_code
+          - client_credentials
+          - refresh_token
+          - bearer
+          - access_token
+        expires_in:
+          type: integer
+          format: int64
+        scope:
           type: string
-          description: The document number of the original purchase receipt this credit
-            note refers to.
-          example: RECEIPT-123456
-        identifiers:
-          type: array
-          description: "The identifiers for the credit note, given by the seller,\
-            \ for example order reference, transaction number"
-          example: "ORD-12356, TRN-12356"
-          items:
-            $ref: "#/components/schemas/Identifier"
-        issueDate:
-          type: string
-          description: The issue date of the credit note
-          format: date-time
-          example: 2024-01-01T00:00:00Z
-        currency:
-          type: string
-          description: The currency of the credit note
-          example: EUR
-        creditNoteSubtotal:
-          type: number
-          description: "The subtotal of the credit note, calculated as the sum of\
-            \ all line items before any overall credit note-level adjustments or taxes."
-          example: 10.0
-        totalBeforeTax:
-          type: number
-          description: "The total before tax of the credit note, including any overall\
-            \ discounts or charges."
-          example: 10.0
-        totalTaxAmount:
-          type: number
-          description: The total tax amount of the credit note
-          example: 10.0
-        totalAmount:
-          type: number
-          description: The total amount of the credit note
-          example: 10.0
-        products:
-          type: array
-          description: The list of products included in the credit note. Must contain
-            at least one product.
-          items:
-            $ref: "#/components/schemas/Product"
-        discounts:
-          type: array
-          description: The list of discounts applied to the credit note on total credit
-            note level.
-          items:
-            $ref: "#/components/schemas/Discount"
-        charges:
-          type: array
-          description: The list of charges applied to the credit note on total credit
-            note level.
-          items:
-            $ref: "#/components/schemas/Charge"
-        taxes:
-          type: array
-          description: The list of taxes applied to the credit note
-          items:
-            $ref: "#/components/schemas/Tax"
-        period:
-          $ref: "#/components/schemas/Period"
-        note:
-          type: string
-          description: A note included on the credit note.
-          example: Refund for returned items
-        sellingParty:
-          $ref: "#/components/schemas/SellingParty"
-        receivingParty:
-          $ref: "#/components/schemas/ReceivingParty"
-        receiptUuid:
-          type: string
-          description: The verification nonce of the credit note
-      description: "Cheqi JSON credit note template object. This contains a complete\
-        \ CheqiCreditNote structure with products, taxes, parties, and all credit\
-        \ note details."
-    CreditNoteTemplateResponse:
+    CompanyGrantActionRequest:
+      required:
+      - reason
       type: object
       properties:
-        ublCreditNote:
+        reason:
           type: string
-          description: "UBL XML credit note template as a serialized XML string following\
-            \ the CreditNote schema. See [UBL XML Credit Note Format](https://docs.cheqi.io/creditNote/ubl-format)\
-            \ for the full structure and field reference."
-        cheqi:
-          $ref: "#/components/schemas/CheqiCreditNote"
+    CompanyGrantResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        integration_id:
+          type: string
+          format: uuid
+        issuer_company_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - SUSPENDED
+          - REVOKED
+        version:
+          type: integer
+          format: int64
+        scopes:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+        billing_responsibility:
+          type: string
+          enum:
+          - INTEGRATION
+          - ISSUER_COMPANY
+        store_access_mode:
+          type: string
+          enum:
+          - ALL_STORES
+          - SELECTED_STORES
+        store_ids:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+            format: uuid
+        origin:
+          type: string
+          enum:
+          - USER_CONSENT
+          - TRUSTED_PROVISIONING
+          - ADMIN_BULK_GRANT
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AuthorizationCodeExchangeRequest:
+      type: object
+      properties:
+        client_id:
+          type: string
+          description: Client application identifier
+          example: your_client_id
+        client_secret:
+          type: string
+          description: Client application secret
+          example: your_client_secret
+        code:
+          type: string
+          description: One-time authorization code returned by the OAuth redirect
+          example: AUTH_CODE
+        code_verifier:
+          type: string
+          description: PKCE code verifier used to create the authorization request
+          example: VERIFIER
+      description: Authorization code exchange request
+    CompanyAuthorizationResponse:
+      type: object
+      properties:
+        grants:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyGrantMetadataResponse"
+    CompanyGrantMetadataResponse:
+      type: object
+      properties:
+        grant_id:
+          type: string
+          format: uuid
+        grant_version:
+          type: integer
+          format: int64
+        issuer_company_id:
+          type: string
+          format: uuid
+        company_legal_name:
+          type: string
+        tax_id:
+          type: string
+        scopes:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+        store_ids:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+            format: uuid
+        store_access_mode:
+          type: string
+          enum:
+          - ALL_STORES
+          - SELECTED_STORES
+      description: Company Grant metadata returned after authorization-code exchange
     EncryptedCreditNoteInitiationRequest:
+      required:
+      - cheqiReceiptId
+      - encryptedCreditNoteInitiationRequest
+      - encryptedSymmetricKey
+      - publicKey
       type: object
       properties:
         cheqiReceiptId:
@@ -2478,108 +2455,39 @@ components:
           description: The public key of the requesting device
         encryptedCreditNoteInitiationRequest:
           type: string
-          description: The encrypted credit note initiation request payload
+          description: Base64-encoded ciphertext containing the plaintext contract
+            documented as `CreditNoteInitiationRequest` in `components/schemas`
         encryptedSymmetricKey:
           type: string
           description: The AES symmetric key encrypted with the recipient's RSA public
             key
-      description: Encrypted credit note initiation request from a customer's device
-    EncryptedCreditNote:
+      description: Encrypted credit note initiation request
+    EncryptedCreditNoteEnvelope:
       required:
-      - encryptedCreditNote
-      - encryptedCustomerAesKey
-      - encryptedCustomerDetails
-      - encryptedSymmetricKey
-      - publicKey
-      - supplierPartyId
-      type: object
-      properties:
-        recipientId:
-          type: string
-          description: The recipient ID of the credit note
-          example: UUID
-        creditNoteId:
-          type: string
-          description: The credit note ID
-          example: UUID
-        originalReceiptId:
-          type: string
-          description: The original receipt ID
-          example: UUID
-        encryptedCreditNote:
-          type: string
-          description: The encrypted credit note
-          example: encryptedCreditNote
-        encryptedSymmetricKey:
-          type: string
-          description: Base64-encoded device-specific encrypted symmetric key
-        encryptedCustomerDetails:
-          type: string
-          description: Base64-encoded encrypted customer details.
-        encryptedCustomerAesKey:
-          type: string
-          description: Base64-encoded encrypted customer details AES key
-        finalHash:
-          type: string
-        publicKey:
-          type: string
-          description: Base64-encoded public key used to encrypt the request
-        supplierPartyId:
-          type: string
-          description: Supplier party ID for storage
-          format: uuid
-      description: Recipient-specific encrypted credit-note payloads. Each item contains
-        ciphertext for one locally assembled recipient envelope plus the wrapped symmetric
-        key and verification metadata.
-    EncryptedCreditNotesRequest:
-      required:
-      - encryptedCreditNotes
+      - deviceDeliveries
       - matchId
       - parentCheqiReceiptId
-      - templateHash
       type: object
       properties:
         matchId:
           type: string
-          description: The match id that you received during customer matching
-          example: match_123456789
+          description: Device-processing match ID returned by POST /recipient/resolve.
+        childCompanyId:
+          type: string
+          format: uuid
+          deprecated: true
+        storeId:
+          type: string
+          format: uuid
         parentCheqiReceiptId:
           type: string
-          description: The parent Cheqi this credit note refers to
-          example: CHQ-1234567-123456-123456
-        encryptedCreditNotes:
-          uniqueItems: true
+          description: Cheqi receipt ID that this credit note reverses.
+        deviceDeliveries:
           type: array
-          description: Recipient-specific encrypted credit-note payloads. Each item
-            contains ciphertext for one locally assembled recipient envelope plus
-            the wrapped symmetric key and verification metadata.
           items:
-            $ref: "#/components/schemas/EncryptedCreditNote"
-        templateHash:
-          type: string
-          description: Hash of the credit-note template basis used when building and
-            encrypting the recipient envelopes.
-      description: Encrypted credit note request with device-specific encryption
-    CreditNoteCreatedResponse:
-      type: object
-      properties:
-        cheqiReceiptId:
-          type: string
-          description: The Cheqi receipt ID of the credit note
-          example: CHQ-CREDIT-12345678-123456-123456
-        parentCheqiReceiptId:
-          type: string
-          description: The Cheqi receipt ID of the parent receipt
-          example: CHQ-12345678-123456-123456
-        templateHash:
-          type: string
-          description: The hash of the credit note template
-          example: 9a39f25618892cc6d2ca6cd651af864543a34e7ee5b5c3efff6b0de3437a8383
-        createdAt:
-          type: string
-          description: The timestamp of the credit note creation
-          format: date-time
-          example: 1970-01-01T00:00:00Z
+            $ref: "#/components/schemas/EncryptedReceiptPayload"
+      description: Independently encrypted credit-note generation request for every
+        owner device
     CompanyCreationRequest:
       required:
       - address
@@ -2682,102 +2590,29 @@ components:
       enum:
       - MANUAL
       - AUTOMATED
-    CompanyResponseBody:
+    CompanyResponse:
       type: object
       properties:
         id:
           type: string
-          description: Unique company identifier
           format: uuid
-          example: 550e8400-e29b-41d4-a716-446655440000
         companyName:
           type: string
-          description: Display name of the company
-          example: Example Coffee Shop
         companyLegalName:
           type: string
-          description: Legal registered name of the company
-          example: Example Coffee Shop B.V.
         address:
           $ref: "#/components/schemas/AddressDTO"
         companyEmail:
           type: string
-          description: Primary company email address
-          example: finance@example.com
         phoneNumber:
           type: string
-          description: Primary company phone number
-          nullable: true
-          example: +31 20 123 4567
-        contactDetails:
-          uniqueItems: true
-          type: array
-          description: Additional contact details configured for the company
-          items:
-            $ref: "#/components/schemas/ContactDetailDto"
         identifiers:
           uniqueItems: true
           type: array
-          description: Registration identifiers associated with the company
           items:
             $ref: "#/components/schemas/CompanyIdentifierDTO"
         website:
           type: string
-          description: Public company website
-          nullable: true
-        returnDays:
-          type: integer
-          description: Default return window in days
-          format: int32
-          nullable: true
-        companyReceiptText:
-          type: string
-          description: Custom receipt text configured for the company
-          nullable: true
-        companyLogoUrl:
-          type: string
-          description: Pre-signed URL for the company logo
-          nullable: true
-        companyLogoUrlExpiresAt:
-          type: string
-          description: UTC timestamp when the pre-signed logo URL expires
-          format: date-time
-          nullable: true
-        returnProcessingMode:
-          $ref: "#/components/schemas/ReturnProcessingMode"
-        userRole:
-          $ref: "#/components/schemas/CompanyRole"
-        accountPaused:
-          type: boolean
-          description: Whether the company account is currently paused
-          nullable: true
-        accountPausedReason:
-          type: string
-          description: "Reason the company account is paused, when applicable"
-          nullable: true
-        notificationCodeEnabled:
-          type: boolean
-          description: Whether notification-code based receipt retrieval is enabled
-          nullable: true
-        emailFallbackEnabled:
-          type: boolean
-          description: Whether receipts may fall back to PDF email delivery when recipient
-            matching does not find a Cheqi recipient
-          nullable: true
-        downloadFallbackEnabled:
-          type: boolean
-          description: Whether receipts may fall back to QR-code download delivery
-            when recipient matching does not find a Cheqi recipient
-          nullable: true
-      description: Company response body returned by company creation endpoints.
-    CompanyRole:
-      type: string
-      description: The role of a user in a company
-      nullable: true
-      example: COMPANY_ADMIN
-      enum:
-      - COMPANY_ADMIN
-      - COMPANY_USER
     CreateStoreRequest:
       required:
       - addressDto
@@ -2807,21 +2642,6 @@ components:
           maxLength: 500
           minLength: 0
           type: string
-    WebhookSecretRotationResponse:
-      type: object
-      properties:
-        ownerId:
-          type: string
-          format: uuid
-        ownerType:
-          type: string
-        webhookSecret:
-          type: string
-        rotatedAt:
-          type: string
-          format: date-time
-        message:
-          type: string
     KeyAlgorithm:
       type: string
       description: Key algorithm for encryption
@@ -2839,165 +2659,159 @@ components:
         keyAlgorithm:
           $ref: "#/components/schemas/KeyAlgorithm"
       description: Public key upload request with key data and algorithm
+    UpdateCompanyGrantRequest:
+      required:
+      - reason
+      - scopes
+      type: object
+      properties:
+        scopes:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+        billing_responsibility:
+          type: string
+          enum:
+          - INTEGRATION
+          - ISSUER_COMPANY
+        store_access_mode:
+          type: string
+          enum:
+          - ALL_STORES
+          - SELECTED_STORES
+        store_ids:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+            format: uuid
+        reason:
+          type: string
+    UpdateCreditNoteRequestStatusRequest:
+      required:
+      - status
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - PENDING
+          - ACCEPTED
+          - PARTIALLY_ACCEPTED
+          - REJECTED
+          - COMPLETED
+          - CANCELLED
+    EncryptedCreditNoteInitiationRequestResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        cheqiReceiptId:
+          type: string
+        encryptedSymmetricKey:
+          type: string
+        publicKey:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING
+          - ACCEPTED
+          - PARTIALLY_ACCEPTED
+          - REJECTED
+          - COMPLETED
+          - CANCELLED
+        createdAt:
+          type: string
+          format: date-time
+        encryptedCreditNoteInitiationRequest:
+          type: string
+      description: Encrypted customer return request awaiting action by the original
+        receipt issuer.
     DocumentType:
       type: string
       description: Type of document for this receipt
       enum:
       - RECEIPT
       - CREDIT_NOTE
-    ReceiptQueueDto:
+    EncryptedReceiptDeliveryResponse:
       type: object
       properties:
         cheqiReceiptId:
           type: string
-          description: Stable Cheqi identifier of the queued receipt or credit note.
-          example: CHQ-12345678-123456-123456
         parentCheqiReceiptId:
           type: string
-          description: "For credit notes, the original receipt being credited. Null\
-            \ for regular receipts."
-          example: CHQ-87654321-654321-654321
         documentType:
           $ref: "#/components/schemas/DocumentType"
-        deviceId:
+        encryptedEnvelope:
           type: string
-          description: Target recipient device id when this queue item is addressed
-            to a device.
-          format: uuid
-        clientApplicationId:
+        encryptedEnvelopeKey:
           type: string
-          description: Target client application id when this queue item is addressed
-            to a client application.
-          format: uuid
-        companyId:
-          type: string
-          description: Owning company id when this queue item is addressed to a company
-            context.
-          format: uuid
-        encryptedReceipt:
-          type: string
-          description: Base64 ciphertext of the receipt envelope.
-        encryptedSymmetricKey:
-          type: string
-          description: Wrapped symmetric content-encryption key for encryptedReceipt.
         publicKey:
           type: string
-          description: Recipient public key that was used to wrap the symmetric key
-            for encryptedReceipt.
-        encryptedCustomerDetails:
+        recipientKeyAlgorithm:
           type: string
-          description: Encrypted customer context envelope containing receiving-party
-            and payment-means details for this matched recipient context.
-        encryptedCustomerAesKey:
+        receiptGeneratorVersion:
           type: string
-          description: Wrapped symmetric key for encryptedCustomerDetails.
-        customerUserId:
+        envelopeVersion:
+          type: integer
+          format: int32
+        finalHash:
           type: string
-          description: Matched customer user id when the resolved customer context
-            is a user.
-          format: uuid
-        customerCompanyId:
-          type: string
-          description: Matched customer company id when the resolved customer context
-            is a company.
-          format: uuid
-        matchingId:
-          type: string
-          description: Recipient-resolution match id associated with this queued delivery.
-        routingIdentifier:
-          $ref: "#/components/schemas/RoutingIdentifier"
-        receiptFormats:
-          type: array
-          description: Receipt formats included inside the encrypted payload.
-          items:
-            $ref: "#/components/schemas/ReceiptFormat"
         supplierPartyId:
           type: string
-          description: Supplier party id associated with the merchant side of the
-            document.
           format: uuid
         creationDate:
           type: string
-          description: Timestamp when the queue item was created.
           format: date-time
-      description: "Queued encrypted receipt or credit note delivery payload for a\
-        \ device, client application, or company consumer."
-    RoutingIdentifier:
+      description: Encrypted receipt or credit-note delivery envelope returned to
+        an authorized recipient.
+    OAuthGrantCompanyResponse:
       type: object
       properties:
-        type:
-          $ref: "#/components/schemas/RoutingIdentifierType"
         id:
           type: string
-          description: Identifier value for the resolved routing target.
           format: uuid
-      description: Identifier that was used to route or resolve the recipient context
-        for this queued receipt.
-    RoutingIdentifierType:
-      type: string
-      description: Type of routing identifier
-      enum:
-      - PAYMENT_ACCOUNT
-      - CARD
-      - EMAIL
-      - CASH
-    EncryptedCreditNoteDto:
-      required:
-      - encryptedCreditNote
-      - encryptedCustomerAesKey
-      - encryptedCustomerDetails
-      - encryptedSymmetricKey
-      - publicKey
-      - recipientId
-      - supplierPartyId
+        companyName:
+          type: string
+        companyLegalName:
+          type: string
+        address:
+          $ref: "#/components/schemas/AddressDTO"
+        identifiers:
+          uniqueItems: true
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyIdentifierDTO"
+        website:
+          type: string
+    OAuthGrantDetailsResponse:
       type: object
       properties:
-        recipientId:
+        grant_id:
           type: string
-          description: The recipient ID of the credit note
           format: uuid
-        creditNoteId:
+        grant_version:
+          type: integer
+          format: int64
+        company:
+          $ref: "#/components/schemas/OAuthGrantCompanyResponse"
+        stores:
+          type: array
+          items:
+            $ref: "#/components/schemas/StoreDTO"
+        scopes:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+        store_access_mode:
           type: string
-          description: The credit note ID
-          example: UUID
-        originalReceiptId:
-          type: string
-          description: The original receipt ID
-          example: UUID
-        receiverType:
-          $ref: "#/components/schemas/ReceiverType"
-        encryptedCreditNote:
-          type: string
-          description: The encrypted credit note
-          example: encryptedCreditNote
-        encryptedSymmetricKey:
-          type: string
-          description: Base64-encoded device-specific encrypted symmetric key
-        encryptedCustomerDetails:
-          type: string
-          description: Base64-encoded encrypted customer details.
-        encryptedCustomerAesKey:
-          type: string
-          description: Base64-encoded encrypted customer details AES key
-        finalHash:
-          type: string
-        publicKey:
-          type: string
-          description: Base64-encoded public key used to encrypt the request
-        supplierPartyId:
-          type: string
-          description: Supplier party ID for storage
-          format: uuid
-    ReceiverType:
-      type: string
-      description: Type of receiver for this receipt
-      example: WEBHOOK/DEVICE
-      enum:
-      - DEVICE
-      - CLIENT_APPLICATION
-      - COMPANY
-      - EMAIL_FALLBACK
-      - DOWNLOAD_FALLBACK
+          enum:
+          - ALL_STORES
+          - SELECTED_STORES
     CompanyReceiptDeliverySettingsResponse:
       type: object
       properties:
@@ -3122,152 +2936,454 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AuthorizedEmailDTO"
-    EncryptedReceipt:
+    RoutingIdentifier:
       type: object
       properties:
-        additionalProperties:
-          type: object
-          additionalProperties:
-            type: object
-        recipientId:
+        type:
+          $ref: "#/components/schemas/RoutingIdentifierType"
+        id:
           type: string
+          description: Identifier value for the resolved routing target.
           format: uuid
-        receiptId:
-          type: string
-        receiverType:
-          $ref: "#/components/schemas/ReceiverType"
-        encryptedReceipt:
-          type: string
-        encryptedSymmetricKey:
-          type: string
-        encryptedCustomerDetails:
-          type: string
-        encryptedCustomerAesKey:
-          type: string
-        finalHash:
-          type: string
-        publicKey:
-          type: string
-        supplierPartyId:
-          type: string
-          format: uuid
-        receiptFormats:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReceiptFormat"
-        notificationDisplayCode:
-          $ref: "#/components/schemas/NotificationDisplayCode"
-    WebhookEventDTO:
+      description: Identifier that was used to route or resolve the recipient context
+        for this queued receipt.
+    RoutingIdentifierType:
+      type: string
+      description: Type of routing identifier
+      enum:
+      - PAYMENT_ACCOUNT
+      - CARD
+      - EMAIL
+      - CASH
+    WebhookCreditNoteInitiationRequest:
       type: object
       properties:
-        clientId:
-          type: string
-          description: Public OAuth client ID of the client application that owns
-            the webhook subscription.
-          nullable: true
         companyId:
           type: string
           format: uuid
         userId:
           type: string
           format: uuid
+        cheqiReceiptId:
+          type: string
+        publicKey:
+          type: string
+        encryptedCreditNoteInitiationRequest:
+          type: string
+        encryptedSymmetricKey:
+          type: string
+        clientId:
+          type: string
+          description: Public OAuth client ID of the client application that owns
+            the webhook subscription.
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      description: Encrypted customer return request routed to the original receipt
+        issuer.
+    WebhookData:
+      type: object
+      properties:
+        encryptedReceipt:
+          $ref: "#/components/schemas/WebhookReceiptEnvelope"
+        encryptedCreditNote:
+          $ref: "#/components/schemas/WebhookReceiptEnvelope"
+        creditNoteInitiationRequest:
+          $ref: "#/components/schemas/WebhookCreditNoteInitiationRequest"
+      description: Container for the event-specific webhook object.
+    WebhookEvent:
+      type: object
+      properties:
         event:
           type: string
           enum:
           - RECEIPT_CREATED
-          - RECEIPT_FINALIZED
           - RETURN_REQUESTED
           - CREDIT_NOTE_CREATED
-          - CREDIT_NOTE_FINALIZED
-        created_at:
+        data:
+          $ref: "#/components/schemas/WebhookData"
+      description: Payload delivered to registered webhook notification URLs when
+        subscribed events occur.
+    WebhookReceiptEnvelope:
+      type: object
+      properties:
+        companyId:
           type: string
-          format: date-time
+          format: uuid
+        userId:
+          type: string
+          format: uuid
         cheqiReceiptId:
           type: string
         routingIdentifier:
           $ref: "#/components/schemas/RoutingIdentifier"
-        encryptedReceipt:
-          $ref: "#/components/schemas/EncryptedReceipt"
-        encryptedCreditNoteInitiationRequest:
-          $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequest"
-        encryptedCreditNoteDto:
-          $ref: "#/components/schemas/EncryptedCreditNoteDto"
+        encryptedEnvelope:
+          type: string
+        encryptedEnvelopeKey:
+          type: string
+        publicKey:
+          type: string
+        recipientKeyAlgorithm:
+          type: string
+        envelopeVersion:
+          type: integer
+          format: int32
+        receiptGeneratorVersion:
+          type: string
         finalHash:
           type: string
-        finalizedAt:
+        clientId:
+          type: string
+          description: Public OAuth client ID of the client application that owns
+            the webhook subscription.
+          nullable: true
+        created_at:
           type: string
           format: date-time
-        deviceId:
-          type: string
-          format: uuid
-      description: Payload delivered to registered webhook notification URLs when
-        subscribed events occur.
+      description: Recipient-specific encrypted receipt or credit-note envelope delivered
+        by webhook.
     ReceiptEnvelope:
+      required:
+      - cheqiReceiptId
+      - documents
+      - envelopeVersion
+      - receiptGeneratorVersion
+      - receiptUuid
       type: object
       properties:
-        cheqi:
-          $ref: "#/components/schemas/CheqiReceipt"
-        ublPurchaseReceipt:
+        cheqiReceiptId:
           type: string
-          description: Serialized UBL PurchaseReceipt XML payload. Include this when
-            the recipient accepts UBL_PURCHASE_RECEIPT.
-          example: <?xml version="1.0" encoding="UTF-8"?><PurchaseReceipt xmlns="urn:oasis:names:specification:ubl:schema:xsd:PurchaseReceipt-2">...</PurchaseReceipt>
-        ublInvoice:
+          description: Stable Cheqi receipt or credit-note identifier.
+          example: CHQ-20260724-135304-36DEC3
+        documents:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ReceiptEnvelopeDocument"
+          description: "Generated documents keyed by ReceiptFormat name: CHEQI, UBL_PURCHASE_RECEIPT,\
+            \ UBL_INVOICE, or UBL_CREDIT_NOTE. Only formats included for this recipient\
+            \ are present. Each document's content is serialized JSON or XML, not\
+            \ a nested parsed document."
+        envelopeVersion:
+          maximum: 1
+          minimum: 1
+          type: integer
+          description: Schema version of this encrypted plaintext envelope.
+          format: int32
+          example: 1
+        receiptGeneratorVersion:
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._+\\-]{0,63}$"
           type: string
-          description: Serialized UBL Invoice XML payload. Include this when the recipient
-            accepts UBL_INVOICE.
-          example: <?xml version="1.0" encoding="UTF-8"?><Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">...</Invoice>
-        vatMetaData:
-          $ref: "#/components/schemas/VatMetadata"
-      description: "Receipt envelope, that is the encrypted receipt content"
-    PaymentMeansEnvelope:
+          description: Version of the Rust receipt-template engine that generated
+            the documents.
+          example: 0.3.0
+        receiptUuid:
+          type: string
+          description: Shared UUID embedded in every generated representation of this
+            receipt.
+          format: uuid
+          example: 2a061905-30da-430d-b6b9-0be2189a6902
+      description: Versioned plaintext receipt package encrypted independently for
+        one recipient.
+      x-tags:
+      - Receipt Management
+    ReceiptEnvelopeDocument:
+      required:
+      - content
+      - mediaType
+      type: object
+      properties:
+        content:
+          type: string
+          description: Complete generated JSON or XML document serialized as a string.
+            Parse this value according to mediaType after parsing the outer envelope.
+          example: "{\"documentNumber\":\"INV-2026-000042\",\"currency\":\"EUR\",\"\
+            totalAmount\":121.0}"
+        mediaType:
+          type: string
+          description: Media type of content.
+          example: application/json
+          enum:
+          - application/json
+          - application/xml
+      description: One generated document inside a recipient receipt envelope.
+      x-tags:
+      - Receipt Management
+    BarcodeType:
+      type: string
+      description: The type of barcode or scannable code
+      example: QR_CODE
+      enum:
+      - QR_CODE
+      - EAN_13
+      - EAN_8
+      - CODE_128
+      - UPC_A
+      - DATA_MATRIX
+    FiscalizationData:
+      required:
+      - status
+      - system
+      type: object
+      properties:
+        system:
+          type: string
+          description: Local fiscalization system or regime
+          example: DE_KASSENSICHV_TSE
+        status:
+          $ref: "#/components/schemas/FiscalizationStatus"
+        fiscalDocumentNumber:
+          type: string
+        fiscalDeviceId:
+          type: string
+        cashRegisterId:
+          type: string
+        businessPremiseId:
+          type: string
+        operatorId:
+          type: string
+        transactionId:
+          type: string
+        sequenceNumber:
+          type: string
+        authorityReference:
+          type: string
+        softwareId:
+          type: string
+        verificationCode:
+          type: string
+        signature:
+          type: string
+        signatureAlgorithm:
+          type: string
+        verificationUrl:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        additionalFields:
+          type: array
+          items:
+            $ref: "#/components/schemas/JurisdictionField"
+    FiscalizationStatus:
+      type: string
+      description: Outcome supplied by the merchant's local fiscalization system.
+        PENDING and FAILED are rejected when generating a final receipt.
+      enum:
+      - FISCALIZED
+      - NOT_REQUIRED
+      - PENDING
+      - FAILED
+    JurisdictionField:
+      required:
+      - code
+      - value
+      type: object
+      properties:
+        code:
+          type: string
+          description: "Stable uppercase, preferably country-namespaced field code"
+          example: PT:ATCUD
+        value:
+          type: string
+          description: Exact value supplied by the fiscal/POS system
+        label:
+          type: string
+          description: Optional display label
+    JurisdictionLegalText:
+      required:
+      - code
+      - text
+      type: object
+      properties:
+        code:
+          type: string
+          description: Stable uppercase legal-text code
+          example: REVERSE_CHARGE_NOTICE
+        text:
+          type: string
+          description: Exact legally required text
+        languageCode:
+          type: string
+          description: Optional BCP 47 language tag
+          example: pt-PT
+        displayRole:
+          type: string
+          description: Semantic presentation role for exact jurisdictional legal text
+          enum:
+          - DOCUMENT_HEADING
+          - NOTICE
+          - FOOTER
+      description: Exact jurisdictional legal text for structured CHEQI and UBL output.
+        This does not populate the merchant-configured receipt note.
+    JurisdictionalData:
+      type: object
+      properties:
+        countryCode:
+          type: string
+          description: "Optional ISO 3166-1 alpha-2 issuance country; when omitted,\
+            \ the on-device engine uses supplierParty.address.countryIsoCode"
+          example: DE
+        regime:
+          type: string
+          description: "Optional external fiscal, authority, or regulated-system regime\
+            \ selected by the merchant POS"
+          example: DE_KASSENSICHV
+        regimeVersion:
+          type: string
+          description: Version of Cheqi's data contract for the selected external
+            regime
+          example: 2026-07
+        fiscalization:
+          $ref: "#/components/schemas/FiscalizationData"
+        legalTexts:
+          type: array
+          description: Exact jurisdictional legal text for structured CHEQI and UBL
+            output. This does not populate the merchant-configured receipt note.
+          items:
+            $ref: "#/components/schemas/JurisdictionLegalText"
+        additionalFields:
+          type: array
+          items:
+            $ref: "#/components/schemas/JurisdictionField"
+      description: Optional country-specific fiscalization and legal receipt data.
+    PaymentDetails:
       type: object
       properties:
         paymentMeansCode:
           type: string
-          description: UBL payment means code describing the matched payment method.
+          description: "Issuer-supplied payment means code, such as 10 for cash, 48\
+            \ for card, or 49 for direct debit."
           example: "48"
         description:
           type: string
-          description: Human-readable description of the matched payment method.
-          example: Card payment
+          description: Issuer-supplied display description for the payment method.
         cardProvider:
           type: string
-          description: Card network or provider when the match resolved to a card
-            payment.
+          description: Card scheme or provider when applicable.
           example: VISA
         cardLastFour:
           type: string
-          description: Last four digits of the matched card when available.
+          description: Last four card digits when the issuer is permitted to include
+            them.
           example: "4242"
         accountIdentifier:
           type: string
-          description: "Matched bank-account identifier when the payment means is\
-            \ account-based, for example an IBAN."
-          example: NL91ABNA0417164300
+          description: Payment-account identifier when applicable.
         accountIdentifierType:
           type: string
-          description: "Type of account identifier, for example IBAN."
+          description: Type of the payment-account identifier when applicable.
           example: IBAN
-        xmlPaymentMeans:
+        merchantId:
           type: string
-          description: Serialized UBL XML payment means fragment that corresponds
-            to this payment method. Include it when the final encrypted envelope contains
-            a UBL receipt format.
-          example: <cac:PaymentMeans><cbc:PaymentMeansCode>48</cbc:PaymentMeansCode></cac:PaymentMeans>
-      description: Payment means data derived from the customer match. This metadata
-        is generated by Cheqi and combined into the customer context envelope before
-        encryption.
-    ReceiptContextEnvelope:
+          description: Merchant identifier assigned by the card acquirer or payment
+            processor.
+          example: MID-from-payment-terminal
+        paymentTerminalId:
+          type: string
+          description: Terminal identifier assigned by the card acquirer or payment
+            processor.
+          example: TID-from-payment-terminal
+      description: Definitive issuer-supplied payment information encrypted as part
+        of the ReceiptPayload. Cheqi never receives this object in plaintext.
+    ReceiptPayload:
+      required:
+      - currency
+      - documentNumber
+      - issueDate
+      - products
+      - receiptSubtotal
+      - taxesApplied
+      - totalAmount
+      - totalBeforeTax
+      - totalTaxAmount
+      type: object
+      properties:
+        documentNumber:
+          type: string
+          description: Issuer-assigned receipt number.
+          example: RECEIPT-123456
+        identifiers:
+          type: array
+          description: Additional issuer-supplied receipt references.
+          items:
+            $ref: "#/components/schemas/Identifier"
+        issueDate:
+          type: string
+          description: Date and time at which the issuer issued the receipt.
+          format: date-time
+        currency:
+          type: string
+          description: ISO 4217 currency code.
+          example: EUR
+        receiptSubtotal:
+          type: number
+          description: Issuer-supplied receipt subtotal.
+        totalBeforeTax:
+          type: number
+          description: Issuer-supplied total excluding tax.
+        totalTaxAmount:
+          type: number
+          description: Issuer-supplied total tax amount.
+        totalAmount:
+          type: number
+          description: Issuer-supplied final receipt total.
+        taxesApplied:
+          type: boolean
+          description: Issuer-supplied indication whether taxes apply to this receipt.
+        products:
+          type: array
+          description: Issuer-supplied receipt line items.
+          items:
+            $ref: "#/components/schemas/Product"
+        discounts:
+          type: array
+          description: Issuer-supplied receipt-level discounts.
+          items:
+            $ref: "#/components/schemas/Discount"
+        charges:
+          type: array
+          description: Issuer-supplied receipt-level charges.
+          items:
+            $ref: "#/components/schemas/Charge"
+        taxes:
+          type: array
+          description: Issuer-supplied receipt-level tax breakdown.
+          items:
+            $ref: "#/components/schemas/Tax"
+        transactionDate:
+          type: string
+          description: Transaction date when it differs from the issue date.
+          format: date-time
+        purchaseDate:
+          type: string
+          description: Purchase date when it differs from the issue date.
+          format: date-time
+        period:
+          $ref: "#/components/schemas/Period"
+        barcodes:
+          type: array
+          description: Issuer-supplied receipt-level barcodes or QR-code payloads.
+          items:
+            $ref: "#/components/schemas/Barcode"
+        paymentDetails:
+          $ref: "#/components/schemas/PaymentDetails"
+        jurisdictionalData:
+          $ref: "#/components/schemas/JurisdictionalData"
+      description: "Definitive merchant-supplied receipt values encrypted independently\
+        \ for each matched owner device. Cheqi never receives this object in plaintext.\
+        \ All monetary, tax, fiscalization, signature, sequence, and QR values must\
+        \ be provided by the issuer; the SDK does not calculate them."
+      x-tags:
+      - Receipt Management
+    CreditNoteContextEnvelope:
       type: object
       properties:
         receivingParty:
           $ref: "#/components/schemas/ReceivingPartyEnvelope"
-        paymentMeans:
-          $ref: "#/components/schemas/PaymentMeansEnvelope"
-      description: Receipt context envelope that is combined with the receipt template
-        before encrypting the final recipient payload. This object is generated by
-        Cheqi from the resolved customer match and must not be supplied by merchants
+      description: Credit note context envelope that is combined with the credit note
+        template before encrypting the final recipient payload. This object is generated
+        by Cheqi from the resolved customer match and must not be supplied by merchants
         directly.
     ReceivingPartyEnvelope:
       type: object
@@ -3281,27 +3397,110 @@ components:
           $ref: "#/components/schemas/ReceivingParty"
       description: Receiving-party context in XML and Cheqi JSON forms for the resolved
         recipient.
-    CreditNoteContextEnvelope:
+    CreditNoteInitiationRequest:
+      required:
+      - cheqiReceiptId
+      - lineItems
+      - receiptId
+      - refundPreference
       type: object
       properties:
-        receivingParty:
-          $ref: "#/components/schemas/ReceivingPartyEnvelope"
-        paymentMeans:
-          $ref: "#/components/schemas/PaymentMeansEnvelope"
-      description: Credit note context envelope that is combined with the credit note
-        template before encrypting the final recipient payload. This object is generated
-        by Cheqi from the resolved customer match and must not be supplied by merchants
-        directly.
+        cheqiReceiptId:
+          type: string
+          description: Cheqi identifier of the original receipt
+        receiptId:
+          type: string
+          description: Issuer-supplied identifier of the original receipt
+        customerNote:
+          maxLength: 1000
+          minLength: 0
+          type: string
+          description: Optional note about the return request
+        lineItems:
+          type: array
+          description: Requested return quantities and reasons. Multiple entries may
+            use the same productId when different quantities have different reasons.
+          items:
+            $ref: "#/components/schemas/ReturnLineItem"
+        refundPreference:
+          $ref: "#/components/schemas/RefundPreference"
+        refundBankAccount:
+          $ref: "#/components/schemas/RefundBankAccount"
+      description: Plaintext customer return request encrypted for the original receipt
+        issuer. Cheqi routes the ciphertext and never receives or validates this object
+        in plaintext.
+      x-tags:
+      - Credit Note Management
+    RefundBankAccount:
+      required:
+      - accountHolder
+      - iban
+      type: object
+      properties:
+        iban:
+          type: string
+          description: IBAN of the bank account
+        bic:
+          type: string
+          description: BIC/SWIFT code of the bank
+        accountHolder:
+          type: string
+          description: Name of the account holder
+      description: Bank account details for refund via bank transfer
+    RefundPreference:
+      type: string
+      description: The preferred refund method
+      enum:
+      - ORIGINAL_PAYMENT_METHOD
+      - BANK_TRANSFER
+      - STORE_CREDIT
+    ReturnLineItem:
+      required:
+      - productId
+      - quantity
+      - reasonCode
+      type: object
+      properties:
+        productId:
+          maxLength: 255
+          minLength: 0
+          type: string
+          description: Merchant-supplied identifier of the product being returned
+        quantity:
+          minimum: 0
+          exclusiveMinimum: true
+          type: number
+          description: Quantity being returned. Multiple entries may reference the
+            same productId when quantities have different reasons.
+        reasonCode:
+          $ref: "#/components/schemas/ReturnReasonCode"
+        reasonDescription:
+          maxLength: 1000
+          minLength: 0
+          type: string
+          description: Optional explanation for this return reason
+      description: A line item being returned as part of a credit note request
+    ReturnReasonCode:
+      type: string
+      description: Customer-provided reason for returning a product quantity
+      enum:
+      - DEFECTIVE
+      - DAMAGED
+      - WRONG_ITEM
+      - NOT_AS_DESCRIBED
+      - UNWANTED
+      - EXPIRED
+      - INCOMPLETE
   securitySchemes:
     cheqi_oauth:
       type: oauth2
-      description: OAuth 2.0 for client applications acting on behalf of a company
-        and/or user. Use the authorization_code flow for user-authorized access and
-        the client_credentials flow for trusted partner bootstrap.
+      description: "OAuth 2.0 for company integrations. Authorization creates explicit\
+        \ company grants. The client_credentials token request must select one grant_id\
+        \ and a scope subset, and returns a short-lived token bound to the Company\
+        \ authorized by that Grant."
       flows:
         clientCredentials:
           tokenUrl: https://sandbox.api.cheqi.io/oauth2/token
-          refreshUrl: https://sandbox.api.cheqi.io/oauth2/refresh
           scopes:
             read_receipts: "View receipt details including items, prices, and payment\
               \ information"
@@ -3313,7 +3512,6 @@ components:
         authorizationCode:
           authorizationUrl: https://api.cheqi.io/oauth2/authorize
           tokenUrl: https://sandbox.api.cheqi.io/oauth2/token
-          refreshUrl: https://sandbox.api.cheqi.io/oauth2/refresh
           scopes:
             read_receipts: "View receipt details including items, prices, and payment\
               \ information"

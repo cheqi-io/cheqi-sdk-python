@@ -44,8 +44,8 @@ class CompanyIdentifierDTO(BaseModel):
         if value is None:
             return value
 
-        if value not in set(['KVK', 'HRB', 'HRA', 'SIREN', 'SIRET', 'KBO', 'COMPANIES_HOUSE', 'CNPJ', 'ABN', 'CIK', 'OTHER']):
-            raise ValueError("must be one of enum values ('KVK', 'HRB', 'HRA', 'SIREN', 'SIRET', 'KBO', 'COMPANIES_HOUSE', 'CNPJ', 'ABN', 'CIK', 'OTHER')")
+        if value not in set(['BN', 'KENNITALA', 'KVK', 'HRB', 'HRA', 'SIREN', 'SIRET', 'KBO', 'COMPANIES_HOUSE', 'CNPJ', 'ABN', 'CIK', 'OTHER']):
+            raise ValueError("must be one of enum values ('BN', 'KENNITALA', 'KVK', 'HRB', 'HRA', 'SIREN', 'SIRET', 'KBO', 'COMPANIES_HOUSE', 'CNPJ', 'ABN', 'CIK', 'OTHER')")
         return value
 
     model_config = ConfigDict(

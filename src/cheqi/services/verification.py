@@ -22,6 +22,10 @@ class VerificationService:
         canonical = canonicalize_str(json_str)
         return sha256_hex(canonical)
 
+    def calculate_cheqi_receipt_hash(self, cheqi_receipt_json: str) -> str:
+        """Calculate the deterministic hash used for CHEQI JSON documents."""
+        return self.canonicalize_and_hash_json(cheqi_receipt_json)
+
     def verify_json_hash(self, json_str: str, expected_hash: str) -> bool:
         """Verify that a JSON string matches an expected canonical hash.
 

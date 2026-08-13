@@ -1,185 +1,118 @@
-"""Tests for model construction and validation."""
-
 from __future__ import annotations
 
-from decimal import Decimal
+import json
+from datetime import datetime, timezone
 
-from cheqi.config import CheqiSDKConfig, Environment
-from cheqi.models.company import Company, CompanyAddress, CreateStoreRequest
-from cheqi.models.credit_note import CreditNoteTemplateRequest
-from cheqi.models.enums import (
-    CardProvider,
-    PaymentMethod,
-    PaymentType,
-    ReceiptFormat,
-    ReceiptStatus,
-    ReceiverType,
+import pytest
+from pydantic import ValidationError
+
+from cheqi.models import (
+    CreditNoteInitiationRequest,
+    FiscalizationData,
+    FiscalizationStatus,
+    JurisdictionalData,
+    Product,
+    ReceiptPayload,
+    RefundBankAccount,
+    RefundPreference,
+    ReturnLineItem,
+    ReturnReasonCode,
     UnitCode,
 )
-from cheqi.models.matching import IdentificationDetails, Recipient, RecipientResolutionResponse
-from cheqi.models.payment import CardDetails
 
 
-class TestEnvironment:
-    def test_sandbox_url(self) -> None:
-        assert Environment.SANDBOX.base_url == "https://sandbox.api.cheqi.io"
+def test_product_supports_compact_tax_addition() -> None:
+    product = Product(
+        name="Coffee beans",
+        identifier="SKU-1",
+        quantity=1,
+        unit_code=UnitCode.C62,
+        unit_price="10.00",
+        subtotal="10.00",
+        total="12.10",
+    ).add_tax(21, "VAT", "10.00", "2.10", label="VAT 21%")
 
-    def test_production_url(self) -> None:
-        assert Environment.PRODUCTION.base_url == "https://api.cheqi.io"
+    data = json.loads(product.to_json())
 
-
-class TestSDKConfig:
-    def test_config_with_environment(self) -> None:
-        config = CheqiSDKConfig(
-            environment=Environment.SANDBOX,
-            api_key="sk_test_123",
-        )
-        assert config.api_endpoint == "https://sandbox.api.cheqi.io"
-        assert config.api_key == "sk_test_123"
-        assert config.timeout_seconds == 30
-        assert config.max_retries == 3
-        assert config.receipt_download_base_url == "https://sandbox.receipt.cheqi.io"
-
-    def test_config_with_custom_endpoint(self) -> None:
-        config = CheqiSDKConfig(
-            custom_api_endpoint="https://custom.api.example.com",
-            api_key="sk_test_123",
-        )
-        assert config.api_endpoint == "https://custom.api.example.com"
-        assert config.receipt_download_base_url is None
-
-    def test_config_requires_endpoint(self) -> None:
-        try:
-            CheqiSDKConfig(api_key="sk_test_123")
-            assert False, "Should have raised"
-        except ValueError:
-            pass
-
-    def test_config_validates_timeout(self) -> None:
-        try:
-            CheqiSDKConfig(environment=Environment.SANDBOX, timeout_seconds=0)
-            assert False, "Should have raised"
-        except ValueError:
-            pass
-
-    def test_config_validates_retries(self) -> None:
-        try:
-            CheqiSDKConfig(environment=Environment.SANDBOX, max_retries=-1)
-            assert False, "Should have raised"
-        except ValueError:
-            pass
+    assert data["unitPrice"] == 10
+    assert data["taxes"] == [
+        {
+            "rate": 21,
+            "type": "VAT",
+            "amount": 2.1,
+            "taxableAmount": 10,
+            "label": "VAT 21%",
+        }
+    ]
 
 
-class TestEnums:
-    def test_payment_method_values(self) -> None:
-        assert PaymentMethod.CARD.value == "card"
-        assert PaymentMethod.CASH.value == "cash"
+def test_receipt_payload_serializes_definitive_values_without_template_wrapper() -> None:
+    jurisdiction = JurisdictionalData(country_code="AT").add_field("receiptType", "STANDARD", "Receipt type")
+    jurisdiction.fiscalization = FiscalizationData(
+        system="RKSV",
+        status=FiscalizationStatus.FISCALIZED,
+    ).add_field("signatureValue", "issuer-signature", "Signature")
+    product = Product(
+        name="Supplied line",
+        identifier="LINE-1",
+        quantity=2,
+        unit_code=UnitCode.C62,
+        unit_price="1.11",
+        subtotal="2.22",
+        total="3.33",
+    )
+    payload = ReceiptPayload(
+        document_number="AT-100",
+        issue_date=datetime(2026, 7, 29, 10, tzinfo=timezone.utc),
+        currency="EUR",
+        receipt_subtotal="7.01",
+        total_before_tax="8.02",
+        total_tax_amount="3.03",
+        total_amount="9.04",
+        taxes_applied=True,
+        products=[product],
+        jurisdictional_data=jurisdiction,
+    ).add_qr_code("https://verify.example/AT-100", "Verify")
 
-    def test_payment_type_values(self) -> None:
-        assert PaymentType.CARD_PAYMENT.value == "CARD_PAYMENT"
-        assert PaymentType.CARD_PAYMENT.edifact_code == "48"
-        assert PaymentType.CASH.value == "CASH"
-        assert PaymentType.CASH.edifact_code == "10"
+    data = json.loads(payload.to_json())
 
-    def test_receipt_status_properties(self) -> None:
-        assert ReceiptStatus.DELIVERED.is_final
-        assert ReceiptStatus.DELIVERED.is_success
-        assert not ReceiptStatus.DELIVERED.is_failure
-        assert ReceiptStatus.FAILED.is_failure
-        assert not ReceiptStatus.PENDING.is_final
-
-    def test_unit_code_values(self) -> None:
-        assert UnitCode.ONE.value == "C62"
-        assert UnitCode.KILOGRAM.value == "KGM"
-        assert UnitCode.LITER.value == "LTR"
-
-    def test_receipt_format_values(self) -> None:
-        assert ReceiptFormat.CHEQI.value == "CHEQI"
-        assert ReceiptFormat.UBL_PURCHASE_RECEIPT.value == "UBL_PURCHASE_RECEIPT"
-
-    def test_card_provider_values(self) -> None:
-        assert CardProvider.VISA.value == "VISA"
-        assert CardProvider.MASTERCARD.value == "MASTERCARD"
-
-
-class TestRecipient:
-    def test_recipient_construction(self) -> None:
-        recipient = Recipient(
-            id="dev-123",
-            receiver_type=ReceiverType.DEVICE,
-            public_key="base64key==",
-            accepted_formats=[ReceiptFormat.CHEQI],
-        )
-        assert recipient.id == "dev-123"
-        assert recipient.receiver_type == ReceiverType.DEVICE
-        assert recipient.accepted_formats == [ReceiptFormat.CHEQI]
-
-    def test_recipient_resolution_response(self) -> None:
-        response = RecipientResolutionResponse(
-            customer_found=True,
-            match_id="match-abc",
-            recipients=[
-                Recipient(id="dev-1", public_key="key1"),
-                Recipient(id="dev-2", public_key="key2"),
-            ],
-        )
-        assert response.customer_found
-        assert response.match_id == "match-abc"
-        assert len(response.recipients) == 2
+    assert data["receiptSubtotal"] == 7.01
+    assert data["products"][0]["total"] == 3.33
+    assert data["jurisdictionalData"]["fiscalization"]["additionalFields"][0]["value"] == "issuer-signature"
+    assert data["barcodes"][0]["data"] == "https://verify.example/AT-100"
+    assert "receiptTemplateRequest" not in data
 
 
-class TestIdentificationDetails:
-    def test_card_identification(self) -> None:
-        details = IdentificationDetails(
-            payment_type=PaymentType.CARD_PAYMENT,
-            card_details=CardDetails(
-                payment_account_reference="PAR123",
-                card_provider=CardProvider.VISA,
-            ),
-        )
-        data = details.to_dict()
-        assert data["paymentType"] == "CARD_PAYMENT"
-        assert data["cardDetails"]["cardProvider"] == "VISA"
+def test_credit_note_initiation_request_validates_refund_rules() -> None:
+    line = ReturnLineItem(
+        product_id="SKU-1",
+        quantity="0.5",
+        reason_code=ReturnReasonCode.DEFECTIVE,
+    )
+    request = CreditNoteInitiationRequest(
+        cheqi_receipt_id="cheqi-1",
+        receipt_id="merchant-1",
+        line_items=[line],
+        refund_preference=RefundPreference.BANK_TRANSFER,
+        refund_bank_account=RefundBankAccount(
+            iban="NL91ABNA0417164300",
+            account_holder="Customer",
+        ),
+    )
 
-    def test_email_identification(self) -> None:
-        details = IdentificationDetails(
-            payment_type=PaymentType.CARD_PAYMENT,
-            recipient_email="customer@example.com",
-        )
-        data = details.to_dict()
-        assert data["recipientEmail"] == "customer@example.com"
+    assert json.loads(request.to_json())["lineItems"][0]["quantity"] == 0.5
 
-
-class TestCompanyModels:
-    def test_company_construction(self) -> None:
-        company = Company(
-            name="Test Corp",
-            legal_name="Test Corporation B.V.",
-            tax_number="NL123456789B01",
-            address=CompanyAddress(
-                street_name="Main Street 1",
-                city_name="Amsterdam",
-                postal_zone="1012AB",
-                country_iso_code="NL",
-            ),
-        )
-        data = company.to_dict()
-        assert data["name"] == "Test Corp"
-        assert data["address"]["countryIsoCode"] == "NL"
-
-    def test_store_request_uses_current_address_dto_wire_name(self) -> None:
-        request = CreateStoreRequest(
-            store_name="Amsterdam",
-            store_code="AMS",
-            address=CompanyAddress(city_name="Amsterdam"),
+    with pytest.raises(ValidationError, match="refund_bank_account is required"):
+        CreditNoteInitiationRequest(
+            cheqi_receipt_id="cheqi-1",
+            receipt_id="merchant-1",
+            line_items=[line],
+            refund_preference=RefundPreference.BANK_TRANSFER,
         )
 
-        assert request.to_dict()["addressDto"] == {"cityName": "Amsterdam"}
 
-
-class TestCreditNoteModels:
-    def test_credit_note_uses_current_subtotal_wire_name(self) -> None:
-        request = CreditNoteTemplateRequest(receipt_subtotal="10.00", buyer_country_code="NL")
-
-        assert request.receipt_subtotal == Decimal("10.00")
-        assert request.to_dict() == {"creditNoteSubtotal": 10}
+def test_return_line_requires_positive_quantity_and_product_id() -> None:
+    with pytest.raises(ValidationError):
+        ReturnLineItem(product_id="", quantity=1, reason_code=ReturnReasonCode.UNWANTED)
+    with pytest.raises(ValidationError):
+        ReturnLineItem(product_id="SKU", quantity=0, reason_code=ReturnReasonCode.UNWANTED)

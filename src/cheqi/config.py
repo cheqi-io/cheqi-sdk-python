@@ -13,6 +13,7 @@ class Environment(str, Enum):
     """Predefined Cheqi API environments."""
 
     SANDBOX = "https://sandbox.api.cheqi.io"
+    TEST = "https://test.api.cheqi.io"
     PRODUCTION = "https://api.cheqi.io"
 
     @property
@@ -24,6 +25,8 @@ class Environment(str, Enum):
         """Customer-facing origin used for encrypted receipt download links."""
         if self is Environment.PRODUCTION:
             return "https://receipt.cheqi.io"
+        if self is Environment.TEST:
+            return "https://test.receipt.cheqi.io"
         return "https://sandbox.receipt.cheqi.io"
 
 
@@ -58,7 +61,9 @@ class CheqiSDKConfig:
         self._receipt_download_base_url = (
             receipt_download_base_url
             if receipt_download_base_url is not None
-            else self._environment.receipt_download_base_url if self._environment else None
+            else self._environment.receipt_download_base_url
+            if self._environment
+            else None
         )
 
         if timeout_seconds <= 0:
