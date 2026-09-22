@@ -1,334 +1,389 @@
-"""Receipt-related models: Product, Tax, Discount, Charge, CheqiReceipt, ReceiptTemplateRequest."""
+"""Idiomatic receipt models layered on the generated wire contract."""
 
 from __future__ import annotations
 
-import json
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional
-from uuid import UUID
+from enum import Enum
+from typing import List, Optional, Union
 
-from pydantic import AliasChoices, Field
+from pydantic import Field, field_validator
+from typing_extensions import Self
 
-from cheqi.models.base import CheqiBaseModel, CheqiDecimal
-from cheqi.models.enums import BarcodeType, RecipientEntityType, UnitCode
+from cheqi.models.generated.barcode import Barcode as GeneratedBarcode
+from cheqi.models.generated.barcode_type import BarcodeType
+from cheqi.models.generated.charge import Charge as GeneratedCharge
+from cheqi.models.generated.client_receipt_download_response import ClientReceiptDownloadResponse
+from cheqi.models.generated.discount import Discount as GeneratedDiscount
+from cheqi.models.generated.fiscalization_data import FiscalizationData as GeneratedFiscalizationData
+from cheqi.models.generated.fiscalization_status import FiscalizationStatus
+from cheqi.models.generated.jurisdiction_field import JurisdictionField as GeneratedJurisdictionField
+from cheqi.models.generated.jurisdiction_legal_text import (
+    JurisdictionLegalText as GeneratedJurisdictionLegalText,
+)
+from cheqi.models.generated.jurisdictional_data import JurisdictionalData as GeneratedJurisdictionalData
+from cheqi.models.generated.payment_details import PaymentDetails
+from cheqi.models.generated.period import Period as GeneratedPeriod
+from cheqi.models.generated.product import Product as GeneratedProduct
+from cheqi.models.generated.receipt_payload import ReceiptPayload as GeneratedReceiptPayload
+from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
+from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
+from cheqi.models.generated.tax import Tax as GeneratedTax
+from cheqi.models.generated.unit_code import UnitCode
 
-if TYPE_CHECKING:
-    pass
+Number = Union[Decimal, str, int, float]
 
 
-class Identifier(CheqiBaseModel):
-    """Simple type/value pair for merchant identifiers (order number, POS ticket, etc.)."""
-
-    type: Optional[str] = None
-    value: Optional[str] = None
-
-
-class Period(CheqiBaseModel):
-    """Billing or service period."""
-
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    description: Optional[str] = None
+def _coerce_generated_number(value: object) -> Union[int, float]:
+    """Accept Python monetary inputs while retaining generated wire field types."""
+    if isinstance(value, bool):
+        raise TypeError("boolean values are not valid numbers")
+    if isinstance(value, (int, float)):
+        return value
+    decimal = Decimal(str(value))
+    return int(decimal) if decimal == decimal.to_integral_value() else float(decimal)
 
 
-class Barcode(CheqiBaseModel):
-    """Barcode or QR code attached to a receipt or product."""
+class _GeneratedModelMixin:
+    """Use consistent, compact SDK serialization for generated Pydantic models."""
 
-    type: Optional[BarcodeType] = None
-    data: Optional[str] = None
-    label: Optional[str] = None
+    def to_dict(self) -> dict[str, object]:
+        return self.model_dump(by_alias=True, exclude_none=True, mode="json")  # type: ignore[attr-defined,no-any-return]
+
+    def to_json(self) -> str:
+        return self.model_dump_json(by_alias=True, exclude_none=True)  # type: ignore[attr-defined,no-any-return]
+
+
+class Barcode(_GeneratedModelMixin, GeneratedBarcode):
+    """Barcode with small named constructors."""
 
     @classmethod
-    def qr_code(cls, data: str, label: str) -> Barcode:
+    def qr_code(cls, data: str, label: Optional[str] = None) -> Barcode:
         return cls(type=BarcodeType.QR_CODE, data=data, label=label)
 
     @classmethod
-    def of(cls, barcode_type: BarcodeType, data: str, label: str) -> Barcode:
+    def of(cls, barcode_type: BarcodeType, data: str, label: Optional[str] = None) -> Barcode:
         return cls(type=barcode_type, data=data, label=label)
 
 
-class Tax(CheqiBaseModel):
-    """Tax applied to a product line or receipt."""
+class Discount(_GeneratedModelMixin, GeneratedDiscount):
+    """Receipt discount accepting Python ``Decimal`` and decimal strings."""
 
-    rate: Optional[float] = None
-    type: Optional[str] = None
-    taxable_amount: Optional[CheqiDecimal] = None
-    amount: Optional[CheqiDecimal] = None
-    label: Optional[str] = None
-
-
-class Discount(CheqiBaseModel):
-    """Discount applied to a product or receipt."""
-
-    amount: Optional[CheqiDecimal] = None
-    percentage: Optional[float] = None
-    label: Optional[str] = None
+    @field_validator("amount", mode="before")
+    @classmethod
+    def coerce_amount(cls, value: object) -> Union[int, float]:
+        return _coerce_generated_number(value)
 
     @classmethod
-    def of(cls, amount: Decimal | str, label: str, percentage: Optional[float] = None) -> Discount:
-        if isinstance(amount, str):
-            amount = Decimal(amount)
+    def of(
+        cls,
+        amount: Number,
+        label: Optional[str] = None,
+        percentage: Optional[float] = None,
+    ) -> Discount:
         return cls(amount=amount, label=label, percentage=percentage)
 
 
-class Charge(CheqiBaseModel):
-    """Extra charge applied to a product or receipt."""
+class Charge(_GeneratedModelMixin, GeneratedCharge):
+    """Receipt charge accepting Python ``Decimal`` and decimal strings."""
 
-    amount: Optional[CheqiDecimal] = None
-    percentage: Optional[float] = None
-    label: Optional[str] = None
+    @field_validator("amount", mode="before")
+    @classmethod
+    def coerce_amount(cls, value: object) -> Union[int, float]:
+        return _coerce_generated_number(value)
 
     @classmethod
-    def of(cls, amount: Decimal | str, label: str, percentage: Optional[float] = None) -> Charge:
-        if isinstance(amount, str):
-            amount = Decimal(amount)
+    def of(
+        cls,
+        amount: Number,
+        label: Optional[str] = None,
+        percentage: Optional[float] = None,
+    ) -> Charge:
         return cls(amount=amount, label=label, percentage=percentage)
 
 
-class ItemClassification(CheqiBaseModel):
-    """Product classification (EAN, GTIN, UNSPSC, etc.)."""
+class Tax(_GeneratedModelMixin, GeneratedTax):
+    """Tax applied to a product line or an entire receipt."""
 
-    list_id: Optional[str] = None
-    value: Optional[str] = None
-
-
-class Product(CheqiBaseModel):
-    """Product line item on a receipt."""
-
-    name: Optional[str] = None
-    identifier: Optional[str] = None
-    description: Optional[str] = None
-    brand_name: Optional[str] = None
-    quantity: Optional[float] = None
-    base_quantity: Optional[float] = None
-    unit_code: Optional[UnitCode] = None
-    unit_price: Optional[CheqiDecimal] = None
-    discounts: Optional[List[Discount]] = None
-    charges: Optional[List[Charge]] = None
-    taxes: Optional[List[Tax]] = None
-    subtotal: Optional[CheqiDecimal] = None
-    total: Optional[CheqiDecimal] = None
-    barcodes: Optional[List[Barcode]] = None
-    period: Optional[Period] = None
-
-    def add_tax(self, tax: Tax) -> Product:
-        """Return a new Product with an additional tax."""
-        existing = list(self.taxes) if self.taxes else []
-        existing.append(tax)
-        return self.model_copy(update={"taxes": existing})
-
-    def add_discount(self, discount: Discount) -> Product:
-        """Return a new Product with an additional discount."""
-        existing = list(self.discounts) if self.discounts else []
-        existing.append(discount)
-        return self.model_copy(update={"discounts": existing})
-
-    def add_charge(self, charge: Charge) -> Product:
-        """Return a new Product with an additional charge."""
-        existing = list(self.charges) if self.charges else []
-        existing.append(charge)
-        return self.model_copy(update={"charges": existing})
-
-    def add_barcode(self, barcode: Barcode) -> Product:
-        """Return a new Product with an additional barcode."""
-        existing = list(self.barcodes) if self.barcodes else []
-        existing.append(barcode)
-        return self.model_copy(update={"barcodes": existing})
+    @field_validator("amount", "taxable_amount", mode="before")
+    @classmethod
+    def coerce_amounts(cls, value: object) -> Optional[Union[int, float]]:
+        if value is None:
+            return None
+        return _coerce_generated_number(value)
 
 
-class CompanyIdentifier(CheqiBaseModel):
-    """Company registration identifier."""
-
-    id: Optional[str] = None
-    identifier_type: Optional[str] = None
-    registration_scheme: Optional[str] = None
-    value: Optional[str] = None
-    country_code: Optional[str] = None
-    is_verified: Optional[bool] = None
+class Period(_GeneratedModelMixin, GeneratedPeriod):
+    """Billing or service period from the generated receipt contract."""
 
 
-class Address(CheqiBaseModel):
-    """Simple address for receipt parties."""
+class JurisdictionField(_GeneratedModelMixin, GeneratedJurisdictionField):
+    """Country-specific extension field."""
 
-    street: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip_code: Optional[str] = None
-    country: Optional[str] = None
+    @classmethod
+    def of(cls, code: str, value: str, label: Optional[str] = None) -> JurisdictionField:
+        return cls(code=code, value=value, label=label)
 
 
-class SellingParty(CheqiBaseModel):
-    """Merchant/seller information."""
+class JurisdictionLegalText(_GeneratedModelMixin, GeneratedJurisdictionLegalText):
+    """Exact issuer-supplied legal receipt text."""
 
-    company_name: Optional[str] = None
-    company_legal_name: Optional[str] = None
-    tax_number: Optional[str] = None
-    identifiers: Optional[List[CompanyIdentifier]] = None
-    address: Optional[Address] = None
-
-
-class ReceivingParty(CheqiBaseModel):
-    """Customer/receiver information."""
-
-    company_legal_name: Optional[str] = None
-    tax_number: Optional[str] = None
-    company_identifiers: Optional[List[CompanyIdentifier]] = None
-    consumer_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[Address] = None
+    @classmethod
+    def of(
+        cls,
+        code: str,
+        text: str,
+        language_code: Optional[str] = None,
+    ) -> JurisdictionLegalText:
+        return cls(code=code, text=text, language_code=language_code)
 
 
-class PaymentInfo(CheqiBaseModel):
-    """Payment information on a receipt."""
+class FiscalizationData(_GeneratedModelMixin, GeneratedFiscalizationData):
+    """Issuer-supplied fiscalization data with an extension-field helper."""
 
-    payment_type: Optional[str] = None
-    payment_account_reference: Optional[str] = None
-    card_issuer: Optional[str] = None
-    card_brand: Optional[str] = None
-    last_four_digits: Optional[str] = None
-    payment_ids: Optional[List[str]] = None
-
-
-class CheqiReceipt(CheqiBaseModel):
-    """Cheqi receipt as returned by the backend after template generation."""
-
-    document_number: Optional[str] = None
-    identifiers: Optional[List[Identifier]] = None
-    issue_date: Optional[datetime] = None
-    currency: Optional[str] = None
-    receipt_subtotal: Optional[CheqiDecimal] = None
-    total_before_tax: Optional[CheqiDecimal] = None
-    total_tax_amount: Optional[CheqiDecimal] = None
-    total_amount: Optional[CheqiDecimal] = None
-    products: Optional[List[Product]] = None
-    discounts: Optional[List[Discount]] = None
-    charges: Optional[List[Charge]] = None
-    taxes: Optional[List[Tax]] = None
-    period: Optional[Period] = None
-    note: Optional[str] = None
-    barcodes: Optional[List[Barcode]] = None
-    selling_party: Optional[SellingParty] = None
-    receiving_party: Optional[ReceivingParty] = None
-    receipt_uuid: Optional[str] = None
-    payment_info: Optional[PaymentInfo] = None
+    def add_field(self, code: str, value: str, label: Optional[str] = None) -> Self:
+        fields = list(self.additional_fields or [])
+        fields.append(JurisdictionField.of(code, value, label))
+        self.additional_fields = fields
+        return self
 
 
-class VatMetadata(CheqiBaseModel):
-    """VAT metadata for cross-border tax determination."""
+class JurisdictionalData(_GeneratedModelMixin, GeneratedJurisdictionalData):
+    """Issuer-supplied country-specific receipt data."""
 
-    supplier_country: Optional[str] = None
-    buyer_country: Optional[str] = None
-    cross_border: Optional[bool] = None
-    buyer_type: Optional[RecipientEntityType] = Field(
-        default=None,
-        validation_alias=AliasChoices("buyerType", "buyer_type", "recipientEntityType", "recipient_entity_type"),
-        serialization_alias="buyerType",
-    )
-    vat_on_receipt: Optional[bool] = None
-    vat_regime: Optional[str] = None
-    taxes_applied: Optional[bool] = None
+    def add_legal_text(
+        self,
+        code: str,
+        text: str,
+        language_code: Optional[str] = None,
+    ) -> Self:
+        values = list(self.legal_texts or [])
+        values.append(JurisdictionLegalText.of(code, text, language_code))
+        self.legal_texts = values
+        return self
 
-    @property
-    def recipient_entity_type(self) -> Optional[RecipientEntityType]:
-        """Backward-compatible alias for ``buyer_type``."""
-        return self.buyer_type
+    def add_field(self, code: str, value: str, label: Optional[str] = None) -> Self:
+        values = list(self.additional_fields or [])
+        values.append(JurisdictionField.of(code, value, label))
+        self.additional_fields = values
+        return self
 
 
-class ReceiptTemplateRequest(CheqiBaseModel):
-    """Request DTO for generating receipt templates."""
+class Product(_GeneratedModelMixin, GeneratedProduct):
+    """A definitive product line with convenient add methods.
 
-    child_company_id: Optional[UUID] = None
-    document_number: Optional[str] = None
-    identifiers: Optional[List[Identifier]] = None
-    issue_date: Optional[datetime] = None
-    currency: Optional[str] = None
-    receipt_subtotal: Optional[CheqiDecimal] = None
-    total_before_tax: Optional[CheqiDecimal] = None
-    total_tax_amount: Optional[CheqiDecimal] = None
-    total_amount: Optional[CheqiDecimal] = None
-    products: Optional[List[Product]] = None
-    discounts: Optional[List[Discount]] = None
-    charges: Optional[List[Charge]] = None
-    taxes: Optional[List[Tax]] = None
-    transaction_date: Optional[datetime] = None
-    purchase_date: Optional[datetime] = None
-    period: Optional[Period] = None
-    barcodes: Optional[List[Barcode]] = None
-    note: Optional[str] = None
-    # VAT metadata — not serialized in the inner request JSON, used by API client
-    buyer_country_code: Optional[str] = None
-    buyer_type: Optional[RecipientEntityType] = Field(
-        default=None,
-        validation_alias=AliasChoices("buyerType", "buyer_type", "recipientEntityType", "recipient_entity_type"),
-        serialization_alias="buyerType",
-    )
-    taxes_applied: Optional[bool] = None
+    Construct the line directly with keyword arguments, then optionally add taxes,
+    discounts, charges, or barcodes. The SDK never calculates monetary values.
+    """
 
-    @property
-    def recipient_entity_type(self) -> Optional[RecipientEntityType]:
-        """Backward-compatible alias for ``buyer_type``."""
-        return self.buyer_type
+    taxes: List[GeneratedTax] = Field(default_factory=list)
 
-    def to_dict(self) -> dict[str, object]:
-        """Serialize only the inner template fields; VAT context belongs to the wrapper."""
-        data = super().to_dict()
-        for field in ("buyerCountryCode", "buyerType", "taxesApplied"):
-            data.pop(field, None)
-        return data
+    @field_validator("unit_price", "subtotal", "total", mode="before")
+    @classmethod
+    def coerce_amounts(cls, value: object) -> Union[int, float]:
+        return _coerce_generated_number(value)
 
-    def to_json(self) -> str:
-        return json.dumps(self.to_dict(), separators=(",", ":"), ensure_ascii=False)
+    def add_tax(
+        self,
+        tax_or_rate: Union[GeneratedTax, float, int],
+        tax_type: Optional[str] = None,
+        taxable_amount: Optional[Number] = None,
+        amount: Optional[Number] = None,
+        *,
+        label: Optional[str] = None,
+    ) -> Self:
+        """Add either a ``Tax`` object or a compact tax definition."""
+        if isinstance(tax_or_rate, GeneratedTax):
+            tax = tax_or_rate
+        else:
+            if tax_type is None or taxable_amount is None:
+                raise ValueError("tax_type and taxable_amount are required when adding a tax by rate")
+            tax = Tax(
+                rate=tax_or_rate,
+                type=tax_type,
+                taxable_amount=taxable_amount,
+                amount=amount,
+                label=label,
+            )
+        self.taxes = [*self.taxes, tax]
+        return self
 
-    def add_product(self, product: Product) -> ReceiptTemplateRequest:
-        """Return a new request with an additional product."""
-        existing = list(self.products) if self.products else []
-        existing.append(product)
-        return self.model_copy(update={"products": existing})
+    def add_discount(
+        self,
+        discount_or_amount: Union[GeneratedDiscount, Number],
+        label: Optional[str] = None,
+        *,
+        percentage: Optional[float] = None,
+    ) -> Self:
+        discount = (
+            discount_or_amount
+            if isinstance(discount_or_amount, GeneratedDiscount)
+            else Discount.of(discount_or_amount, label, percentage)
+        )
+        self.discounts = [*(self.discounts or []), discount]
+        return self
 
-    def add_tax(self, tax: Tax) -> ReceiptTemplateRequest:
-        """Return a new request with an additional tax."""
-        existing = list(self.taxes) if self.taxes else []
-        existing.append(tax)
-        return self.model_copy(update={"taxes": existing})
+    def add_charge(
+        self,
+        charge_or_amount: Union[GeneratedCharge, Number],
+        label: Optional[str] = None,
+        *,
+        percentage: Optional[float] = None,
+    ) -> Self:
+        charge = (
+            charge_or_amount
+            if isinstance(charge_or_amount, GeneratedCharge)
+            else Charge.of(charge_or_amount, label, percentage)
+        )
+        self.charges = [*(self.charges or []), charge]
+        return self
 
-    def add_discount(self, discount: Discount) -> ReceiptTemplateRequest:
-        """Return a new request with an additional discount."""
-        existing = list(self.discounts) if self.discounts else []
-        existing.append(discount)
-        return self.model_copy(update={"discounts": existing})
+    def add_barcode(self, barcode: GeneratedBarcode) -> Self:
+        self.barcodes = [*(self.barcodes or []), barcode]
+        return self
 
-    def add_charge(self, charge: Charge) -> ReceiptTemplateRequest:
-        """Return a new request with an additional charge."""
-        existing = list(self.charges) if self.charges else []
-        existing.append(charge)
-        return self.model_copy(update={"charges": existing})
-
-    def add_barcode(self, barcode: Barcode) -> ReceiptTemplateRequest:
-        """Return a new request with an additional barcode."""
-        existing = list(self.barcodes) if self.barcodes else []
-        existing.append(barcode)
-        return self.model_copy(update={"barcodes": existing})
-
-    def add_qr_code(self, data: str, label: str) -> ReceiptTemplateRequest:
-        """Return a new request with an additional QR code barcode."""
+    def add_qr_code(self, data: str, label: Optional[str] = None) -> Self:
         return self.add_barcode(Barcode.qr_code(data, label))
 
 
-class ReceiptTemplateResponse(CheqiBaseModel):
-    """Response from receipt template generation."""
+class ReceiptPayload(_GeneratedModelMixin, GeneratedReceiptPayload):
+    """Definitive issuer-supplied receipt values.
 
-    ubl_purchase_receipt: Optional[str] = Field(
-        default=None,
-        validation_alias=AliasChoices("ublPurchaseReceipt", "ubl_purchase_receipt", "ubl"),
-        serialization_alias="ublPurchaseReceipt",
+    Values are serialized and encrypted exactly as supplied; the SDK performs no
+    calculations, enrichment, fiscalization, signature, sequence, or QR generation.
+    """
+
+    @field_validator(
+        "receipt_subtotal",
+        "total_before_tax",
+        "total_tax_amount",
+        "total_amount",
+        mode="before",
     )
-    ubl_invoice: Optional[str] = None
-    cheqi: Optional[CheqiReceipt] = None
-    vat_metadata: Optional[VatMetadata] = None
+    @classmethod
+    def coerce_amounts(cls, value: object) -> Union[int, float]:
+        return _coerce_generated_number(value)
+
+    def add_product(self, product: GeneratedProduct) -> Self:
+        self.products = [*self.products, product]
+        return self
+
+    def add_tax(self, tax: GeneratedTax) -> Self:
+        self.taxes = [*(self.taxes or []), tax]
+        return self
+
+    def add_discount(self, discount: GeneratedDiscount) -> Self:
+        self.discounts = [*(self.discounts or []), discount]
+        return self
+
+    def add_charge(self, charge: GeneratedCharge) -> Self:
+        self.charges = [*(self.charges or []), charge]
+        return self
+
+    def add_barcode(self, barcode: GeneratedBarcode) -> Self:
+        self.barcodes = [*(self.barcodes or []), barcode]
+        return self
+
+    def add_qr_code(self, data: str, label: Optional[str] = None) -> Self:
+        return self.add_barcode(Barcode.qr_code(data, label))
+
+
+class DeliveryRouteType(str, Enum):
+    DIGITAL = "DIGITAL"
+    EMAIL_FALLBACK = "EMAIL_FALLBACK"
+    DOWNLOAD_FALLBACK = "DOWNLOAD_FALLBACK"
+
+
+@dataclass(frozen=True)
+class ReceiptResult:
+    """Outcome of receipt routing and submission."""
+
+    cheqi_receipt_id: Optional[str]
+    match_id: Optional[str]
+    delivery_route_type: DeliveryRouteType
+    status: Optional[str] = None
+    created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    download_url: Optional[str] = None
+    download_envelope_required: bool = False
+    email_receipt_required: bool = False
 
     @property
-    def ubl(self) -> Optional[str]:
-        """Backward-compatible alias for ``ubl_purchase_receipt``."""
-        return self.ubl_purchase_receipt
+    def is_accepted(self) -> bool:
+        return bool(self.cheqi_receipt_id and self.cheqi_receipt_id.strip())
+
+    @property
+    def is_success(self) -> bool:
+        return self.is_accepted
+
+    @classmethod
+    def accepted(
+        cls,
+        response: ReceiptSubmissionResponse,
+        route: DeliveryRouteType = DeliveryRouteType.DIGITAL,
+    ) -> ReceiptResult:
+        return cls(
+            cheqi_receipt_id=response.cheqi_receipt_id,
+            match_id=response.match_id,
+            delivery_route_type=route,
+            status=response.status,
+            created_at=response.created_at,
+        )
+
+    @classmethod
+    def download_required(cls, resolution: RecipientResolutionResponse) -> ReceiptResult:
+        return cls(
+            cheqi_receipt_id=None,
+            match_id=resolution.match_id,
+            delivery_route_type=DeliveryRouteType.DOWNLOAD_FALLBACK,
+            expires_at=resolution.expires_at,
+            download_envelope_required=True,
+        )
+
+    @classmethod
+    def email_required(cls, resolution: RecipientResolutionResponse) -> ReceiptResult:
+        return cls(
+            cheqi_receipt_id=None,
+            match_id=resolution.match_id,
+            delivery_route_type=DeliveryRouteType.EMAIL_FALLBACK,
+            expires_at=resolution.expires_at,
+            email_receipt_required=True,
+        )
+
+    @classmethod
+    def download_accepted(
+        cls,
+        match_id: Optional[str],
+        response: ClientReceiptDownloadResponse,
+        download_url: str,
+    ) -> ReceiptResult:
+        return cls(
+            cheqi_receipt_id=response.cheqi_receipt_id,
+            match_id=match_id,
+            delivery_route_type=DeliveryRouteType.DOWNLOAD_FALLBACK,
+            created_at=response.created_at,
+            expires_at=response.expires_at,
+            download_url=download_url,
+        )
+
+
+__all__ = [
+    "Barcode",
+    "BarcodeType",
+    "Charge",
+    "DeliveryRouteType",
+    "Discount",
+    "FiscalizationData",
+    "FiscalizationStatus",
+    "JurisdictionField",
+    "JurisdictionLegalText",
+    "JurisdictionalData",
+    "PaymentDetails",
+    "Period",
+    "Product",
+    "ReceiptPayload",
+    "ReceiptResult",
+    "Tax",
+    "UnitCode",
+]

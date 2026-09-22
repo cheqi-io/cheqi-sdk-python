@@ -17,22 +17,32 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi.models.generated.cheqi_receipt import CheqiReceipt
-from cheqi.models.generated.vat_metadata import VatMetadata
+from typing_extensions import Annotated
+from cheqi.models.generated.expense_submission_envelope import ExpenseSubmissionEnvelope
+from cheqi.models.generated.receipt_envelope_document import ReceiptEnvelopeDocument
 from typing import Optional, Set
 from typing_extensions import Self
 
 class ReceiptEnvelope(BaseModel):
     """
-    Receipt envelope, that is the encrypted receipt content
+    Versioned plaintext receipt package encrypted independently for one recipient.
     """ # noqa: E501
-    cheqi: Optional[CheqiReceipt] = None
-    ubl_purchase_receipt: Optional[StrictStr] = Field(default=None, description="Serialized UBL PurchaseReceipt XML payload. Include this when the recipient accepts UBL_PURCHASE_RECEIPT.", alias="ublPurchaseReceipt")
-    ubl_invoice: Optional[StrictStr] = Field(default=None, description="Serialized UBL Invoice XML payload. Include this when the recipient accepts UBL_INVOICE.", alias="ublInvoice")
-    vat_meta_data: Optional[VatMetadata] = Field(default=None, alias="vatMetaData")
-    __properties: ClassVar[List[str]] = ["cheqi", "ublPurchaseReceipt", "ublInvoice", "vatMetaData"]
+    cheqi_receipt_id: StrictStr = Field(description="Stable Cheqi receipt or credit-note identifier.", alias="cheqiReceiptId")
+    documents: Dict[str, ReceiptEnvelopeDocument] = Field(description="Generated documents keyed by ReceiptFormat name: CHEQI, UBL_PURCHASE_RECEIPT, UBL_INVOICE, or UBL_CREDIT_NOTE. Only formats included for this recipient are present. Each document's content is serialized JSON or XML, not a nested parsed document.")
+    envelope_version: Annotated[int, Field(le=1, strict=True, ge=1)] = Field(description="Schema version of this encrypted plaintext envelope.", alias="envelopeVersion")
+    expense_submission: Optional[ExpenseSubmissionEnvelope] = Field(default=None, alias="expenseSubmission")
+    receipt_generator_version: Annotated[str, Field(strict=True)] = Field(description="Version of the Rust receipt-template engine that generated the documents.", alias="receiptGeneratorVersion")
+    receipt_uuid: StrictStr = Field(description="Shared UUID embedded in every generated representation of this receipt.", alias="receiptUuid")
+    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "documents", "envelopeVersion", "expenseSubmission", "receiptGeneratorVersion", "receiptUuid"]
+
+    @field_validator('receipt_generator_version')
+    def receipt_generator_version_validate_regular_expression(cls, value):
+        """Validates the regular expression"""
+        if not re.match(r"^[A-Za-z0-9][A-Za-z0-9._+\-]{0,63}$", value):
+            raise ValueError(r"must validate the regular expression /^[A-Za-z0-9][A-Za-z0-9._+\-]{0,63}$/")
+        return value
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -73,12 +83,21 @@ class ReceiptEnvelope(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of cheqi
-        if self.cheqi:
-            _dict['cheqi'] = self.cheqi.to_dict()
-        # override the default output from pydantic by calling `to_dict()` of vat_meta_data
-        if self.vat_meta_data:
-            _dict['vatMetaData'] = self.vat_meta_data.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of each value in documents (dict)
+        _field_dict = {}
+        if self.documents:
+            for _key_documents in self.documents:
+                if self.documents[_key_documents]:
+                    _field_dict[_key_documents] = self.documents[_key_documents].to_dict()
+            _dict['documents'] = _field_dict
+        # override the default output from pydantic by calling `to_dict()` of expense_submission
+        if self.expense_submission:
+            _dict['expenseSubmission'] = self.expense_submission.to_dict()
+        # set to None if expense_submission (nullable) is None
+        # and model_fields_set contains the field
+        if self.expense_submission is None and "expense_submission" in self.model_fields_set:
+            _dict['expenseSubmission'] = None
+
         return _dict
 
     @classmethod
@@ -91,10 +110,17 @@ class ReceiptEnvelope(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "cheqi": CheqiReceipt.from_dict(obj["cheqi"]) if obj.get("cheqi") is not None else None,
-            "ublPurchaseReceipt": obj.get("ublPurchaseReceipt"),
-            "ublInvoice": obj.get("ublInvoice"),
-            "vatMetaData": VatMetadata.from_dict(obj["vatMetaData"]) if obj.get("vatMetaData") is not None else None
+            "cheqiReceiptId": obj.get("cheqiReceiptId"),
+            "documents": dict(
+                (_k, ReceiptEnvelopeDocument.from_dict(_v))
+                for _k, _v in obj["documents"].items()
+            )
+            if obj.get("documents") is not None
+            else None,
+            "envelopeVersion": obj.get("envelopeVersion"),
+            "expenseSubmission": ExpenseSubmissionEnvelope.from_dict(obj["expenseSubmission"]) if obj.get("expenseSubmission") is not None else None,
+            "receiptGeneratorVersion": obj.get("receiptGeneratorVersion"),
+            "receiptUuid": obj.get("receiptUuid")
         })
         return _obj
 

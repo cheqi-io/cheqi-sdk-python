@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cheqi-sdk"
-version = "0.2.1"
+version = "1.0.0"
 description = "Cheqi Python SDK for end-to-end encrypted receipt processing"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -36,7 +36,9 @@ dev = [
     "pytest-cov>=4.0",
     "mypy>=1.0",
     "lxml-stubs>=0.5",
+    "PyYAML>=6.0",
     "ruff>=0.4",
+    "types-PyYAML>=6.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -55,6 +57,10 @@ python_version = "3.9"
 strict = true
 plugins = ["pydantic.mypy"]
 exclude = "^src/cheqi/models/generated/"
+
+[[tool.mypy.overrides]]
+module = "cheqi.models.generated.*"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

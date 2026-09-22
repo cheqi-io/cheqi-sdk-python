@@ -30,10 +30,10 @@ from typing_extensions import Self
 
 class Product(BaseModel):
     """
-    The list of products included in the receipt. Must contain at least one product.
+    Issuer-supplied receipt line items.
     """ # noqa: E501
     name: StrictStr = Field(description="The product name")
-    brand_name: StrictStr = Field(description="The brand name", alias="brandName")
+    brand_name: Optional[StrictStr] = Field(default=None, description="The brand name", alias="brandName")
     identifier: StrictStr = Field(description="The identifier or article number of the product, this can for example also be a SKU/EAN code.")
     description: Optional[StrictStr] = Field(default=None, description="The description of the product")
     quantity: Union[StrictFloat, StrictInt] = Field(description="The quantity of this item")
@@ -46,7 +46,7 @@ class Product(BaseModel):
     taxes: List[Tax] = Field(description="The taxes applied to this line item")
     subtotal: Union[StrictFloat, StrictInt] = Field(description="The line subtotal, before tax. Typically: quantity * unitPrice - discounts + charges (net).")
     total: Union[StrictFloat, StrictInt] = Field(description="The line total, after tax. Typically: subtotal + tax amounts (gross).")
-    barcodes: Optional[List[Barcode]] = None
+    barcodes: Optional[List[Barcode]] = Field(default=None, description="Barcodes attached to this line item (e.g. ticket codes, return codes)")
     __properties: ClassVar[List[str]] = ["name", "brandName", "identifier", "description", "quantity", "baseQuantity", "unitCode", "period", "unitPrice", "discounts", "charges", "taxes", "subtotal", "total", "barcodes"]
 
     model_config = ConfigDict(

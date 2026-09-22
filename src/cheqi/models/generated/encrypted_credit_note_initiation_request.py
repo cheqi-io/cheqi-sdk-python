@@ -18,18 +18,18 @@ import re  # noqa: F401
 import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List
 from typing import Optional, Set
 from typing_extensions import Self
 
 class EncryptedCreditNoteInitiationRequest(BaseModel):
     """
-    Encrypted credit note initiation request from a customer's device
+    Encrypted credit note initiation request
     """ # noqa: E501
-    cheqi_receipt_id: Optional[StrictStr] = Field(default=None, description="The Cheqi receipt ID for the original receipt", alias="cheqiReceiptId")
-    public_key: Optional[StrictStr] = Field(default=None, description="The public key of the requesting device", alias="publicKey")
-    encrypted_credit_note_initiation_request: Optional[StrictStr] = Field(default=None, description="The encrypted credit note initiation request payload", alias="encryptedCreditNoteInitiationRequest")
-    encrypted_symmetric_key: Optional[StrictStr] = Field(default=None, description="The AES symmetric key encrypted with the recipient's RSA public key", alias="encryptedSymmetricKey")
+    cheqi_receipt_id: StrictStr = Field(description="The Cheqi receipt ID for the original receipt", alias="cheqiReceiptId")
+    public_key: StrictStr = Field(description="The public key of the requesting device", alias="publicKey")
+    encrypted_credit_note_initiation_request: StrictStr = Field(description="Base64-encoded ciphertext containing the plaintext contract documented as `CreditNoteInitiationRequest` in `components/schemas`", alias="encryptedCreditNoteInitiationRequest")
+    encrypted_symmetric_key: StrictStr = Field(description="The AES symmetric key encrypted with the recipient's RSA public key", alias="encryptedSymmetricKey")
     __properties: ClassVar[List[str]] = ["cheqiReceiptId", "publicKey", "encryptedCreditNoteInitiationRequest", "encryptedSymmetricKey"]
 
     model_config = ConfigDict(

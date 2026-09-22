@@ -6,6 +6,8 @@ import logging
 from enum import Enum
 from typing import Optional
 
+import httpx
+
 logger = logging.getLogger("cheqi.config")
 
 
@@ -13,6 +15,7 @@ class Environment(str, Enum):
     """Predefined Cheqi API environments."""
 
     SANDBOX = "https://sandbox.api.cheqi.io"
+    TEST = "https://test.api.cheqi.io"
     PRODUCTION = "https://api.cheqi.io"
 
     @property
@@ -24,6 +27,8 @@ class Environment(str, Enum):
         """Customer-facing origin used for encrypted receipt download links."""
         if self is Environment.PRODUCTION:
             return "https://receipt.cheqi.io"
+        if self is Environment.TEST:
+            return "https://test.receipt.cheqi.io"
         return "https://sandbox.receipt.cheqi.io"
 
 
@@ -43,6 +48,7 @@ class CheqiSDKConfig:
         private_key: Optional[str] = None,
         timeout_seconds: int = 30,
         max_retries: int = 3,
+        http_client: Optional[httpx.Client] = None,
     ) -> None:
         # Resolve API endpoint
         self._environment = environment if not custom_api_endpoint else None
@@ -58,7 +64,9 @@ class CheqiSDKConfig:
         self._receipt_download_base_url = (
             receipt_download_base_url
             if receipt_download_base_url is not None
-            else self._environment.receipt_download_base_url if self._environment else None
+            else self._environment.receipt_download_base_url
+            if self._environment
+            else None
         )
 
         if timeout_seconds <= 0:
@@ -68,6 +76,13 @@ class CheqiSDKConfig:
         if max_retries < 0:
             raise ValueError(f"Max retries cannot be negative, got: {max_retries}")
         self._max_retries = max_retries
+        self._http_client = http_client
+
+        if timeout_seconds > 300:
+            logger.warning("Timeout is very high (%ss). Consider using a lower value", timeout_seconds)
+
+        if max_retries > 10:
+            logger.warning("Max retries is very high (%s). Consider using a lower value", max_retries)
 
         # Warn if no auth configured
         has_api_key = bool(api_key and api_key.strip())
@@ -109,3 +124,8 @@ class CheqiSDKConfig:
     @property
     def max_retries(self) -> int:
         return self._max_retries
+
+    @property
+    def http_client(self) -> Optional[httpx.Client]:
+        """Caller-owned HTTP client, when one was supplied."""
+        return self._http_client

@@ -1,211 +1,209 @@
 # Cheqi Python SDK
 
-Python SDK for issuing end-to-end encrypted Cheqi receipts, encrypted credit notes,
-email delivery, client-encrypted download fallback, receipt decryption/merge, and store management.
+Python SDK for resolving receipt recipients and issuing end-to-end encrypted Cheqi receipts and
+credit notes. It also provides client-encrypted receipt downloads, receipt-envelope decryption,
+integrity helpers, and store management.
 
-## Installation
+The SDK preserves Cheqi's zero-knowledge boundary: the issuer supplies definitive receipt values,
+which are encrypted locally for each owner device. The SDK does not calculate totals, enrich
+payment data, fiscalize receipts, or submit plaintext receipt bodies to Cheqi on the digital route.
+
+## Install
 
 ```bash
 pip install cheqi-sdk
 ```
 
-Or with uv:
+Python 3.9 or newer is required.
 
-```bash
-uv add cheqi-sdk
-```
+Version `1.0.0` matches the Java SDK 2.3 contract, including company-expense receipt attribution,
+member receipt identities, employee invitation roles, and the latest encrypted delivery metadata.
 
-## Quick Start
+## Initialize
 
 ```python
 from cheqi import CheqiSDK, Environment
-from cheqi.models import (
-    IdentificationDetails,
-    CardDetails,
-    ReceiptTemplateRequest,
-    DeliveryStatus,
-    NotificationDisplayCode,
-    Product,
-    Tax,
-    UnitCode,
-    BarcodeType,
-    PaymentType,
-    CardProvider,
-)
-from decimal import Decimal
 
-# Initialize the SDK
 sdk = CheqiSDK(
-    environment=Environment.PRODUCTION,
-    api_key="sk_live_...",
-)
-
-# Build identification details
-identification = IdentificationDetails(
-    payment_type=PaymentType.CARD_PAYMENT,
-    card_details=CardDetails(
-        payment_account_reference="PAR123456",
-        card_provider=CardProvider.VISA,
-    ),
-)
-
-# Build a receipt request
-product = Product(
-    name="Laptop",
-    identifier="LAP-001",
-    quantity=1.0,
-    base_quantity=1.0,
-    unit_code=UnitCode.ONE,
-    unit_price=Decimal("1000.00"),
-    subtotal=Decimal("1000.00"),
-    total=Decimal("1210.00"),
-    taxes=[Tax(rate=21.0, type="VAT", taxable_amount=Decimal("1000.00"), amount=Decimal("210.00"))],
-)
-
-receipt_request = ReceiptTemplateRequest(
-    document_number="INV-2024-001",
-    currency="EUR",
-    receipt_subtotal=Decimal("1000.00"),
-    total_before_tax=Decimal("1000.00"),
-    total_tax_amount=Decimal("210.00"),
-    total_amount=Decimal("1210.00"),
-    products=[product],
-    taxes=[Tax(rate=21.0, type="VAT", taxable_amount=Decimal("1000.00"), amount=Decimal("210.00"))],
-)
-
-# Process the complete receipt (match -> template -> encrypt -> send)
-result = sdk.receipt_service.process_complete_receipt(
-    identification_details=identification,
-    receipt_request=receipt_request,
-)
-
-if result.success:
-    print(f"Receipt route: {result.delivery_status}")
-    print(f"Receipt ID: {result.cheqi_receipt_id}")
-```
-
-The high-level flow now follows the same route contract as the Java SDK:
-
-- `DIGITAL` encrypts a recipient-specific envelope with AES-256-GCM and wraps its key with RSA-OAEP SHA-256.
-- `DOWNLOAD_FALLBACK` creates a QR URL locally, encrypts the complete envelope with the fragment key, and uploads only ciphertext to `/receipt/download`.
-- If no route is found and `recipient_email` is available, the CHEQI receipt is sent through `/receipt/email`.
-- A found route without `deliveryRouteType` is rejected to avoid accidentally using the retired server-held fallback-key flow.
-
-## VAT Context and Formats
-
-Recipient resolution supplies `buyer_country_code` and `buyer_type`; the high-level flow adds them to template generation unless the receipt request overrides them. If `taxes_applied` is omitted, the SDK infers it from a positive total tax amount or a non-empty receipt tax list.
-
-The supported recipient formats are `CHEQI`, `UBL_PURCHASE_RECEIPT`, `UBL_INVOICE`, and `UBL_CREDIT_NOTE`. Each digital recipient receives only the formats it declared.
-
-## Notification Display Code
-
-If the merchant has notification-code rendering enabled, you can attach a QR code or barcode to the high-level receipt flow. The code is sent as request metadata and rendered by supported mobile clients directly from the push notification.
-
-```python
-notification_display_code = NotificationDisplayCode(
-    type=BarcodeType.QR_CODE,
-    data="https://example.com/receipt/INV-2024-001",
-)
-
-result = sdk.receipt_service.process_complete_receipt(
-    identification_details=identification,
-    receipt_request=receipt_request,
-    notification_display_code=notification_display_code,
-)
-```
-
-If the merchant is not enabled for this feature, or you omit `notification_display_code`, the normal receipt push is sent.
-
-## Client-Encrypted Download Fallback
-
-Standard environments automatically map to the customer-facing origins `https://receipt.cheqi.io` and `https://sandbox.receipt.cheqi.io`. For a custom API endpoint, configure the receipt origin explicitly:
-
-```python
-sdk = CheqiSDK(
-    custom_api_endpoint="http://localhost:8080",
-    receipt_download_base_url="http://localhost:3000/receipt",
+    environment=Environment.SANDBOX,
     api_key="sk_test_...",
 )
 ```
 
-`process_complete_receipt` handles a `DOWNLOAD_FALLBACK` response automatically. The AES-256 key exists only in the URL fragment, so it is never sent to Cheqi:
+For OAuth, omit `api_key` and pass `access_token=` to service calls. A custom backend can be used
+with `custom_api_endpoint=` and, when needed, `receipt_download_base_url=`.
+
+An existing synchronous `httpx.Client` can be injected with `http_client=`. The SDK leaves an
+injected client open; clients created by the SDK are closed by `sdk.close()` or the context manager.
+
+## Issue a receipt
+
+The generated classes are the canonical API contract. Handwritten receipt classes subclass that
+contract only to add Python-friendly `Decimal` handling and small convenience methods.
 
 ```python
-result = sdk.receipt_service.process_complete_receipt(identification, receipt_request)
+from datetime import datetime, timezone
 
-if result.delivery_status == DeliveryStatus.DELIVERED_DOWNLOAD:
-    render_qr(result.download_url)
+from cheqi.models import (
+    CardDetails,
+    IdentificationDetails,
+    PaymentDetails,
+    PaymentType,
+    Product,
+    ReceiptPayload,
+    Tax,
+    UnitCode,
+)
+
+identification = IdentificationDetails(
+    payment_type=PaymentType.CARD_PAYMENT,
+    card_details=CardDetails(
+        payment_account_reference="PAR123456789",
+        card_provider="VISA",
+        last_four_digits="4242",
+    ),
+)
+
+product = Product(
+    name="Coffee beans",
+    brand_name="Cheqi Coffee",
+    identifier="SKU-COFFEE-001",
+    quantity=1,
+    base_quantity=1,
+    unit_code=UnitCode.C62,
+    unit_price="10.00",
+    subtotal="10.00",
+    total="12.10",
+).add_tax(21, "VAT", "10.00", "2.10")
+
+payload = ReceiptPayload(
+    document_number="POS-2026-0001",
+    issue_date=datetime.now(timezone.utc),
+    currency="EUR",
+    receipt_subtotal="10.00",
+    total_before_tax="10.00",
+    total_tax_amount="2.10",
+    total_amount="12.10",
+    taxes_applied=True,
+    products=[product],
+    taxes=[Tax(rate=21, type="VAT", taxable_amount="10.00", amount="2.10")],
+    payment_details=PaymentDetails(
+        payment_means_code="48",
+        description="Card payment",
+        card_provider="VISA",
+        card_last_four="4242",
+        merchant_id="MID-123",
+        payment_terminal_id="TID-456",
+    ),
+)
+
+result = sdk.receipt_service.issue_receipt(identification, payload)
+
+if result.is_accepted:
+    print(result.cheqi_receipt_id)
+elif result.email_receipt_required:
+    # Generate and submit the permitted email-fallback receipt explicitly.
+    pass
+elif result.download_envelope_required:
+    # Generate the final ReceiptEnvelope locally and complete the fallback.
+    pass
 ```
 
-You can also create the URL before any network call and own persistence/scheduling yourself:
+To associate a receipt with a store or use OAuth:
 
 ```python
-from cheqi.models import ClientReceiptDownloadRequest, ReceiptFormat
-
-link = sdk.download_service.generate_download_link(Environment.PRODUCTION)
-persist_link_credentials(link.download_id, link.content_key)
-render_qr(link.url)
-
-# Later, after obtaining the normal server-generated template:
-template = sdk.receipt_service.generate_receipt_template(
-    receipt_request,
-    [ReceiptFormat.CHEQI],
-)
-envelope = sdk.download_service.build_download_envelope(template)
-ciphertext = sdk.download_service.encrypt_download_envelope(envelope, link.content_key)
-
-# Persist these exact bytes before uploading. A retry must reuse the ciphertext;
-# encrypting again generates a new GCM IV.
-persist_ciphertext(link.download_id, ciphertext)
-response = sdk.receipt_service.upload_client_encrypted_receipt(
-    ClientReceiptDownloadRequest(
-        download_id=link.download_id,
-        ciphertext=ciphertext,
-    )
+result = sdk.receipt_service.issue_receipt(
+    identification,
+    payload,
+    store_id=store_id,
+    access_token=access_token,
 )
 ```
 
-Transient matching/template failures return `PENDING_DOWNLOAD_TEMPLATE` with a usable URL. A transient upload failure returns `PENDING_DOWNLOAD_UPLOAD` with `download_ciphertext`, `template_hash`, and the same URL so the integration can safely resume. The SDK deliberately does not create background workers or store pending jobs.
+All monetary, tax, payment, barcode, and jurisdictional values remain caller-supplied. For example,
+`Product.add_tax(...)` only appends the supplied tax; it does not calculate it.
 
-## Receipt Decryption and Context Merge
+## Delivery routes and downloads
 
-Queued encrypted receipts can contain a separately encrypted customer-context envelope. The SDK decrypts both payloads and merges receiving-party and payment-means data into CHEQI JSON, UBL PurchaseReceipt, and UBL Invoice representations:
+The backend selects `DIGITAL`, `DOWNLOAD_FALLBACK`, or `EMAIL_FALLBACK`.
+
+- Digital receipts are independently encrypted for every matched device and submitted immediately.
+- Download fallback is completed automatically when `IdentificationDetails.payment_type` is set.
+- Without local payment context, `download_envelope_required` asks the caller for a final generated
+  `ReceiptEnvelope`.
+- Email fallback is returned as an explicit action and is not performed automatically.
+
+An explicit customer-without-Cheqi flow can skip matching:
 
 ```python
-decrypted = sdk.process_encrypted_receipt(encrypted_receipt, private_key)
-complete_envelope = decrypted.receipt_envelope
+result = sdk.receipt_service.issue_download_receipt(
+    IdentificationDetails(payment_type=PaymentType.CASH),
+    payload,
+    access_token=access_token,
+)
+print(result.download_url)
 ```
 
-Raw decrypted strings remain available as `decrypted.receipt_content` and `decrypted.customer_details` for backward compatibility.
+The AES key is stored only in the URL fragment and is never sent to Cheqi.
 
-## Chainable Model Building
+## Credit notes and return requests
 
-Models are immutable. Convenience methods return new instances:
+Definitive merchant-issued credit notes use the same device encryption model and a separate API
+envelope:
 
 ```python
-request = (
-    ReceiptTemplateRequest(document_number="INV-001", currency="EUR")
-    .add_product(product1)
-    .add_product(product2)
-    .add_tax(tax1)
-    .add_discount(discount1)
+result = sdk.credit_note_service.issue_credit_note(
+    identification,
+    parent_cheqi_receipt_id,
+    credit_note_payload,
+    access_token=access_token,
 )
 ```
 
-## Authentication
+Customer return requests are represented by `CreditNoteInitiationRequest`, `ReturnLineItem`,
+`ReturnReasonCode`, and `RefundPreference`. Pydantic validates positive return quantities and the
+bank-account rules for `BANK_TRANSFER`. Receiving issuers can decrypt and validate queued or
+webhook requests in one call:
 
 ```python
-sdk = CheqiSDK(
-    environment=Environment.PRODUCTION,
-    api_key="sk_live_...",
+request = sdk.decryption_service.decrypt_credit_note_initiation_request(
+    encrypted_request,
+    private_key_base64,
 )
+```
+
+## Receipt decryption
+
+```python
+envelope = sdk.decryption_service.decrypt_receipt(
+    encrypted_receipt_delivery_or_webhook_envelope,
+    private_key_base64,
+)
+```
+
+The plaintext is the generated `ReceiptEnvelope`; no backend-context merge step is required.
+For company-expense deliveries, its optional `expense_submission` field contains the encrypted
+`ExpenseSubmissionEnvelope` attribution metadata.
+
+## Lower-level operations
+
+The matching, encryption, submission, download, verification, and store services are exposed on
+`CheqiSDK`. Examples include:
+
+```python
+resolution = sdk.matching_service.match_customer(identification, access_token)
+delivery = sdk.encryption_service.encrypt_for_device(payload.to_json(), resolution.recipients[0])
+receipt_hash = sdk.verification_service.calculate_cheqi_receipt_hash(payload.to_json())
+canonical_json = sdk.verification_service.canonicalize_cheqi_receipt(payload)
+ubl_hash = sdk.verification_service.calculate_ubl_hash(ubl_xml)
+stores = sdk.store_service.get_stores(company_id, access_token=access_token)
 ```
 
 ## Development
 
 ```bash
-uv sync --extra dev
-uv run pytest
-uv run ruff check src/ tests/
-uv run mypy src/
+python -m pip install -e '.[dev]'
+pytest
+ruff check src tests
+mypy src/cheqi
 ```

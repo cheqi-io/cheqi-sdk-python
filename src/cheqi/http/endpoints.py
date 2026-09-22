@@ -6,14 +6,11 @@ from __future__ import annotations
 class Endpoints:
     """Cheqi API endpoint paths."""
 
-    TEMPLATE = "/receipt/template"
     CUSTOMER_MATCH = "/recipient/resolve"
     ENCRYPTED_RECEIPT = "/receipt/encrypted"
     CLIENT_RECEIPT_DOWNLOAD = "/receipt/download"
     ENCRYPTED_CREDIT_NOTE = "/credit-note/encrypted"
-    CREDIT_NOTE_TEMPLATE = "/credit-note/template"
     EMAIL_RECEIPT = "/receipt/email"
-    COMPANY_PROVISION = "/company/provision"
 
     @staticmethod
     def company_stores(company_id: str) -> str:

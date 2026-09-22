@@ -19,19 +19,23 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional, Union
+from cheqi.models.generated.tax_category_code import TaxCategoryCode
 from typing import Optional, Set
 from typing_extensions import Self
 
 class Tax(BaseModel):
     """
-    The list of taxes applied to the receipt
+    Issuer-supplied receipt-level tax breakdown.
     """ # noqa: E501
     rate: Union[StrictFloat, StrictInt] = Field(description="The tax rate as a percentage (e.g. 21.0 for 21%)")
     type: StrictStr = Field(description="The type of tax, e.g. \"VAT\", \"GST\", \"Sales Tax\"")
     amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="The calculated tax amount")
     taxable_amount: Union[StrictFloat, StrictInt] = Field(description="The total taxable amount for this tax rate", alias="taxableAmount")
     label: Optional[StrictStr] = Field(default=None, description="The label of the tax")
-    __properties: ClassVar[List[str]] = ["rate", "type", "amount", "taxableAmount", "label"]
+    category: Optional[TaxCategoryCode] = None
+    exemption_reason_code: Optional[StrictStr] = Field(default=None, description="Tax exemption reason code. Written to UBL only when category is EXEMPT.", alias="exemptionReasonCode")
+    exemption_reason: Optional[StrictStr] = Field(default=None, description="Tax exemption reason. Written to UBL only when category is EXEMPT.", alias="exemptionReason")
+    __properties: ClassVar[List[str]] = ["rate", "type", "amount", "taxableAmount", "label", "category", "exemptionReasonCode", "exemptionReason"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -88,7 +92,10 @@ class Tax(BaseModel):
             "type": obj.get("type"),
             "amount": obj.get("amount"),
             "taxableAmount": obj.get("taxableAmount"),
-            "label": obj.get("label")
+            "label": obj.get("label"),
+            "category": obj.get("category"),
+            "exemptionReasonCode": obj.get("exemptionReasonCode"),
+            "exemptionReason": obj.get("exemptionReason")
         })
         return _obj
 

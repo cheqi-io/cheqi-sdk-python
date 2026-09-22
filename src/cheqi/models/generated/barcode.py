@@ -19,15 +19,16 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
+from cheqi.models.generated.barcode_type import BarcodeType
 from typing import Optional, Set
 from typing_extensions import Self
 
 class Barcode(BaseModel):
     """
-    Optional list of barcodes or QR codes embedded in the receipt
+    Issuer-supplied receipt-level barcodes or QR-code payloads.
     """ # noqa: E501
-    type: Optional[StrictStr] = Field(default=None, description="The type of barcode or scannable code")
-    data: Optional[StrictStr] = Field(default=None, description="The data encoded in the barcode")
+    type: BarcodeType
+    data: StrictStr = Field(description="The data encoded in the barcode")
     label: Optional[StrictStr] = Field(default=None, description="A human-readable label for the barcode")
     __properties: ClassVar[List[str]] = ["type", "data", "label"]
 

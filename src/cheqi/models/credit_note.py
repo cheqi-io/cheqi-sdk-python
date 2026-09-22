@@ -1,305 +1,136 @@
-"""Credit note models."""
+"""Credit-note return-request models and submission results."""
 
 from __future__ import annotations
 
-import json
+from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
-from typing import List, Optional
-from uuid import UUID
+from decimal import Decimal
+from typing import Optional, Union
 
-from pydantic import AliasChoices, Field
+from pydantic import field_validator, model_validator
+from typing_extensions import Self
 
-from cheqi.models.base import CheqiBaseModel, CheqiDecimal
-from cheqi.models.enums import ReceiptFormat, RefundPreference, ReturnCondition
-from cheqi.models.envelopes import CreditNoteContextEnvelope
-from cheqi.models.receipt import (
-    Barcode,
-    Charge,
-    Discount,
-    Identifier,
-    Period,
-    Product,
-    ReceivingParty,
-    SellingParty,
-    Tax,
-    VatMetadata,
+from cheqi.models.generated.credit_note_initiation_request import (
+    CreditNoteInitiationRequest as GeneratedCreditNoteInitiationRequest,
+)
+from cheqi.models.generated.encrypted_credit_note_initiation_request import (
+    EncryptedCreditNoteInitiationRequest,
+)
+from cheqi.models.generated.encrypted_credit_note_initiation_request_response import (
+    EncryptedCreditNoteInitiationRequestResponse,
+)
+from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
+from cheqi.models.generated.refund_bank_account import RefundBankAccount as GeneratedRefundBankAccount
+from cheqi.models.generated.refund_preference import RefundPreference
+from cheqi.models.generated.return_line_item import ReturnLineItem as GeneratedReturnLineItem
+from cheqi.models.generated.return_reason_code import ReturnReasonCode
+from cheqi.models.generated.webhook_credit_note_initiation_request import (
+    WebhookCreditNoteInitiationRequest,
 )
 
 
-class ReturnLineItem(CheqiBaseModel):
-    """Line item being returned."""
-
-    line_item_id: Optional[str] = None
-    quantity_returned: Optional[float] = None
-    condition: Optional[ReturnCondition] = None
-    condition_notes: Optional[str] = None
-
-
-class RefundBankAccount(CheqiBaseModel):
-    """Bank account for refund payments."""
-
-    iban: Optional[str] = None
-    bic: Optional[str] = None
-    account_holder: Optional[str] = None
-
-
-class CreditNoteInitiationRequest(CheqiBaseModel):
-    """Parsed credit note request from a customer."""
-
-    cheqi_receipt_id: Optional[str] = None
-    receipt_id: Optional[str] = None
-    return_reason: Optional[str] = None
-    return_reason_description: Optional[str] = None
-    line_items: Optional[List[ReturnLineItem]] = None
-    refund_preference: Optional[RefundPreference] = None
-    refund_bank_account: Optional[RefundBankAccount] = None
-
-
-class CreditNoteTemplateRequest(CheqiBaseModel):
-    """Request for generating credit note templates."""
-
-    child_company_id: Optional[UUID] = None
-    document_number: Optional[str] = None
-    originator_document_reference: Optional[str] = None
-    identifiers: Optional[List[Identifier]] = None
-    issue_date: Optional[datetime] = None
-    currency: Optional[str] = None
-    credit_note_subtotal: Optional[CheqiDecimal] = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "creditNoteSubtotal", "credit_note_subtotal", "receiptSubtotal", "receipt_subtotal"
-        ),
-        serialization_alias="creditNoteSubtotal",
-    )
-    total_before_tax: Optional[CheqiDecimal] = None
-    total_tax_amount: Optional[CheqiDecimal] = None
-    total_amount: Optional[CheqiDecimal] = None
-    products: Optional[List[Product]] = None
-    discounts: Optional[List[Discount]] = None
-    charges: Optional[List[Charge]] = None
-    taxes: Optional[List[Tax]] = None
-    transaction_date: Optional[datetime] = None
-    purchase_date: Optional[datetime] = None
-    period: Optional[Period] = None
-    barcodes: Optional[List[Barcode]] = None
-    note: Optional[str] = None
-    buyer_country_code: Optional[str] = None
-
-    @property
-    def receipt_subtotal(self) -> Optional[CheqiDecimal]:
-        """Backward-compatible alias for ``credit_note_subtotal``."""
-        return self.credit_note_subtotal
-
+class _GeneratedModelMixin:
     def to_dict(self) -> dict[str, object]:
-        data = super().to_dict()
-        data.pop("buyerCountryCode", None)
-        return data
+        return self.model_dump(by_alias=True, exclude_none=True, mode="json")  # type: ignore[attr-defined,no-any-return]
 
     def to_json(self) -> str:
-        return json.dumps(self.to_dict(), separators=(",", ":"), ensure_ascii=False)
-
-    def add_product(self, product: Product) -> CreditNoteTemplateRequest:
-        existing = list(self.products) if self.products else []
-        existing.append(product)
-        return self.model_copy(update={"products": existing})
-
-    def add_tax(self, tax: Tax) -> CreditNoteTemplateRequest:
-        existing = list(self.taxes) if self.taxes else []
-        existing.append(tax)
-        return self.model_copy(update={"taxes": existing})
-
-    def add_discount(self, discount: Discount) -> CreditNoteTemplateRequest:
-        existing = list(self.discounts) if self.discounts else []
-        existing.append(discount)
-        return self.model_copy(update={"discounts": existing})
-
-    def add_charge(self, charge: Charge) -> CreditNoteTemplateRequest:
-        existing = list(self.charges) if self.charges else []
-        existing.append(charge)
-        return self.model_copy(update={"charges": existing})
+        return self.model_dump_json(by_alias=True, exclude_none=True)  # type: ignore[attr-defined,no-any-return]
 
 
-class CreditNoteTemplateGenerationRequest(CheqiBaseModel):
-    """Wrapper for credit note template request with format info."""
+class ReturnLineItem(_GeneratedModelMixin, GeneratedReturnLineItem):
+    """Requested quantity and reason for one original product identifier."""
 
-    credit_note_template_request: Optional[CreditNoteTemplateRequest] = None
-    formats: Optional[List[ReceiptFormat]] = Field(
-        default=None,
-        validation_alias=AliasChoices("formats", "receiptFormats", "receipt_formats"),
-        serialization_alias="formats",
-    )
-    buyer_country_code: Optional[str] = None
-    buyer_type: Optional[str] = None
-    taxes_applied: Optional[bool] = None
+    @field_validator("quantity", mode="before")
+    @classmethod
+    def coerce_quantity(cls, value: object) -> Union[int, float]:
+        decimal = Decimal(str(value))
+        return int(decimal) if decimal == decimal.to_integral_value() else float(decimal)
 
-    @property
-    def receipt_formats(self) -> Optional[List[ReceiptFormat]]:
-        """Backward-compatible alias for ``formats``."""
-        return self.formats
+    @field_validator("product_id")
+    @classmethod
+    def product_id_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("product_id is required")
+        return value
 
 
-class CheqiCreditNote(CheqiBaseModel):
-    """Full credit note model returned by the backend."""
-
-    cheqi_credit_note_id: Optional[str] = None
-    document_number: Optional[str] = None
-    originator_document_reference: Optional[str] = None
-    identifiers: Optional[List[Identifier]] = None
-    issue_date: Optional[datetime] = None
-    currency: Optional[str] = None
-    credit_note_subtotal: Optional[CheqiDecimal] = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "creditNoteSubtotal", "credit_note_subtotal", "receiptSubtotal", "receipt_subtotal"
-        ),
-        serialization_alias="creditNoteSubtotal",
-    )
-    total_before_tax: Optional[CheqiDecimal] = None
-    total_tax_amount: Optional[CheqiDecimal] = None
-    total_amount: Optional[CheqiDecimal] = None
-    products: Optional[List[Product]] = None
-    discounts: Optional[List[Discount]] = None
-    charges: Optional[List[Charge]] = None
-    taxes: Optional[List[Tax]] = None
-    period: Optional[Period] = None
-    note: Optional[str] = None
-    barcodes: Optional[List[Barcode]] = None
-    selling_party: Optional[SellingParty] = None
-    receiving_party: Optional[ReceivingParty] = None
-    receipt_uuid: Optional[str] = Field(
-        default=None,
-        validation_alias=AliasChoices("receiptUuid", "receipt_uuid", "verificationNonce", "verification_nonce"),
-        serialization_alias="receiptUuid",
-    )
-
-    @property
-    def receipt_subtotal(self) -> Optional[CheqiDecimal]:
-        return self.credit_note_subtotal
-
-    @property
-    def verification_nonce(self) -> Optional[str]:
-        return self.receipt_uuid
+class RefundBankAccount(_GeneratedModelMixin, GeneratedRefundBankAccount):
+    """Customer bank details used only for a bank-transfer refund."""
 
 
-class CreditNoteTemplateResponse(CheqiBaseModel):
-    """Response from credit note template generation."""
+class CreditNoteInitiationRequest(_GeneratedModelMixin, GeneratedCreditNoteInitiationRequest):
+    """Validated plaintext customer return request.
 
-    ubl_credit_note: Optional[str] = Field(
-        default=None,
-        validation_alias=AliasChoices("ublCreditNote", "ubl_credit_note", "ubl"),
-        serialization_alias="ublCreditNote",
-    )
-    cheqi: Optional[CheqiCreditNote] = None
-    vat_metadata: Optional[VatMetadata] = None
+    This object is encrypted for the original issuer. Cheqi only routes its
+    ciphertext and cannot perform these plaintext validations server-side.
+    """
 
-    @property
-    def ubl(self) -> Optional[str]:
-        """Backward-compatible alias for ``ubl_credit_note``."""
-        return self.ubl_credit_note
+    @field_validator("cheqi_receipt_id", "receipt_id")
+    @classmethod
+    def identifiers_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("receipt identifiers cannot be blank")
+        return value
 
-
-class CreditNoteEnvelope(CheqiBaseModel):
-    """Envelope containing credit note format representations."""
-
-    cheqi_credit_note: Optional[CheqiCreditNote] = None
-    ubl_credit_note: Optional[str] = None
-    vat_metadata: Optional[VatMetadata] = None
-
-
-class EncryptedCreditNote(CheqiBaseModel):
-    """Encrypted credit note ready for delivery."""
-
-    recipient_id: Optional[str] = None
-    credit_note_id: Optional[str] = None
-    original_receipt_id: Optional[str] = None
-    encrypted_credit_note: Optional[str] = None
-    encrypted_symmetric_key: Optional[str] = None
-    encrypted_customer_details: Optional[str] = None
-    encrypted_customer_aes_key: Optional[str] = None
-    final_hash: Optional[str] = None
-    public_key: Optional[str] = None
+    @model_validator(mode="after")
+    def validate_refund_destination(self) -> Self:
+        if not self.line_items:
+            raise ValueError("at least one return line item is required")
+        if any(not item.product_id.strip() for item in self.line_items):
+            raise ValueError("line_items.product_id is required")
+        if self.refund_preference is RefundPreference.BANK_TRANSFER:
+            if self.refund_bank_account is None:
+                raise ValueError("refund_bank_account is required for BANK_TRANSFER")
+            if not self.refund_bank_account.iban.strip():
+                raise ValueError("refund_bank_account.iban is required for BANK_TRANSFER")
+            if not self.refund_bank_account.account_holder.strip():
+                raise ValueError("refund_bank_account.account_holder is required for BANK_TRANSFER")
+        elif self.refund_bank_account is not None:
+            raise ValueError("refund_bank_account is only allowed for BANK_TRANSFER")
+        return self
 
 
-class EncryptedCreditNotesRequest(CheqiBaseModel):
-    """Wrapper for sending encrypted credit notes."""
+@dataclass(frozen=True)
+class CreditNoteResult:
+    """Result returned after an encrypted credit note is accepted."""
 
-    match_id: Optional[str] = None
-    parent_cheqi_receipt_id: Optional[str] = None
-    encrypted_credit_notes: Optional[List[EncryptedCreditNote]] = None
-    template_hash: Optional[str] = None
-
-
-class EncryptedCreditNoteInitiationRequest(CheqiBaseModel):
-    """Customer-initiated encrypted credit note request (for decryption)."""
-
-    cheqi_receipt_id: Optional[str] = None
-    public_key: Optional[str] = None
-    encrypted_credit_note_initiation_request: Optional[str] = None
-    encrypted_symmetric_key: Optional[str] = None
-
-
-class CreditNoteCreatedResponse(CheqiBaseModel):
-    """Response after sending encrypted credit notes."""
-
-    cheqi_receipt_id: Optional[str] = None
-    parent_cheqi_receipt_id: Optional[str] = None
+    cheqi_receipt_id: Optional[str]
+    parent_cheqi_receipt_id: str
+    match_id: Optional[str]
+    status: Optional[str] = None
     created_at: Optional[datetime] = None
-    template_hash: Optional[str] = None
 
+    @property
+    def is_accepted(self) -> bool:
+        return bool(self.cheqi_receipt_id and self.cheqi_receipt_id.strip())
 
-class DecryptedDeliveredCreditNote(CheqiBaseModel):
-    """Decrypted delivered credit note plus optional credit note context envelope."""
-
-    credit_note_envelope: CreditNoteEnvelope
-    credit_note_context_envelope: Optional[CreditNoteContextEnvelope] = None
-    raw_json: str
-    raw_credit_note_context_json: Optional[str] = None
-
-
-class CreditNoteDeliveryStatus(str, Enum):
-    """Delivery status for credit note processing results."""
-
-    DELIVERED_DIGITAL = "DELIVERED_DIGITAL"
-    DELIVERED_TO_APP = "DELIVERED_DIGITAL"
-    DELIVERED_EMAIL = "DELIVERED_EMAIL"
-    DELIVERED_VIA_EMAIL = "DELIVERED_EMAIL"
-    CUSTOMER_NOT_FOUND = "CUSTOMER_NOT_FOUND"
-    FAILED = "FAILED"
-
-
-class CreditNoteResult(CheqiBaseModel):
-    """Result of a credit note processing operation."""
-
-    success: bool = False
-    delivery_status: Optional[CreditNoteDeliveryStatus] = None
-    cheqi_receipt_id: Optional[str] = None
-    parent_cheqi_receipt_id: Optional[str] = None
-    created_at: Optional[datetime] = None
-    template_hash: Optional[str] = None
-    canonical_json: Optional[str] = None
-    email_address: Optional[str] = None
-    message: Optional[str] = None
+    @property
+    def is_success(self) -> bool:
+        return self.is_accepted
 
     @classmethod
-    def delivered_to_app(
-        cls, response: CreditNoteCreatedResponse, canonical_json: Optional[str] = None
+    def accepted(
+        cls,
+        parent_cheqi_receipt_id: str,
+        response: ReceiptSubmissionResponse,
     ) -> CreditNoteResult:
         return cls(
-            success=True,
-            delivery_status=CreditNoteDeliveryStatus.DELIVERED_DIGITAL,
             cheqi_receipt_id=response.cheqi_receipt_id,
-            parent_cheqi_receipt_id=response.parent_cheqi_receipt_id,
+            parent_cheqi_receipt_id=parent_cheqi_receipt_id,
+            match_id=response.match_id,
+            status=response.status,
             created_at=response.created_at,
-            template_hash=response.template_hash,
-            canonical_json=canonical_json,
-            message="Receipt delivered to customer's Cheqi app",
         )
 
-    @classmethod
-    def customer_not_found(cls) -> CreditNoteResult:
-        return cls(
-            success=False,
-            delivery_status=CreditNoteDeliveryStatus.CUSTOMER_NOT_FOUND,
-            message="Customer not found with provided payment details",
-        )
+
+__all__ = [
+    "CreditNoteInitiationRequest",
+    "CreditNoteResult",
+    "EncryptedCreditNoteInitiationRequest",
+    "EncryptedCreditNoteInitiationRequestResponse",
+    "RefundBankAccount",
+    "RefundPreference",
+    "ReturnLineItem",
+    "ReturnReasonCode",
+    "WebhookCreditNoteInitiationRequest",
+]

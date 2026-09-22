@@ -12,8 +12,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from cheqi.config import Environment
 from cheqi.models.download import DownloadLink
-from cheqi.models.envelopes import ReceiptEnvelope
-from cheqi.models.receipt import ReceiptTemplateResponse
+from cheqi.models.generated.receipt_envelope import ReceiptEnvelope
 
 _DOWNLOAD_ID_LENGTH = 16
 _CONTENT_KEY_LENGTH = 32
@@ -68,24 +67,14 @@ class DownloadService:
         except (AttributeError, TypeError, ValueError) as exc:
             raise ValueError("Invalid receipt download URL") from exc
 
-    def build_download_envelope(self, template: ReceiptTemplateResponse) -> ReceiptEnvelope:
-        """Map every available server-generated format into the encrypted envelope."""
-        if template is None:
-            raise ValueError("template cannot be null")
-        return ReceiptEnvelope(
-            cheqi=template.cheqi,
-            ubl_purchase_receipt=template.ubl_purchase_receipt,
-            ubl_invoice=template.ubl_invoice,
-            vat_metadata=template.vat_metadata,
-        )
-
     def encrypt_download_envelope(self, envelope: ReceiptEnvelope, content_key: str) -> str:
         """Return Base64(iv || ciphertext || tag), interoperable with Java/JavaScript."""
         if envelope is None:
             raise ValueError("envelope cannot be null")
         key = self._decode_content_key(content_key)
         iv = self._random_exact(_IV_LENGTH)
-        ciphertext_and_tag = AESGCM(key).encrypt(iv, envelope.to_json().encode("utf-8"), None)
+        envelope_json = envelope.model_dump_json(by_alias=True, exclude_none=True)
+        ciphertext_and_tag = AESGCM(key).encrypt(iv, envelope_json.encode("utf-8"), None)
         return base64.b64encode(iv + ciphertext_and_tag).decode("ascii")
 
     def decrypt_download_envelope(self, ciphertext: str, content_key: str) -> ReceiptEnvelope:
