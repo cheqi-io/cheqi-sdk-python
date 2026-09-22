@@ -18,7 +18,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
 from cheqi.models.generated.routing_identifier import RoutingIdentifier
 from typing import Optional, Set
@@ -30,6 +30,9 @@ class WebhookReceiptEnvelope(BaseModel):
     """ # noqa: E501
     company_id: Optional[StrictStr] = Field(default=None, alias="companyId")
     user_id: Optional[StrictStr] = Field(default=None, alias="userId")
+    delivery_purpose: Optional[StrictStr] = Field(default=None, alias="deliveryPurpose")
+    expense_submission_id: Optional[StrictStr] = Field(default=None, alias="expenseSubmissionId")
+    submitted_by_user_id: Optional[StrictStr] = Field(default=None, alias="submittedByUserId")
     cheqi_receipt_id: Optional[StrictStr] = Field(default=None, alias="cheqiReceiptId")
     routing_identifier: Optional[RoutingIdentifier] = Field(default=None, alias="routingIdentifier")
     encrypted_envelope: Optional[StrictStr] = Field(default=None, alias="encryptedEnvelope")
@@ -41,7 +44,17 @@ class WebhookReceiptEnvelope(BaseModel):
     final_hash: Optional[StrictStr] = Field(default=None, alias="finalHash")
     client_id: Optional[StrictStr] = Field(default=None, description="Public OAuth client ID of the client application that owns the webhook subscription.", alias="clientId")
     created_at: Optional[datetime] = None
-    __properties: ClassVar[List[str]] = ["companyId", "userId", "cheqiReceiptId", "routingIdentifier", "encryptedEnvelope", "encryptedEnvelopeKey", "publicKey", "recipientKeyAlgorithm", "envelopeVersion", "receiptGeneratorVersion", "finalHash", "clientId", "created_at"]
+    __properties: ClassVar[List[str]] = ["companyId", "userId", "deliveryPurpose", "expenseSubmissionId", "submittedByUserId", "cheqiReceiptId", "routingIdentifier", "encryptedEnvelope", "encryptedEnvelopeKey", "publicKey", "recipientKeyAlgorithm", "envelopeVersion", "receiptGeneratorVersion", "finalHash", "clientId", "created_at"]
+
+    @field_validator('delivery_purpose')
+    def delivery_purpose_validate_enum(cls, value):
+        """Validates the enum"""
+        if value is None:
+            return value
+
+        if value not in set(['COMPANY_EXPENSE']):
+            raise ValueError("must be one of enum values ('COMPANY_EXPENSE')")
+        return value
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -104,6 +117,9 @@ class WebhookReceiptEnvelope(BaseModel):
         _obj = cls.model_validate({
             "companyId": obj.get("companyId"),
             "userId": obj.get("userId"),
+            "deliveryPurpose": obj.get("deliveryPurpose"),
+            "expenseSubmissionId": obj.get("expenseSubmissionId"),
+            "submittedByUserId": obj.get("submittedByUserId"),
             "cheqiReceiptId": obj.get("cheqiReceiptId"),
             "routingIdentifier": RoutingIdentifier.from_dict(obj["routingIdentifier"]) if obj.get("routingIdentifier") is not None else None,
             "encryptedEnvelope": obj.get("encryptedEnvelope"),

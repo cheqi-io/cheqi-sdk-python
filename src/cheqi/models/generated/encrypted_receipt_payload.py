@@ -87,3 +87,5 @@ class EncryptedReceiptPayload(BaseModel):
             "encryptedAesKey": obj.get("encryptedAesKey")
         })
         return _obj
+
+

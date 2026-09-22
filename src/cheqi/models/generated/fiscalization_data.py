@@ -125,3 +125,5 @@ class FiscalizationData(BaseModel):
             "additionalFields": [JurisdictionField.from_dict(_item) for _item in obj["additionalFields"]] if obj.get("additionalFields") is not None else None
         })
         return _obj
+
+

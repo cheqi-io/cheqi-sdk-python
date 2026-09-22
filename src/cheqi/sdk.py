@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+import httpx
+
 from cheqi.config import CheqiSDKConfig, Environment
 from cheqi.http.client import DefaultCheqiApiClient
 from cheqi.services.credit_note import CreditNoteService
@@ -29,6 +31,7 @@ class CheqiSDK:
         private_key: Optional[str] = None,
         timeout_seconds: int = 30,
         max_retries: int = 3,
+        http_client: Optional[httpx.Client] = None,
     ) -> None:
         self._config = CheqiSDKConfig(
             environment=environment,
@@ -38,6 +41,7 @@ class CheqiSDK:
             private_key=private_key,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
+            http_client=http_client,
         )
         self._verification_service = VerificationService()
         self._decryption_service = DecryptionService()

@@ -18,7 +18,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
 from cheqi.models.generated.document_type import DocumentType
 from typing import Optional, Set
@@ -38,9 +38,22 @@ class EncryptedReceiptDeliveryResponse(BaseModel):
     receipt_generator_version: Optional[StrictStr] = Field(default=None, alias="receiptGeneratorVersion")
     envelope_version: Optional[StrictInt] = Field(default=None, alias="envelopeVersion")
     final_hash: Optional[StrictStr] = Field(default=None, alias="finalHash")
+    delivery_purpose: Optional[StrictStr] = Field(default=None, alias="deliveryPurpose")
+    expense_submission_id: Optional[StrictStr] = Field(default=None, alias="expenseSubmissionId")
+    submitted_by_user_id: Optional[StrictStr] = Field(default=None, alias="submittedByUserId")
     supplier_party_id: Optional[StrictStr] = Field(default=None, alias="supplierPartyId")
     creation_date: Optional[datetime] = Field(default=None, alias="creationDate")
-    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "parentCheqiReceiptId", "documentType", "encryptedEnvelope", "encryptedEnvelopeKey", "publicKey", "recipientKeyAlgorithm", "receiptGeneratorVersion", "envelopeVersion", "finalHash", "supplierPartyId", "creationDate"]
+    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "parentCheqiReceiptId", "documentType", "encryptedEnvelope", "encryptedEnvelopeKey", "publicKey", "recipientKeyAlgorithm", "receiptGeneratorVersion", "envelopeVersion", "finalHash", "deliveryPurpose", "expenseSubmissionId", "submittedByUserId", "supplierPartyId", "creationDate"]
+
+    @field_validator('delivery_purpose')
+    def delivery_purpose_validate_enum(cls, value):
+        """Validates the enum"""
+        if value is None:
+            return value
+
+        if value not in set(['COMPANY_EXPENSE']):
+            raise ValueError("must be one of enum values ('COMPANY_EXPENSE')")
+        return value
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -103,7 +116,12 @@ class EncryptedReceiptDeliveryResponse(BaseModel):
             "receiptGeneratorVersion": obj.get("receiptGeneratorVersion"),
             "envelopeVersion": obj.get("envelopeVersion"),
             "finalHash": obj.get("finalHash"),
+            "deliveryPurpose": obj.get("deliveryPurpose"),
+            "expenseSubmissionId": obj.get("expenseSubmissionId"),
+            "submittedByUserId": obj.get("submittedByUserId"),
             "supplierPartyId": obj.get("supplierPartyId"),
             "creationDate": obj.get("creationDate")
         })
         return _obj
+
+

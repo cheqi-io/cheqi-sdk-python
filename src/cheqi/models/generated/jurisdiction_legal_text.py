@@ -99,3 +99,5 @@ class JurisdictionLegalText(BaseModel):
             "displayRole": obj.get("displayRole")
         })
         return _obj
+
+

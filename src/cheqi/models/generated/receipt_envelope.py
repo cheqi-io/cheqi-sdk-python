@@ -18,8 +18,9 @@ import re  # noqa: F401
 import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
-from typing import Any, ClassVar, Dict, List
+from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
+from cheqi.models.generated.expense_submission_envelope import ExpenseSubmissionEnvelope
 from cheqi.models.generated.receipt_envelope_document import ReceiptEnvelopeDocument
 from typing import Optional, Set
 from typing_extensions import Self
@@ -31,9 +32,10 @@ class ReceiptEnvelope(BaseModel):
     cheqi_receipt_id: StrictStr = Field(description="Stable Cheqi receipt or credit-note identifier.", alias="cheqiReceiptId")
     documents: Dict[str, ReceiptEnvelopeDocument] = Field(description="Generated documents keyed by ReceiptFormat name: CHEQI, UBL_PURCHASE_RECEIPT, UBL_INVOICE, or UBL_CREDIT_NOTE. Only formats included for this recipient are present. Each document's content is serialized JSON or XML, not a nested parsed document.")
     envelope_version: Annotated[int, Field(le=1, strict=True, ge=1)] = Field(description="Schema version of this encrypted plaintext envelope.", alias="envelopeVersion")
+    expense_submission: Optional[ExpenseSubmissionEnvelope] = Field(default=None, alias="expenseSubmission")
     receipt_generator_version: Annotated[str, Field(strict=True)] = Field(description="Version of the Rust receipt-template engine that generated the documents.", alias="receiptGeneratorVersion")
     receipt_uuid: StrictStr = Field(description="Shared UUID embedded in every generated representation of this receipt.", alias="receiptUuid")
-    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "documents", "envelopeVersion", "receiptGeneratorVersion", "receiptUuid"]
+    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "documents", "envelopeVersion", "expenseSubmission", "receiptGeneratorVersion", "receiptUuid"]
 
     @field_validator('receipt_generator_version')
     def receipt_generator_version_validate_regular_expression(cls, value):
@@ -88,6 +90,14 @@ class ReceiptEnvelope(BaseModel):
                 if self.documents[_key_documents]:
                     _field_dict[_key_documents] = self.documents[_key_documents].to_dict()
             _dict['documents'] = _field_dict
+        # override the default output from pydantic by calling `to_dict()` of expense_submission
+        if self.expense_submission:
+            _dict['expenseSubmission'] = self.expense_submission.to_dict()
+        # set to None if expense_submission (nullable) is None
+        # and model_fields_set contains the field
+        if self.expense_submission is None and "expense_submission" in self.model_fields_set:
+            _dict['expenseSubmission'] = None
+
         return _dict
 
     @classmethod
@@ -108,6 +118,7 @@ class ReceiptEnvelope(BaseModel):
             if obj.get("documents") is not None
             else None,
             "envelopeVersion": obj.get("envelopeVersion"),
+            "expenseSubmission": ExpenseSubmissionEnvelope.from_dict(obj["expenseSubmission"]) if obj.get("expenseSubmission") is not None else None,
             "receiptGeneratorVersion": obj.get("receiptGeneratorVersion"),
             "receiptUuid": obj.get("receiptUuid")
         })

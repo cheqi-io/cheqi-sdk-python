@@ -152,20 +152,20 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Grant details retrieved successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthGrantDetailsResponse"
         "404":
           description: Grant not found
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/OAuthGrantDetailsResponse"
+        "200":
+          description: Grant details retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthGrantDetailsResponse"
         "403":
-          description: The token is not authorized for this Grant or lacks read_stores
+          description: The token is not authorized for this Grant or lacks company:read
           content:
             '*/*':
               schema:
@@ -184,18 +184,6 @@ paths:
               $ref: "#/components/schemas/ClientCredentialsTokenRequest"
         required: true
       responses:
-        "401":
-          description: Invalid client credentials
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
-        "400":
-          description: Invalid authorization code or request parameters
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
         "200":
           description: OAuth exchange completed successfully
           content:
@@ -210,7 +198,19 @@ paths:
                     access_token: opaque-access-token
                     token_type: bearer
                     expires_in: 900
-                    scope: receipts.issue
+                    scope: receipt:issue
+        "401":
+          description: Invalid client credentials
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
+        "400":
+          description: Invalid authorization code or request parameters
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
       security: []
   /company/{id}/receipt-delivery/devices/{deviceId}:
     put:
@@ -255,7 +255,7 @@ paths:
       - Store Management
       summary: Get store location
       description: Gets a specific lightweight store/location record under the specified
-        company. OAuth client applications require the read_stores scope.
+        company. OAuth client applications require the store:read scope.
       operationId: getStore
       parameters:
       - name: companyId
@@ -279,14 +279,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store retrieved successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store retrieved successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
@@ -296,7 +296,7 @@ paths:
       - Store Management
       summary: Update store location
       description: Updates a lightweight store/location record under the specified
-        company. OAuth client applications require the write_stores scope.
+        company. OAuth client applications require the store:manage scope.
       operationId: updateStore
       parameters:
       - name: companyId
@@ -320,6 +320,12 @@ paths:
               $ref: "#/components/schemas/UpdateStoreRequest"
         required: true
       responses:
+        "200":
+          description: Store updated successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
           content:
@@ -338,12 +344,6 @@ paths:
             '*/*':
               schema:
                 type: object
-        "200":
-          description: Store updated successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
   /webhook/subscription:
     post:
       tags:
@@ -367,6 +367,12 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
+        "200":
+          description: Webhook subscription created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
         "409":
           description: Duplicate webhook subscription already exists
           content:
@@ -374,20 +380,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
         "403":
-          description: Insufficient permissions - requires read_receipts scope
+          description: Insufficient permissions - requires receipt:read or receipt:read:user-shared
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
-        "200":
-          description: Webhook subscription created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WebhookResponse"
       security:
       - cheqi_oauth:
-        - read_receipts
+        - receipt:read
+        - receipt:read:user-shared
       x-accessible-for: "Company, Client Application"
   /recipient/resolve:
     post:
@@ -406,20 +407,14 @@ paths:
               $ref: "#/components/schemas/IdentificationDetails"
         required: true
       responses:
-        "403":
-          description: Insufficient permissions - requires write_receipts scope
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RecipientResolutionResponse"
         "404":
           description: No recipient found matching the provided identification details
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
-        "200":
-          description: Recipient successfully resolved and matched
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
@@ -436,9 +431,15 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
+        "200":
+          description: Recipient successfully resolved and matched
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RecipientResolutionResponse"
       security:
       - cheqi_oauth:
-        - write_receipts
+        - receipt:issue
       x-accessible-for: "Company, Client Application"
   /receipts/queue/acknowledge/received:
     post:
@@ -446,7 +447,7 @@ paths:
       - Receipt Management
       summary: Acknowledge queued receipts
       description: |-
-        Acknowledges successfully processed queued receipts for the authenticated company or client application. Requires the read_receipts scope.
+        Acknowledges successfully processed queued receipts for the authenticated company or client application. Requires an applicable receipt read scope.
 
         **Accessible for:** Client Application, Company
       operationId: acknowledgeQueuedReceipts
@@ -460,10 +461,11 @@ paths:
         "200":
           description: Queued receipts acknowledged successfully
         "403":
-          description: Insufficient permissions - requires read_receipts scope
+          description: Insufficient receipt read permission
       security:
       - cheqi_oauth:
-        - read_receipts
+        - receipt:read
+        - receipt:read:user-shared
       x-accessible-for: "Client Application, Company"
   /receipts/queue/acknowledge/failed-permanent:
     post:
@@ -471,7 +473,7 @@ paths:
       - Receipt Management
       summary: Acknowledge permanent failure for queued receipts
       description: |-
-        Marks queued receipts as permanently failed for the authenticated company or client application. Requires the read_receipts scope.
+        Marks queued receipts as permanently failed for the authenticated company or client application. Requires an applicable receipt read scope.
 
         **Accessible for:** Client Application, Company
       operationId: acknowledgeQueuedReceiptsPermanentFailure
@@ -482,13 +484,14 @@ paths:
               $ref: "#/components/schemas/PermanentFailureAcknowledgeRequest"
         required: true
       responses:
+        "403":
+          description: Insufficient receipt read permission
         "200":
           description: Queued receipts marked as permanently failed successfully
-        "403":
-          description: Insufficient permissions - requires read_receipts scope
       security:
       - cheqi_oauth:
-        - read_receipts
+        - receipt:read
+        - receipt:read:user-shared
       x-accessible-for: "Client Application, Company"
   /receipt/encrypted:
     post:
@@ -519,21 +522,21 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "400":
-          description: Invalid encrypted generation request
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "202":
           description: Encrypted receipt payload accepted for on-device formatting
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
+        "400":
+          description: Invalid encrypted generation request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
       security:
       - cheqi_oauth:
-        - write_receipts
+        - receipt:issue
       x-accessible-for: "Company, Client Application"
   /receipt/email:
     post:
@@ -541,7 +544,7 @@ paths:
       - Receipt Management
       summary: Send receipt via email
       description: |-
-        Sends a purchase receipt directly to a customer via email. The receipt is delivered as a PDF attachment. Requires the write_receipts scope.
+        Sends a purchase receipt directly to a customer via email. The receipt is delivered as a PDF attachment. Requires the receipt:issue scope.
 
         **Accessible for:** Company, Client Application
       operationId: submitReceiptWithEmail
@@ -552,15 +555,15 @@ paths:
               $ref: "#/components/schemas/EmailReceiptRequest"
         required: true
       responses:
-        "403":
-          description: Insufficient permissions - requires write_receipts scope
         "400":
           description: Invalid email receipt request data
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
         "201":
           description: Receipt sent successfully via email
       security:
       - cheqi_oauth:
-        - write_receipts
+        - receipt:issue
       x-accessible-for: "Company, Client Application"
   /receipt/download:
     post:
@@ -568,7 +571,7 @@ paths:
       - Receipt Management
       summary: Upload a client-encrypted receipt for a client-generated download link
       description: |-
-        Stores the ciphertext behind a download id the SDK generated locally, so the QR code worked before this upload. First write wins: resubmitting the same downloadId with identical bytes returns 200 with the original identifiers (safe retry); different bytes or a different principal conflict with 409 and never replace the stored receipt. Requires the write_receipts scope.
+        Stores the ciphertext behind a download id the SDK generated locally, so the QR code worked before this upload. First write wins: resubmitting the same downloadId with identical bytes returns 200 with the original identifiers (safe retry); different bytes or a different principal conflict with 409 and never replace the stored receipt. Requires the receipt:issue scope.
 
         **Accessible for:** Company, Client Application
       operationId: uploadClientEncryptedReceipt
@@ -591,8 +594,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
+        "200":
+          description: Idempotent replay of an identical earlier upload
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
         "403":
-          description: Insufficient permissions - requires write_receipts scope
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
@@ -603,15 +612,9 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "200":
-          description: Idempotent replay of an identical earlier upload
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
       security:
       - cheqi_oauth:
-        - write_receipts
+        - receipt:issue
       x-accessible-for: "Company, Client Application"
   /oauth2/company-grants/{grantId}/suspend:
     post:
@@ -755,6 +758,12 @@ paths:
               $ref: "#/components/schemas/EncryptedCreditNoteEnvelope"
         required: true
       responses:
+        "202":
+          description: Encrypted credit-note generation job accepted
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "400":
           description: Invalid encrypted credit note data
           content:
@@ -762,20 +771,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "403":
-          description: Insufficient permissions - requires write_receipts scope
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "202":
-          description: Encrypted credit-note generation job accepted
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
       security:
       - cheqi_oauth:
-        - write_receipts
+        - receipt:issue
       x-accessible-for: "Company, Client Application"
   /company/{parentId}/children:
     post:
@@ -821,6 +824,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/CompanyResponse"
       x-accessible-for: User
+  /company/{id}/invite/employees:
+    post:
+      tags:
+      - Company Management
+      summary: Invite employees to company
+      description: |-
+        Sends invitation emails to one or more employees. Company-bound client applications require the company:members:invite scope and may invite only ordinary members without receipt permissions.
+
+        **Accessible for:** User, Company, Client Application
+      operationId: inviteEmployees
+      parameters:
+      - name: id
+        in: path
+        description: Company ID
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteEmployeeRequest"
+        required: true
+      responses:
+        "200":
+          description: Invitations sent successfully
+        "400":
+          description: Invalid invitation request
+        "404":
+          description: Company not found
+        "403":
+          description: Not authorized to invite employees to this company
+      x-accessible-for: "User, Company, Client Application"
   /company/{companyId}/stores:
     get:
       tags:
@@ -828,7 +865,7 @@ paths:
       summary: List store locations
       description: Lists lightweight store/location records for the specified company.
         This does not list child companies. OAuth client applications require the
-        read_stores scope.
+        store:read scope.
       operationId: getStores
       parameters:
       - name: companyId
@@ -876,7 +913,7 @@ paths:
       description: "Creates a lightweight store/location record under the specified\
         \ company. Use child companies instead when the branch or franchisee needs\
         \ its own Cheqi company identity, tax details, permissions, or reporting boundary.\
-        \ OAuth client applications require the write_stores scope."
+        \ OAuth client applications require the store:manage scope."
       operationId: createStore
       parameters:
       - name: companyId
@@ -893,12 +930,6 @@ paths:
               $ref: "#/components/schemas/CreateStoreRequest"
         required: true
       responses:
-        "201":
-          description: Store created successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to create stores for this company
           content:
@@ -917,6 +948,12 @@ paths:
             '*/*':
               schema:
                 type: object
+        "201":
+          description: Store created successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
   /client-application/{clientApplicationId}/public-key:
     get:
       tags:
@@ -936,14 +973,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "404":
-          description: Client application not found or public key not configured
+        "200":
+          description: Public key retrieved successfully
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicKeyResponse"
-        "200":
-          description: Public key retrieved successfully
+        "404":
+          description: Client application not found or public key not configured
           content:
             application/json:
               schema:
@@ -1056,7 +1093,7 @@ paths:
       - Store Management
       summary: Deactivate store location
       description: Deactivates a store/location without deleting its history. OAuth
-        client applications require the write_stores scope.
+        client applications require the store:manage scope.
       operationId: deactivateStore
       parameters:
       - name: companyId
@@ -1074,14 +1111,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store deactivated successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store deactivated successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
@@ -1098,7 +1135,7 @@ paths:
       - Store Management
       summary: Activate store location
       description: Reactivates a previously deactivated store/location. OAuth client
-        applications require the write_stores scope.
+        applications require the store:manage scope.
       operationId: activateStore
       parameters:
       - name: companyId
@@ -1116,14 +1153,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store activated successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store activated successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
@@ -1140,7 +1177,7 @@ paths:
       - Receipt Management
       summary: Get queued encrypted receipts
       description: |-
-        Returns pending encrypted receipts for the authenticated company or client application. Receipts remain in the queue until they are explicitly acknowledged or marked as permanently failed. Requires the read_receipts scope.
+        Returns pending encrypted receipts for the authenticated company or client application. Receipts remain in the queue until they are explicitly acknowledged or marked as permanently failed. Delegated clients require receipt:read or receipt:read:user-shared.
 
         **Accessible for:** Client Application, Company
       operationId: getQueuedReceipts
@@ -1152,7 +1189,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
         "403":
-          description: Insufficient permissions - requires read_receipts scope
+          description: Insufficient receipt read permission
           content:
             application/json:
               schema:
@@ -1162,7 +1199,8 @@ paths:
                   $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
       security:
       - cheqi_oauth:
-        - read_receipts
+        - receipt:read
+        - receipt:read:user-shared
       x-accessible-for: "Client Application, Company"
   /oauth2/company-grants/company/{companyId}:
     get:
@@ -1242,6 +1280,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/CompanyReceiptDeliverySettingsResponse"
       x-accessible-for: User
+  /company/{companyId}/members/{userId}/receipt-identity:
+    get:
+      tags:
+      - member-receipt-identity-controller
+      summary: Resolve the active member who submitted a receipt
+      description: |-
+        Names are optional display metadata. Use userId as the stable identity, or primaryEmail for platform mapping and display fallback.
+
+        **Accessible for:** Company, Client Application
+      operationId: resolve
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MemberReceiptIdentityResponse"
+      x-accessible-for: "Company, Client Application"
   /company/identifier-requirements:
     get:
       tags:
@@ -2069,6 +2138,16 @@ components:
           example: 987654321
           items:
             $ref: "#/components/schemas/CompanyIdentifierDTO"
+        contactFirstName:
+          type: string
+          description: The first name of the person who made a B2B purchase on behalf
+            of the receiving company
+          example: John
+        contactLastName:
+          type: string
+          description: The last name of the person who made a B2B purchase on behalf
+            of the receiving company
+          example: Doe
         consumerName:
           type: string
           description: The full name of the consumer (B2C only). Use this for individual
@@ -2276,7 +2355,7 @@ components:
         scope:
           type: string
           description: Requested OAuth scope
-          example: write_receipts
+          example: receipt:issue
         grant_type:
           type: string
           description: OAuth grant type
@@ -2348,11 +2427,6 @@ components:
           type: array
           items:
             type: string
-        billing_responsibility:
-          type: string
-          enum:
-          - INTEGRATION
-          - ISSUER_COMPANY
         store_access_mode:
           type: string
           enum:
@@ -2613,6 +2687,31 @@ components:
             $ref: "#/components/schemas/CompanyIdentifierDTO"
         website:
           type: string
+    CompanyRole:
+      type: string
+      description: The role of a user in a company
+      example: COMPANY_ADMIN
+      enum:
+      - COMPANY_ADMIN
+      - COMPANY_USER
+    InviteEmployeeRequest:
+      required:
+      - emails
+      - role
+      type: object
+      properties:
+        emails:
+          uniqueItems: true
+          type: array
+          items:
+            type: string
+        role:
+          $ref: "#/components/schemas/CompanyRole"
+        receiptRecipient:
+          type: boolean
+        receiptWriter:
+          type: boolean
+      description: Invitation request with email addresses and role
     CreateStoreRequest:
       required:
       - addressDto
@@ -2670,11 +2769,6 @@ components:
           type: array
           items:
             type: string
-        billing_responsibility:
-          type: string
-          enum:
-          - INTEGRATION
-          - ISSUER_COMPANY
         store_access_mode:
           type: string
           enum:
@@ -2760,6 +2854,16 @@ components:
           format: int32
         finalHash:
           type: string
+        deliveryPurpose:
+          type: string
+          enum:
+          - COMPANY_EXPENSE
+        expenseSubmissionId:
+          type: string
+          format: uuid
+        submittedByUserId:
+          type: string
+          format: uuid
         supplierPartyId:
           type: string
           format: uuid
@@ -2821,6 +2925,28 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CompanyReceiptDeliveryDeviceDto"
+    MemberReceiptIdentityResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+          description: Optional profile first name. Integrations must not require
+            this field.
+          nullable: true
+        lastName:
+          type: string
+          description: Optional profile last name. Integrations must not require this
+            field.
+          nullable: true
+        primaryEmail:
+          type: string
+          description: Primary email; use as the display fallback when both names
+            are absent.
+      description: Minimal identity metadata for attributing a company receipt or
+        expense.
     CompanyIdentifierRequirement:
       type: object
       properties:
@@ -3014,6 +3140,16 @@ components:
         userId:
           type: string
           format: uuid
+        deliveryPurpose:
+          type: string
+          enum:
+          - COMPANY_EXPENSE
+        expenseSubmissionId:
+          type: string
+          format: uuid
+        submittedByUserId:
+          type: string
+          format: uuid
         cheqiReceiptId:
           type: string
         routingIdentifier:
@@ -3043,6 +3179,38 @@ components:
           format: date-time
       description: Recipient-specific encrypted receipt or credit-note envelope delivered
         by webhook.
+    ExpenseSubmissionEnvelope:
+      required:
+      - expenseSubmissionId
+      - submittedAt
+      - submittedByUserId
+      - targetCompanyId
+      type: object
+      properties:
+        expenseSubmissionId:
+          type: string
+          description: Unique company-expense submission identifier.
+          format: uuid
+        targetCompanyId:
+          type: string
+          description: Company receiving the receipt as an employee expense.
+          format: uuid
+        submittedByUserId:
+          type: string
+          description: Cheqi user who submitted the company expense.
+          format: uuid
+        submittedAt:
+          type: string
+          description: Server-issued time at which the expense submission was created.
+          format: date-time
+        reason:
+          type: string
+          description: Optional private expense reason supplied by the submitting
+            user.
+          nullable: true
+      description: Optional company-expense attribution carried inside the encrypted
+        receipt envelope.
+      nullable: true
     ReceiptEnvelope:
       required:
       - cheqiReceiptId
@@ -3071,12 +3239,14 @@ components:
           description: Schema version of this encrypted plaintext envelope.
           format: int32
           example: 1
+        expenseSubmission:
+          $ref: "#/components/schemas/ExpenseSubmissionEnvelope"
         receiptGeneratorVersion:
           pattern: "^[A-Za-z0-9][A-Za-z0-9._+\\-]{0,63}$"
           type: string
           description: Version of the Rust receipt-template engine that generated
             the documents.
-          example: 0.3.0
+          example: 0.3.1
         receiptUuid:
           type: string
           description: Shared UUID embedded in every generated representation of this
@@ -3502,24 +3672,32 @@ components:
         clientCredentials:
           tokenUrl: https://sandbox.api.cheqi.io/oauth2/token
           scopes:
-            read_receipts: "View receipt details including items, prices, and payment\
-              \ information"
-            write_receipts: Create and modify digital receipts on behalf of your company
-            read_stores: View store/location information
-            write_stores: Create and manage stores/locations for your company
-            company_access: Access company-level information and features
-            account_access: Access account information and settings
+            receipt:read: "Receive receipts automatically from the companies, payment\
+              \ accounts, or email addresses a user authorizes"
+            receipt:read:user-shared: Allow users to share individual receipts with
+              connected applications and company integrations
+            receipt:issue: Issue digital receipts on behalf of an authorized company
+            store:read: View store and location information for an authorized company
+            store:manage: Create and manage stores and locations for an authorized
+              company
+            company:read: View profile and authorization metadata for an authorized
+              company
+            company:members:invite: Invite ordinary members to an authorized company
         authorizationCode:
           authorizationUrl: https://api.cheqi.io/oauth2/authorize
           tokenUrl: https://sandbox.api.cheqi.io/oauth2/token
           scopes:
-            read_receipts: "View receipt details including items, prices, and payment\
-              \ information"
-            write_receipts: Create and modify digital receipts on behalf of your company
-            read_stores: View store/location information
-            write_stores: Create and manage stores/locations for your company
-            company_access: Access company-level information and features
-            account_access: Access account information and settings
+            receipt:read: "Receive receipts automatically from the companies, payment\
+              \ accounts, or email addresses a user authorizes"
+            receipt:read:user-shared: Allow users to share individual receipts with
+              connected applications and company integrations
+            receipt:issue: Issue digital receipts on behalf of an authorized company
+            store:read: View store and location information for an authorized company
+            store:manage: Create and manage stores and locations for an authorized
+              company
+            company:read: View profile and authorization metadata for an authorized
+              company
+            company:members:invite: Invite ordinary members to an authorized company
     cheqi_api_key:
       type: http
       description: "Company API key. Send it as `Authorization: Bearer sk_...`."

@@ -109,3 +109,5 @@ class CompanyResponse(BaseModel):
             "website": obj.get("website")
         })
         return _obj
+
+

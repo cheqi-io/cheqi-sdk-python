@@ -115,3 +115,5 @@ class OAuthGrantDetailsResponse(BaseModel):
             "store_access_mode": obj.get("store_access_mode")
         })
         return _obj
+
+

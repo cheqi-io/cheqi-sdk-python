@@ -16,6 +16,9 @@ pip install cheqi-sdk
 
 Python 3.9 or newer is required.
 
+Version `1.0.0` matches the Java SDK 2.3 contract, including company-expense receipt attribution,
+member receipt identities, employee invitation roles, and the latest encrypted delivery metadata.
+
 ## Initialize
 
 ```python
@@ -29,6 +32,9 @@ sdk = CheqiSDK(
 
 For OAuth, omit `api_key` and pass `access_token=` to service calls. A custom backend can be used
 with `custom_api_endpoint=` and, when needed, `receipt_download_base_url=`.
+
+An existing synchronous `httpx.Client` can be injected with `http_client=`. The SDK leaves an
+injected client open; clients created by the SDK are closed by `sdk.close()` or the context manager.
 
 ## Issue a receipt
 
@@ -176,6 +182,8 @@ envelope = sdk.decryption_service.decrypt_receipt(
 ```
 
 The plaintext is the generated `ReceiptEnvelope`; no backend-context merge step is required.
+For company-expense deliveries, its optional `expense_submission` field contains the encrypted
+`ExpenseSubmissionEnvelope` attribution metadata.
 
 ## Lower-level operations
 
@@ -186,6 +194,8 @@ The matching, encryption, submission, download, verification, and store services
 resolution = sdk.matching_service.match_customer(identification, access_token)
 delivery = sdk.encryption_service.encrypt_for_device(payload.to_json(), resolution.recipients[0])
 receipt_hash = sdk.verification_service.calculate_cheqi_receipt_hash(payload.to_json())
+canonical_json = sdk.verification_service.canonicalize_cheqi_receipt(payload)
+ubl_hash = sdk.verification_service.calculate_ubl_hash(ubl_xml)
 stores = sdk.store_service.get_stores(company_id, access_token=access_token)
 ```
 

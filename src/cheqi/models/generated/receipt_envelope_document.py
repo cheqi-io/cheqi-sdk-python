@@ -92,3 +92,5 @@ class ReceiptEnvelopeDocument(BaseModel):
             "mediaType": obj.get("mediaType")
         })
         return _obj
+
+

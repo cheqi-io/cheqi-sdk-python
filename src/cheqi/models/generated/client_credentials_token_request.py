@@ -101,3 +101,5 @@ class ClientCredentialsTokenRequest(BaseModel):
             "grant_id": obj.get("grant_id")
         })
         return _obj
+
+

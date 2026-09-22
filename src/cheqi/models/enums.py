@@ -4,6 +4,7 @@ from cheqi.models.generated.account_identifier_type import AccountIdentifierType
 from cheqi.models.generated.barcode_type import BarcodeType
 from cheqi.models.generated.buyer_type import BuyerType
 from cheqi.models.generated.company_identifier_type import CompanyIdentifierType
+from cheqi.models.generated.company_role import CompanyRole
 from cheqi.models.generated.document_type import DocumentType
 from cheqi.models.generated.fiscalization_status import FiscalizationStatus
 from cheqi.models.generated.key_algorithm import KeyAlgorithm
@@ -21,6 +22,7 @@ __all__ = [
     "BarcodeType",
     "BuyerType",
     "CompanyIdentifierType",
+    "CompanyRole",
     "DocumentType",
     "FiscalizationStatus",
     "KeyAlgorithm",

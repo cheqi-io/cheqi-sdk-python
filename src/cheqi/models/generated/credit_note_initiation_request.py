@@ -107,3 +107,5 @@ class CreditNoteInitiationRequest(BaseModel):
             "refundBankAccount": RefundBankAccount.from_dict(obj["refundBankAccount"]) if obj.get("refundBankAccount") is not None else None
         })
         return _obj
+
+

@@ -27,21 +27,10 @@ class UpdateCompanyGrantRequest(BaseModel):
     UpdateCompanyGrantRequest
     """ # noqa: E501
     scopes: List[StrictStr]
-    billing_responsibility: Optional[StrictStr] = None
     store_access_mode: Optional[StrictStr] = None
     store_ids: Optional[List[StrictStr]] = None
     reason: StrictStr
-    __properties: ClassVar[List[str]] = ["scopes", "billing_responsibility", "store_access_mode", "store_ids", "reason"]
-
-    @field_validator('billing_responsibility')
-    def billing_responsibility_validate_enum(cls, value):
-        """Validates the enum"""
-        if value is None:
-            return value
-
-        if value not in set(['INTEGRATION', 'ISSUER_COMPANY']):
-            raise ValueError("must be one of enum values ('INTEGRATION', 'ISSUER_COMPANY')")
-        return value
+    __properties: ClassVar[List[str]] = ["scopes", "store_access_mode", "store_ids", "reason"]
 
     @field_validator('store_access_mode')
     def store_access_mode_validate_enum(cls, value):
@@ -105,7 +94,6 @@ class UpdateCompanyGrantRequest(BaseModel):
 
         _obj = cls.model_validate({
             "scopes": obj.get("scopes"),
-            "billing_responsibility": obj.get("billing_responsibility"),
             "store_access_mode": obj.get("store_access_mode"),
             "store_ids": obj.get("store_ids"),
             "reason": obj.get("reason")

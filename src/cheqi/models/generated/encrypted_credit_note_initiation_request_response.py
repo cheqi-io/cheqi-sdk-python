@@ -106,3 +106,5 @@ class EncryptedCreditNoteInitiationRequestResponse(BaseModel):
             "encryptedCreditNoteInitiationRequest": obj.get("encryptedCreditNoteInitiationRequest")
         })
         return _obj
+
+

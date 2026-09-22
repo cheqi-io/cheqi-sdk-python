@@ -31,12 +31,14 @@ class ReceivingParty(BaseModel):
     company_legal_name: Optional[StrictStr] = Field(default=None, description="The legal name of the receiving company (B2B only). Use this for business recipients.", alias="companyLegalName")
     tax_number: Optional[StrictStr] = Field(default=None, description="The tax number of the receiving party (B2B only)", alias="taxNumber")
     company_identifiers: Optional[List[CompanyIdentifierDTO]] = Field(default=None, description="The company identifiers of the receiving party (B2B only)", alias="companyIdentifiers")
+    contact_first_name: Optional[StrictStr] = Field(default=None, description="The first name of the person who made a B2B purchase on behalf of the receiving company", alias="contactFirstName")
+    contact_last_name: Optional[StrictStr] = Field(default=None, description="The last name of the person who made a B2B purchase on behalf of the receiving company", alias="contactLastName")
     consumer_name: Optional[StrictStr] = Field(default=None, description="The full name of the consumer (B2C only). Use this for individual recipients.", alias="consumerName")
     email: Optional[StrictStr] = Field(default=None, description="The email addressDto of the receiving party")
     phone: Optional[StrictStr] = Field(default=None, description="The phone number of the receiving party")
     address: Optional[PartyAddress] = None
     company_registration: Optional[List[CompanyIdentifierDTO]] = Field(default=None, alias="companyRegistration")
-    __properties: ClassVar[List[str]] = ["companyLegalName", "taxNumber", "companyIdentifiers", "consumerName", "email", "phone", "address", "companyRegistration"]
+    __properties: ClassVar[List[str]] = ["companyLegalName", "taxNumber", "companyIdentifiers", "contactFirstName", "contactLastName", "consumerName", "email", "phone", "address", "companyRegistration"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -109,6 +111,8 @@ class ReceivingParty(BaseModel):
             "companyLegalName": obj.get("companyLegalName"),
             "taxNumber": obj.get("taxNumber"),
             "companyIdentifiers": [CompanyIdentifierDTO.from_dict(_item) for _item in obj["companyIdentifiers"]] if obj.get("companyIdentifiers") is not None else None,
+            "contactFirstName": obj.get("contactFirstName"),
+            "contactLastName": obj.get("contactLastName"),
             "consumerName": obj.get("consumerName"),
             "email": obj.get("email"),
             "phone": obj.get("phone"),

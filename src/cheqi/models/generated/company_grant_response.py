@@ -33,14 +33,13 @@ class CompanyGrantResponse(BaseModel):
     status: Optional[StrictStr] = None
     version: Optional[StrictInt] = None
     scopes: Optional[List[StrictStr]] = None
-    billing_responsibility: Optional[StrictStr] = None
     store_access_mode: Optional[StrictStr] = None
     store_ids: Optional[List[StrictStr]] = None
     origin: Optional[StrictStr] = None
     expires_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    __properties: ClassVar[List[str]] = ["id", "integration_id", "issuer_company_id", "status", "version", "scopes", "billing_responsibility", "store_access_mode", "store_ids", "origin", "expires_at", "created_at", "updated_at"]
+    __properties: ClassVar[List[str]] = ["id", "integration_id", "issuer_company_id", "status", "version", "scopes", "store_access_mode", "store_ids", "origin", "expires_at", "created_at", "updated_at"]
 
     @field_validator('status')
     def status_validate_enum(cls, value):
@@ -50,16 +49,6 @@ class CompanyGrantResponse(BaseModel):
 
         if value not in set(['ACTIVE', 'SUSPENDED', 'REVOKED']):
             raise ValueError("must be one of enum values ('ACTIVE', 'SUSPENDED', 'REVOKED')")
-        return value
-
-    @field_validator('billing_responsibility')
-    def billing_responsibility_validate_enum(cls, value):
-        """Validates the enum"""
-        if value is None:
-            return value
-
-        if value not in set(['INTEGRATION', 'ISSUER_COMPANY']):
-            raise ValueError("must be one of enum values ('INTEGRATION', 'ISSUER_COMPANY')")
         return value
 
     @field_validator('store_access_mode')
@@ -139,7 +128,6 @@ class CompanyGrantResponse(BaseModel):
             "status": obj.get("status"),
             "version": obj.get("version"),
             "scopes": obj.get("scopes"),
-            "billing_responsibility": obj.get("billing_responsibility"),
             "store_access_mode": obj.get("store_access_mode"),
             "store_ids": obj.get("store_ids"),
             "origin": obj.get("origin"),
@@ -148,3 +136,5 @@ class CompanyGrantResponse(BaseModel):
             "updated_at": obj.get("updated_at")
         })
         return _obj
+
+

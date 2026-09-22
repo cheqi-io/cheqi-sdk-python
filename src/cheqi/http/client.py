@@ -27,7 +27,7 @@ from cheqi.models.generated.store_dto import StoreDTO
 
 logger = logging.getLogger("cheqi.http")
 
-_USER_AGENT = "CheqiSDK-Python/2.0.0"
+_USER_AGENT = "CheqiSDK-Python/1.0.0"
 
 
 def _model_dict(model: BaseModel) -> dict[str, Any]:
@@ -121,14 +121,23 @@ class CheqiApiClient(Protocol):
 class DefaultCheqiApiClient:
     """Synchronous ``httpx`` implementation of the Cheqi API boundary."""
 
-    def __init__(self, config: CheqiSDKConfig) -> None:
+    def __init__(
+        self,
+        config: CheqiSDKConfig,
+        *,
+        http_client: Optional[httpx.Client] = None,
+    ) -> None:
         self._config = config
         self._retry_handler = RetryHandler(config.max_retries)
-        self._client = httpx.Client(
-            base_url=config.api_endpoint,
+        configured_client = http_client or config.http_client
+        self._owns_client = configured_client is None
+        self._client = configured_client or httpx.Client(
             timeout=config.timeout_seconds,
             headers={"User-Agent": _USER_AGENT},
         )
+
+    def _url(self, path: str) -> str:
+        return f"{self._config.api_endpoint.rstrip('/')}/{path.lstrip('/')}"
 
     def _auth_headers(self, access_token: Optional[str] = None) -> Dict[str, str]:
         token = access_token or self._config.api_key
@@ -138,7 +147,10 @@ class DefaultCheqiApiClient:
                 error_code=ErrorCodes.AUTHENTICATION_FAILED,
                 http_status_code=401,
             )
-        return {"Authorization": f"Bearer {token}"}
+        return {
+            "Authorization": f"Bearer {token}",
+            "User-Agent": _USER_AGENT,
+        }
 
     def _handle_response(self, response: httpx.Response, operation: str) -> Any:
         if response.status_code >= 400:
@@ -175,7 +187,7 @@ class DefaultCheqiApiClient:
         headers["Content-Type"] = "application/json"
 
         def request() -> httpx.Response:
-            return self._client.post(path, json=body, headers=headers)
+            return self._client.post(self._url(path), json=body, headers=headers)
 
         return self._handle_response(
             self._retry_handler.execute_with_retry(request, operation),
@@ -192,7 +204,7 @@ class DefaultCheqiApiClient:
         headers = self._auth_headers(access_token)
 
         def request() -> httpx.Response:
-            return self._client.get(path, headers=headers, params=params)
+            return self._client.get(self._url(path), headers=headers, params=params)
 
         return self._handle_response(
             self._retry_handler.execute_with_retry(request, operation),
@@ -210,7 +222,7 @@ class DefaultCheqiApiClient:
         headers["Content-Type"] = "application/json"
 
         def request() -> httpx.Response:
-            return self._client.put(path, json=body, headers=headers)
+            return self._client.put(self._url(path), json=body, headers=headers)
 
         return self._handle_response(
             self._retry_handler.execute_with_retry(request, operation),
@@ -226,7 +238,7 @@ class DefaultCheqiApiClient:
         headers = self._auth_headers(access_token)
 
         def request() -> httpx.Response:
-            return self._client.delete(path, headers=headers)
+            return self._client.delete(self._url(path), headers=headers)
 
         return self._handle_response(
             self._retry_handler.execute_with_retry(request, operation),
@@ -385,4 +397,5 @@ class DefaultCheqiApiClient:
         )
 
     def close(self) -> None:
-        self._client.close()
+        if self._owns_client:
+            self._client.close()
