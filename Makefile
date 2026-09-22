@@ -42,17 +42,10 @@ generate:
 	@echo "Generated OpenAPI models in $(GENERATED_DIR)/"
 
 spec-check:
-	@curl -fsSL $(SPEC_URL) -o openapi.yaml.tmp
-	@if diff -q openapi.yaml openapi.yaml.tmp > /dev/null 2>&1; then \
-		echo "Spec is up to date."; \
-	else \
-		echo "ERROR: Local openapi.yaml differs from $(SPEC_URL)"; \
-		echo "Run 'make fetch-spec' to update."; \
-		diff openapi.yaml openapi.yaml.tmp || true; \
-		rm openapi.yaml.tmp; \
-		exit 1; \
-	fi
-	@rm -f openapi.yaml.tmp
+	@spec_tmp=$$(mktemp /tmp/cheqi-openapi.XXXXXX); \
+	trap 'rm -f "$$spec_tmp"' EXIT; \
+	curl -fsSL $(SPEC_URL) -o "$$spec_tmp"; \
+	python scripts/check_openapi.py openapi.yaml "$$spec_tmp" "$(SPEC_URL)"
 
 test:
 	python -m pytest
