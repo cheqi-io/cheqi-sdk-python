@@ -116,14 +116,14 @@ paths:
               $ref: "#/components/schemas/AuthorizationCodeExchangeRequest"
         required: true
       responses:
-        "401":
-          description: Invalid client credentials
+        "200":
+          description: Authorization code exchanged successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/CompanyAuthorizationResponse"
-        "200":
-          description: Authorization code exchanged successfully
+        "401":
+          description: Invalid client credentials
           content:
             '*/*':
               schema:
@@ -152,14 +152,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "404":
-          description: Grant not found
+        "200":
+          description: Grant details retrieved successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/OAuthGrantDetailsResponse"
-        "200":
-          description: Grant details retrieved successfully
+        "404":
+          description: Grant not found
           content:
             '*/*':
               schema:
@@ -279,14 +279,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store retrieved successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store retrieved successfully
           content:
             '*/*':
               schema:
@@ -320,18 +320,18 @@ paths:
               $ref: "#/components/schemas/UpdateStoreRequest"
         required: true
       responses:
-        "200":
-          description: Store updated successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
           content:
             '*/*':
               schema:
                 type: object
+        "200":
+          description: Store updated successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to update this store
           content:
@@ -367,16 +367,16 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
-        "200":
-          description: Webhook subscription created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WebhookResponse"
         "409":
           description: Duplicate webhook subscription already exists
           content:
             '*/*':
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "200":
+          description: Webhook subscription created successfully
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
         "403":
@@ -522,14 +522,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "202":
-          description: Encrypted receipt payload accepted for on-device formatting
+        "400":
+          description: Invalid encrypted generation request
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "400":
-          description: Invalid encrypted generation request
+        "202":
+          description: Encrypted receipt payload accepted for on-device formatting
           content:
             '*/*':
               schema:
@@ -594,14 +594,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "200":
-          description: Idempotent replay of an identical earlier upload
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "403":
-          description: Insufficient permissions - requires receipt:issue scope
+        "200":
+          description: Idempotent replay of an identical earlier upload
           content:
             '*/*':
               schema:
@@ -758,14 +758,14 @@ paths:
               $ref: "#/components/schemas/EncryptedCreditNoteEnvelope"
         required: true
       responses:
-        "202":
-          description: Encrypted credit-note generation job accepted
+        "400":
+          description: Invalid encrypted credit note data
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "400":
-          description: Invalid encrypted credit note data
+        "202":
+          description: Encrypted credit-note generation job accepted
           content:
             '*/*':
               schema:
@@ -942,18 +942,18 @@ paths:
             '*/*':
               schema:
                 type: object
-        "400":
-          description: Invalid request data
-          content:
-            '*/*':
-              schema:
-                type: object
         "201":
           description: Store created successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
+        "400":
+          description: Invalid request data
+          content:
+            '*/*':
+              schema:
+                type: object
   /client-application/{clientApplicationId}/public-key:
     get:
       tags:
@@ -1111,14 +1111,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Store deactivated successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store deactivated successfully
           content:
             '*/*':
               schema:
@@ -1182,12 +1182,6 @@ paths:
         **Accessible for:** Client Application, Company
       operationId: getQueuedReceipts
       responses:
-        "200":
-          description: Queued receipts returned successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
         "403":
           description: Insufficient receipt read permission
           content:
@@ -1197,6 +1191,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
+        "200":
+          description: Queued receipts returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
       security:
       - cheqi_oauth:
         - receipt:read
