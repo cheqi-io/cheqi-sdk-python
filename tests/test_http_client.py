@@ -16,7 +16,7 @@ from cheqi.models import (
 
 
 def _client() -> DefaultCheqiApiClient:
-    return DefaultCheqiApiClient(CheqiSDKConfig(environment=Environment.SANDBOX, api_key="sk_test_example"))
+    return DefaultCheqiApiClient(CheqiSDKConfig(environment=Environment.SANDBOX, api_key="example_api_key"))
 
 
 def _delivery() -> EncryptedReceiptPayload:
@@ -39,7 +39,7 @@ def test_match_customer_posts_generated_contract(httpx_mock: HTTPXMock) -> None:
 
     request = httpx_mock.get_request()
     assert request is not None
-    assert request.headers["Authorization"] == "Bearer sk_test_example"
+    assert request.headers["Authorization"] == "Bearer example_api_key"
     assert json.loads(request.content) == {"pairingCode": "12345678"}
     assert response.match_id == "match-1"
     client.close()

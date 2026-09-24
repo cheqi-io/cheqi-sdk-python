@@ -16,7 +16,7 @@ pip install cheqi-sdk
 
 Python 3.9 or newer is required.
 
-Version `1.0.0` matches the Java SDK 2.3 contract, including company-expense receipt attribution,
+Version `1.0.1` matches the Java SDK 2.3 contract, including company-expense receipt attribution,
 member receipt identities, employee invitation roles, and the latest encrypted delivery metadata.
 
 ## Initialize
@@ -26,7 +26,7 @@ from cheqi import CheqiSDK, Environment
 
 sdk = CheqiSDK(
     environment=Environment.SANDBOX,
-    api_key="sk_test_...",
+    api_key="your_api_key",
 )
 ```
 
