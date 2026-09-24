@@ -24,7 +24,7 @@ from typing_extensions import Self
 
 class Discount(BaseModel):
     """
-    Issuer-supplied receipt-level discounts.
+    The list of discounts applied to the receipt on total receipt level. Example: discount on total receipt level, 20% discount on complete order, etc.
     """ # noqa: E501
     amount: Union[StrictFloat, StrictInt] = Field(description="The total discount amount")
     percentage: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="The percentage discount")

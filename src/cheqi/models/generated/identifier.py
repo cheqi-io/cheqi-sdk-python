@@ -24,10 +24,10 @@ from typing_extensions import Self
 
 class Identifier(BaseModel):
     """
-    Additional issuer-supplied receipt references.
+    The identifiers for the purchase, given by the seller, for example order reference, transaction number
     """ # noqa: E501
-    type: StrictStr = Field(description="The type of identifier")
-    value: StrictStr = Field(description="The value of the identifier")
+    type: StrictStr = Field(description="The canonical receipt identifier type.")
+    value: StrictStr = Field(description="The issuer-supplied identifier value.")
     __properties: ClassVar[List[str]] = ["type", "value"]
 
     model_config = ConfigDict(

@@ -24,7 +24,7 @@ from typing_extensions import Self
 
 class Charge(BaseModel):
     """
-    Issuer-supplied receipt-level charges.
+    The list of charges applied to the receipt on total receipt level. Example: service fee, shipping fee, etc.
     """ # noqa: E501
     amount: Union[StrictFloat, StrictInt] = Field(description="The charge amount")
     percentage: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="The percentage charge")

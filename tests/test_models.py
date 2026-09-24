@@ -24,6 +24,7 @@ from cheqi.models import (
 def test_product_supports_compact_tax_addition() -> None:
     product = Product(
         name="Coffee beans",
+        brand_name="Cheqi Coffee",
         identifier="SKU-1",
         quantity=1,
         unit_code=UnitCode.C62,
@@ -54,6 +55,7 @@ def test_receipt_payload_serializes_definitive_values_without_template_wrapper()
     ).add_field("signatureValue", "issuer-signature", "Signature")
     product = Product(
         name="Supplied line",
+        brand_name="Cheqi",
         identifier="LINE-1",
         quantity=2,
         unit_code=UnitCode.C62,

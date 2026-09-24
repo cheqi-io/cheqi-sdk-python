@@ -37,6 +37,7 @@ def _payload() -> ReceiptPayload:
         products=[
             Product(
                 name="Coffee",
+                brand_name="Cheqi Coffee",
                 identifier="SKU-1",
                 quantity=1,
                 unit_code=UnitCode.C62,

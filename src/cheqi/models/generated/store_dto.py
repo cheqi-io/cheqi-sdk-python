@@ -27,7 +27,7 @@ from typing_extensions import Self
 
 class StoreDTO(BaseModel):
     """
-    StoreDTO
+    Optional issuing location included by the receipt-template engine.
     """ # noqa: E501
     active: Optional[StrictBool] = None
     id: Optional[StrictStr] = None
