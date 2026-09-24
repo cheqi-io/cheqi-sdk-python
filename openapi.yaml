@@ -116,14 +116,14 @@ paths:
               $ref: "#/components/schemas/AuthorizationCodeExchangeRequest"
         required: true
       responses:
-        "200":
-          description: Authorization code exchanged successfully
+        "401":
+          description: Invalid client credentials
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/CompanyAuthorizationResponse"
-        "401":
-          description: Invalid client credentials
+        "200":
+          description: Authorization code exchanged successfully
           content:
             '*/*':
               schema:
@@ -279,14 +279,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store retrieved successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store retrieved successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
@@ -390,6 +390,103 @@ paths:
         - receipt:read
         - receipt:read:user-shared
       x-accessible-for: "Company, Client Application"
+  /company/{companyId}/stores:
+    get:
+      tags:
+      - Store Management
+      summary: List store locations
+      description: "Lists lightweight store/location records. When companyId is omitted,\
+        \ the company is derived from the authenticated principal. This does not list\
+        \ child companies. OAuth client applications require the store:read scope."
+      operationId: getStores
+      parameters:
+      - name: companyId
+        in: path
+        description: Company ID; omit to use the authenticated company
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: active
+        in: query
+        description: Filter by active status
+        required: false
+        schema:
+          type: boolean
+      responses:
+        "404":
+          description: Company not found
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StoreDTO"
+        "200":
+          description: Stores retrieved successfully
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StoreDTO"
+        "403":
+          description: Not authorized to view stores for this company
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StoreDTO"
+    post:
+      tags:
+      - Store Management
+      summary: Create store location
+      description: "Creates a lightweight store/location record. When companyId is\
+        \ omitted, the company is derived from the authenticated principal. Use child\
+        \ companies instead when the branch or franchisee needs its own Cheqi company\
+        \ identity, tax details, permissions, or reporting boundary. OAuth client\
+        \ applications require the store:manage scope."
+      operationId: createStore
+      parameters:
+      - name: companyId
+        in: path
+        description: Company ID; omit to use the authenticated company
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStoreRequest"
+        required: true
+      responses:
+        "403":
+          description: Not authorized to create stores for this company
+          content:
+            '*/*':
+              schema:
+                type: object
+        "404":
+          description: Company not found
+          content:
+            '*/*':
+              schema:
+                type: object
+        "400":
+          description: Invalid request data
+          content:
+            '*/*':
+              schema:
+                type: object
+        "201":
+          description: Store created successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
   /recipient/resolve:
     post:
       tags:
@@ -419,6 +516,12 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
+        "200":
+          description: Recipient successfully resolved and matched
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RecipientResolutionResponse"
         "401":
           description: Authentication required
           content:
@@ -427,12 +530,6 @@ paths:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
         "400":
           description: Invalid identification details provided
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RecipientResolutionResponse"
-        "200":
-          description: Recipient successfully resolved and matched
           content:
             '*/*':
               schema:
@@ -510,6 +607,12 @@ paths:
               $ref: "#/components/schemas/EncryptedReceiptEnvelope"
         required: true
       responses:
+        "202":
+          description: Encrypted receipt payload accepted for on-device formatting
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "403":
           description: Insufficient permissions
           content:
@@ -524,12 +627,6 @@ paths:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "400":
           description: Invalid encrypted generation request
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "202":
-          description: Encrypted receipt payload accepted for on-device formatting
           content:
             '*/*':
               schema:
@@ -600,14 +697,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "200":
-          description: Idempotent replay of an identical earlier upload
+        "201":
+          description: Encrypted receipt stored
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "201":
-          description: Encrypted receipt stored
+        "200":
+          description: Idempotent replay of an identical earlier upload
           content:
             '*/*':
               schema:
@@ -764,14 +861,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "202":
-          description: Encrypted credit-note generation job accepted
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "403":
-          description: Insufficient permissions - requires receipt:issue scope
+        "202":
+          description: Encrypted credit-note generation job accepted
           content:
             '*/*':
               schema:
@@ -858,102 +955,6 @@ paths:
         "403":
           description: Not authorized to invite employees to this company
       x-accessible-for: "User, Company, Client Application"
-  /company/{companyId}/stores:
-    get:
-      tags:
-      - Store Management
-      summary: List store locations
-      description: Lists lightweight store/location records for the specified company.
-        This does not list child companies. OAuth client applications require the
-        store:read scope.
-      operationId: getStores
-      parameters:
-      - name: companyId
-        in: path
-        description: Company ID
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: active
-        in: query
-        description: Filter by active status
-        required: false
-        schema:
-          type: boolean
-      responses:
-        "404":
-          description: Company not found
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Stores retrieved successfully
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/StoreDTO"
-        "403":
-          description: Not authorized to view stores for this company
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/StoreDTO"
-    post:
-      tags:
-      - Store Management
-      summary: Create store location
-      description: "Creates a lightweight store/location record under the specified\
-        \ company. Use child companies instead when the branch or franchisee needs\
-        \ its own Cheqi company identity, tax details, permissions, or reporting boundary.\
-        \ OAuth client applications require the store:manage scope."
-      operationId: createStore
-      parameters:
-      - name: companyId
-        in: path
-        description: Company ID
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateStoreRequest"
-        required: true
-      responses:
-        "403":
-          description: Not authorized to create stores for this company
-          content:
-            '*/*':
-              schema:
-                type: object
-        "404":
-          description: Company not found
-          content:
-            '*/*':
-              schema:
-                type: object
-        "201":
-          description: Store created successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
-        "400":
-          description: Invalid request data
-          content:
-            '*/*':
-              schema:
-                type: object
   /client-application/{clientApplicationId}/public-key:
     get:
       tags:
@@ -973,14 +974,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Public key retrieved successfully
+        "404":
+          description: Client application not found or public key not configured
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicKeyResponse"
-        "404":
-          description: Client application not found or public key not configured
+        "200":
+          description: Public key retrieved successfully
           content:
             application/json:
               schema:
@@ -1153,12 +1154,6 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Store activated successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
           content:
@@ -1167,6 +1162,12 @@ paths:
                 $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to activate this store
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
+        "200":
+          description: Store activated successfully
           content:
             '*/*':
               schema:
@@ -1353,14 +1354,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AuthorizedResourcesResponse"
-        "403":
-          description: Not a client application token
+        "200":
+          description: Authorized resources retrieved successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AuthorizedResourcesResponse"
-        "200":
-          description: Authorized resources retrieved successfully
+        "403":
+          description: Not a client application token
           content:
             '*/*':
               schema:
@@ -1530,6 +1531,35 @@ components:
           type: array
           items:
             type: string
+    CreateStoreRequest:
+      required:
+      - addressDto
+      - storeCode
+      - storeName
+      type: object
+      properties:
+        storeName:
+          maxLength: 255
+          minLength: 0
+          type: string
+        storeCode:
+          maxLength: 50
+          minLength: 0
+          type: string
+        addressDto:
+          $ref: "#/components/schemas/AddressDTO"
+        phoneNumber:
+          maxLength: 20
+          minLength: 0
+          type: string
+        email:
+          maxLength: 255
+          minLength: 0
+          type: string
+        openingHours:
+          maxLength: 500
+          minLength: 0
+          type: string
     AccountIdentifierType:
       type: string
       description: Account type identifier
@@ -2712,35 +2742,6 @@ components:
         receiptWriter:
           type: boolean
       description: Invitation request with email addresses and role
-    CreateStoreRequest:
-      required:
-      - addressDto
-      - storeCode
-      - storeName
-      type: object
-      properties:
-        storeName:
-          maxLength: 255
-          minLength: 0
-          type: string
-        storeCode:
-          maxLength: 50
-          minLength: 0
-          type: string
-        addressDto:
-          $ref: "#/components/schemas/AddressDTO"
-        phoneNumber:
-          maxLength: 20
-          minLength: 0
-          type: string
-        email:
-          maxLength: 255
-          minLength: 0
-          type: string
-        openingHours:
-          maxLength: 500
-          minLength: 0
-          type: string
     KeyAlgorithm:
       type: string
       description: Key algorithm for encryption
