@@ -25,10 +25,10 @@ from typing_extensions import Self
 
 class Period(BaseModel):
     """
-    Optional billing or service period covered by the receipt.
+    The billing or service period covered by this receipt. Use this when the purchase covers a specific time range rather than a single point in time.
     """ # noqa: E501
     start_date: datetime = Field(description="The start date of the period", alias="startDate")
-    end_date: datetime = Field(description="The end date of the periodo", alias="endDate")
+    end_date: datetime = Field(description="The end date of the period", alias="endDate")
     description: Optional[StrictStr] = Field(default=None, description="Human-readable description of the period")
     __properties: ClassVar[List[str]] = ["startDate", "endDate", "description"]
 

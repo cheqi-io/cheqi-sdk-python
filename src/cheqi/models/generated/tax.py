@@ -25,7 +25,7 @@ from typing_extensions import Self
 
 class Tax(BaseModel):
     """
-    Issuer-supplied receipt-level tax breakdown.
+    The list of taxes applied to the receipt
     """ # noqa: E501
     rate: Union[StrictFloat, StrictInt] = Field(description="The tax rate as a percentage (e.g. 21.0 for 21%)")
     type: StrictStr = Field(description="The type of tax, e.g. \"VAT\", \"GST\", \"Sales Tax\"")
@@ -33,8 +33,8 @@ class Tax(BaseModel):
     taxable_amount: Union[StrictFloat, StrictInt] = Field(description="The total taxable amount for this tax rate", alias="taxableAmount")
     label: Optional[StrictStr] = Field(default=None, description="The label of the tax")
     category: Optional[TaxCategoryCode] = None
-    exemption_reason_code: Optional[StrictStr] = Field(default=None, description="Tax exemption reason code. Written to UBL only when category is EXEMPT.", alias="exemptionReasonCode")
-    exemption_reason: Optional[StrictStr] = Field(default=None, description="Tax exemption reason. Written to UBL only when category is EXEMPT.", alias="exemptionReason")
+    exemption_reason_code: Optional[StrictStr] = Field(default=None, description="Tax exemption reason code, applicable only when category is EXEMPT", alias="exemptionReasonCode")
+    exemption_reason: Optional[StrictStr] = Field(default=None, description="Tax exemption reason, applicable only when category is EXEMPT", alias="exemptionReason")
     __properties: ClassVar[List[str]] = ["rate", "type", "amount", "taxableAmount", "label", "category", "exemptionReasonCode", "exemptionReason"]
 
     model_config = ConfigDict(

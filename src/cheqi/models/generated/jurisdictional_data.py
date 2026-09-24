@@ -27,7 +27,7 @@ from typing_extensions import Self
 
 class JurisdictionalData(BaseModel):
     """
-    Optional country-specific fiscalization and legal receipt data.
+    Optional country-specific fiscalization, legal text, and additional issuer fields emitted unchanged by the receipt-template engine.
     """ # noqa: E501
     country_code: Optional[StrictStr] = Field(default=None, description="Optional ISO 3166-1 alpha-2 issuance country; when omitted, the on-device engine uses supplierParty.address.countryIsoCode", alias="countryCode")
     regime: Optional[StrictStr] = Field(default=None, description="Optional external fiscal, authority, or regulated-system regime selected by the merchant POS")
