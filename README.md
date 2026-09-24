@@ -26,7 +26,7 @@ from cheqi import CheqiSDK, Environment
 
 sdk = CheqiSDK(
     environment=Environment.SANDBOX,
-    api_key="sk_test_...",
+    api_key="your_api_key",
 )
 ```
 

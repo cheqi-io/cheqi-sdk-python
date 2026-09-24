@@ -35,7 +35,7 @@ class Environment(str, Enum):
 class CheqiSDKConfig:
     """Immutable SDK configuration.
 
-    Authentication via API key: Bearer token (starts with sk_live_ or sk_test_).
+    Authentication via API key: Bearer token.
     """
 
     def __init__(
@@ -89,13 +89,6 @@ class CheqiSDKConfig:
 
         if not has_api_key:
             logger.warning("No authentication configured. API calls will fail unless access tokens are provided.")
-
-        if has_api_key and not self._is_valid_api_key_format(api_key):  # type: ignore[arg-type]
-            logger.warning("API key does not match expected format (sk_live_* or sk_test_*)")
-
-    @staticmethod
-    def _is_valid_api_key_format(key: str) -> bool:
-        return key.startswith("sk_live_") or key.startswith("sk_test_")
 
     @property
     def api_endpoint(self) -> str:

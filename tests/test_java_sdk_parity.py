@@ -34,7 +34,7 @@ def test_sdk_version_and_user_agent_use_python_release_line() -> None:
     client = httpx.Client(transport=httpx.MockTransport(handler))
     sdk = CheqiSDK(
         environment=Environment.SANDBOX,
-        api_key="sk_test_example",
+        api_key="example_api_key",
         http_client=client,
     )
 
