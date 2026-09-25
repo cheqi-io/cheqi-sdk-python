@@ -13,7 +13,7 @@ from cheqi.exceptions import (
 from cheqi.sdk import CheqiSDK
 from cheqi.services.download import DownloadService
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 __all__ = [
     "__version__",

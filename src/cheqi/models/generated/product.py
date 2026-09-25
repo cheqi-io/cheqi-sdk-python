@@ -33,7 +33,7 @@ class Product(BaseModel):
     The list of products included in the receipt. Must contain at least one product.
     """ # noqa: E501
     name: StrictStr = Field(description="The product name")
-    brand_name: StrictStr = Field(description="The brand name", alias="brandName")
+    brand_name: Optional[StrictStr] = Field(default=None, description="The brand name", alias="brandName")
     identifier: StrictStr = Field(description="The identifier or article number of the product, this can for example also be a SKU/EAN code.")
     description: Optional[StrictStr] = Field(default=None, description="The description of the product")
     quantity: Union[StrictFloat, StrictInt] = Field(description="The quantity of this item")
