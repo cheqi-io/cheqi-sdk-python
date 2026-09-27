@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
+from urllib.parse import quote
 from uuid import UUID
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from cheqi.config import CheqiSDKConfig
-from cheqi.exceptions import CheqiApiError, ErrorCodes
+from cheqi.exceptions import CheqiApiError, ErrorCodes, SubmissionInProgressError
 from cheqi.http.endpoints import Endpoints
 from cheqi.http.retry import RetryHandler
 from cheqi.models.generated.cheqi_receipt import CheqiReceipt
@@ -21,13 +22,14 @@ from cheqi.models.generated.email_receipt_request import EmailReceiptRequest
 from cheqi.models.generated.encrypted_credit_note_envelope import EncryptedCreditNoteEnvelope
 from cheqi.models.generated.encrypted_receipt_envelope import EncryptedReceiptEnvelope
 from cheqi.models.generated.identification_details import IdentificationDetails
+from cheqi.models.generated.match_status_response import MatchStatusResponse
 from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
 from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
 from cheqi.models.generated.store_dto import StoreDTO
 
 logger = logging.getLogger("cheqi.http")
 
-_USER_AGENT = "CheqiSDK-Python/1.1.1"
+_USER_AGENT = "CheqiSDK-Python/1.2.0"
 
 
 def _model_dict(model: BaseModel) -> dict[str, Any]:
@@ -36,6 +38,8 @@ def _model_dict(model: BaseModel) -> dict[str, Any]:
 
 @runtime_checkable
 class CheqiApiClient(Protocol):
+    def get_match(self, match_id: str, access_token: Optional[str] = None) -> MatchStatusResponse: ...
+
     def match_customer(
         self,
         request: IdentificationDetails,
@@ -174,7 +178,13 @@ class DefaultCheqiApiClient:
             )
         if response.status_code == 204 or not response.content:
             return None
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise CheqiApiError(
+                "Invalid API response", ErrorCodes.INVALID_RESPONSE, response.status_code,
+                response.headers.get("X-Correlation-Id"),
+            ) from exc
 
     def _post(
         self,
@@ -245,6 +255,29 @@ class DefaultCheqiApiClient:
             operation,
         )
 
+    def get_match(self, match_id: str, access_token: Optional[str] = None) -> MatchStatusResponse:
+        if not match_id or not match_id.strip():
+            raise CheqiApiError("match_id is required", ErrorCodes.INVALID_REQUEST, 400)
+        data = self._get("/recipient/matches/" + quote(match_id, safe=""),
+                         "getMatch", access_token=access_token)
+        try:
+            return MatchStatusResponse.model_validate(data)
+        except ValidationError as exc:
+            raise CheqiApiError("Invalid match response", ErrorCodes.INVALID_RESPONSE) from exc
+
+    @staticmethod
+    def _submission(data: Any) -> ReceiptSubmissionResponse:
+        if isinstance(data, dict) and data.get("state") == "IN_PROGRESS":
+            delay = data.get("retryAfterSeconds", 2)
+            raise SubmissionInProgressError(max(1, delay) if isinstance(delay, int) else 2)
+        try:
+            submitted = ReceiptSubmissionResponse.model_validate(data)
+            if not submitted.cheqi_receipt_id or not submitted.match_id:
+                raise ValueError("Missing submission identifiers")
+            return submitted
+        except (ValidationError, ValueError) as exc:
+            raise CheqiApiError("Invalid submission response", ErrorCodes.INVALID_RESPONSE) from exc
+
     def match_customer(
         self,
         request: IdentificationDetails,
@@ -258,13 +291,23 @@ class DefaultCheqiApiClient:
         request: EncryptedReceiptEnvelope,
         access_token: Optional[str] = None,
     ) -> ReceiptSubmissionResponse:
-        data = self._post(
-            Endpoints.ENCRYPTED_RECEIPT,
-            _model_dict(request),
+        # Preserve the actual acknowledgement status even when its body is unusable.
+        body = _model_dict(request)
+        headers = self._auth_headers(access_token)
+        headers["Content-Type"] = "application/json"
+        response = self._retry_handler.execute_with_retry(
+            lambda: self._client.post(self._url(Endpoints.ENCRYPTED_RECEIPT), json=body, headers=headers),
             "submitEncryptedReceipt",
-            access_token,
         )
-        return ReceiptSubmissionResponse.model_validate(data)
+        try:
+            return self._submission(self._handle_response(response, "submitEncryptedReceipt"))
+        except CheqiApiError as exc:
+            if exc.error_code == ErrorCodes.INVALID_RESPONSE and exc.http_status_code == 0:
+                raise CheqiApiError(str(exc), exc.error_code, response.status_code,
+                                    response.headers.get("X-Correlation-Id")) from exc
+            if isinstance(exc, SubmissionInProgressError):
+                exc.correlation_id = response.headers.get("X-Correlation-Id")
+            raise
 
     def submit_encrypted_credit_note(
         self,
@@ -277,7 +320,7 @@ class DefaultCheqiApiClient:
             "submitEncryptedCreditNote",
             access_token,
         )
-        return ReceiptSubmissionResponse.model_validate(data)
+        return self._submission(data)
 
     def upload_encrypted_download_receipt(
         self,

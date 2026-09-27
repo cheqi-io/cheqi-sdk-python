@@ -9,11 +9,12 @@ from cheqi.exceptions import (
     EncryptionError,
     ErrorCodes,
     ReceiptProcessingError,
+    SubmissionInProgressError,
 )
 from cheqi.sdk import CheqiSDK
 from cheqi.services.download import DownloadService
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 __all__ = [
     "__version__",
@@ -26,6 +27,7 @@ __all__ = [
     "EncryptionError",
     "DecryptionError",
     "ReceiptProcessingError",
+    "SubmissionInProgressError",
     "CreditNoteProcessingError",
     "ErrorCodes",
 ]

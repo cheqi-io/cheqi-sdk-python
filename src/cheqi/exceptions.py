@@ -28,6 +28,7 @@ class ErrorCodes:
     RATE_LIMITED = "RATE_LIMITED"
     SERVER_ERROR = "SERVER_ERROR"
     INVALID_RESPONSE = "INVALID_RESPONSE"
+    SUBMISSION_IN_PROGRESS = "SUBMISSION_IN_PROGRESS"
     SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
     RECEIPT_GENERATION_ERROR = "RECEIPT_GENERATION_ERROR"
     TEMPLATE_GENERATION_FAILED = "TEMPLATE_GENERATION_FAILED"
@@ -118,6 +119,18 @@ class CheqiApiError(CheqiSDKError):
     @property
     def is_rate_limit_error(self) -> bool:
         return self.http_status_code == 429
+
+
+class SubmissionInProgressError(CheqiApiError):
+    """The submission is processing; the caller controls when to recover it."""
+
+    def __init__(self, retry_after_seconds: int = 2) -> None:
+        super().__init__("Receipt submission is in progress", ErrorCodes.SUBMISSION_IN_PROGRESS, 202)
+        self.retry_after_seconds = retry_after_seconds
+
+    @property
+    def is_retryable(self) -> bool:
+        return True
 
 
 class EncryptionError(CheqiSDKError):

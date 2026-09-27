@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from pytest_httpx import HTTPXMock
 
 from cheqi.config import CheqiSDKConfig, Environment
@@ -94,4 +95,47 @@ def test_upload_encrypted_download_receipt(httpx_mock: HTTPXMock) -> None:
     assert request is not None
     assert request.headers["Authorization"] == "Bearer oauth-token"
     assert json.loads(request.content)["templateHash"] == "hash"
+    client.close()
+
+
+def test_get_match_uses_authenticated_get_and_generated_state(httpx_mock: HTTPXMock) -> None:
+    from cheqi.models import MatchState
+
+    httpx_mock.add_response(method="GET", url="https://sandbox.api.cheqi.io/recipient/matches/match-1",
+                            json={"state": "MATCHED", "matchId": "match-1", "route": "DIGITAL"})
+    client = _client()
+    response = client.get_match("match-1", "rotated-key")
+    assert response.state is MatchState.MATCHED
+    request = httpx_mock.get_request()
+    assert request.headers["Authorization"] == "Bearer rotated-key"
+    assert request.content == b""
+    client.close()
+
+
+@pytest.mark.parametrize("body", ["", "{", "null", "{}", "[]"])
+def test_malformed_submission_is_typed_ambiguous_error(httpx_mock: HTTPXMock, body: str) -> None:
+    from cheqi.exceptions import CheqiApiError, ErrorCodes
+
+    httpx_mock.add_response(method="POST", url="https://sandbox.api.cheqi.io/receipt/encrypted",
+                            status_code=202, text=body)
+    client = _client()
+    with pytest.raises(CheqiApiError) as caught:
+        client.submit_encrypted_receipt(EncryptedReceiptEnvelope(match_id="match-1", device_deliveries=[_delivery()]))
+    assert caught.value.error_code == ErrorCodes.INVALID_RESPONSE
+    assert caught.value.http_status_code == 202
+    client.close()
+
+
+def test_low_level_in_progress_preserves_retry_delay(httpx_mock: HTTPXMock) -> None:
+    from cheqi.exceptions import SubmissionInProgressError
+
+    httpx_mock.add_response(method="POST", url="https://sandbox.api.cheqi.io/receipt/encrypted",
+                            status_code=202, json={"state": "IN_PROGRESS", "matchId": "match-1",
+                                                  "retryAfterSeconds": 7})
+    client = _client()
+    with pytest.raises(SubmissionInProgressError) as caught:
+        client.submit_encrypted_receipt(EncryptedReceiptEnvelope(match_id="match-1", device_deliveries=[_delivery()]))
+    assert caught.value.http_status_code == 202
+    assert caught.value.error_code == "SUBMISSION_IN_PROGRESS"
+    assert caught.value.retry_after_seconds == 7
     client.close()

@@ -16,7 +16,7 @@ pip install cheqi-sdk
 
 Python 3.9 or newer is required.
 
-Version `1.1.1` matches the Java SDK 2.3 contract, including company-expense receipt attribution,
+Version `1.2.0` adds the Java SDK 2.5 match-recovery tools and retains company-expense receipt attribution,
 member receipt identities, employee invitation roles, and the latest encrypted delivery metadata.
 
 ## Initialize
@@ -207,3 +207,36 @@ pytest
 ruff check src tests
 mypy src/cheqi
 ```
+
+
+## Match recovery and low-level tools
+
+`issue_receipt` returns `ReceiptResult.state`: `DIGITAL_SUBMITTED`, `DIGITAL_PENDING`,
+`DIGITAL_EXPIRED`, `DOWNLOAD_FALLBACK`, or the existing `EMAIL_FALLBACK`.
+An uncertain digital acknowledgement preserves `match_id` and prepares an encrypted
+download locally. Upload `prepared_download` before the QR can serve its content.
+Persist that object locally (it includes the secret URL fragment), and retain the original QR.
+
+```python
+match = sdk.receipt_service.get_match(match_id)
+envelope = sdk.receipt_service.generate_encrypted_receipt_envelope(
+    match, receipt_payload, store_id=store_id,
+)
+submission = sdk.receipt_service.submit_encrypted_receipt(envelope)
+
+# Alternatively, one explicit high-level recovery operation:
+result = sdk.receipt_service.resume_receipt(match_id, receipt_payload, store_id=store_id)
+# Upload the original persisted fallback independently:
+sdk.receipt_service.upload_prepared_download(prepared_download)
+```
+
+Generated `MatchStatusResponse`, `MatchState`, `EncryptedReceiptEnvelope`,
+`ReceiptSubmissionResponse`, and `ClientReceiptDownloadRequest` are reused.
+Recovery needs no PAR, PAR-derived hash, saved resolution, or saved recipient keys.
+Completed submissions are recoverable after expiry; unsubmitted expiry is terminal
+(`DIGITAL_EXPIRED`, `retryable=False`). A healthy no-route match still raises
+customer-not-found rather than bypassing fallback policy.
+The existing HTTP retry policy is unchanged. No polling, queues, storage, or background
+workers are added: integration partners own scheduling and recovery architecture.
+Low-level failures preserve API status, code, correlation id and in-progress retry delay.
+See [the recovery flow](docs/receipt-retry.mmd).

@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant POS as Integration
+    participant SDK as Python SDK
+    participant API as Cheqi API
+    POS->>SDK: issue_receipt(identification, payload)
+    SDK->>API: Resolve devices and submit ciphertext
+    alt Submission accepted
+        SDK-->>POS: DIGITAL_SUBMITTED and original submission
+    else Ambiguous acknowledgement
+        SDK-->>POS: DIGITAL_PENDING, match_id and prepared_download
+        POS->>POS: Persist fallback and schedule recovery
+        POS->>SDK: upload_prepared_download(original download)
+        SDK->>API: Original ciphertext (no URL fragment key)
+        POS->>SDK: resume_receipt(match_id, payload)
+        SDK->>API: GET match (no PAR or matching identifiers)
+        alt SUBMITTED
+            API-->>SDK: Original submission, even after expiry
+        else MATCHED
+            API-->>SDK: Original device snapshot
+            SDK->>API: Regenerated ciphertext for same match
+        else IN_PROGRESS
+            API-->>SDK: Retry delay
+        else EXPIRED
+            SDK-->>POS: DIGITAL_EXPIRED, retryable=False
+        end
+    end

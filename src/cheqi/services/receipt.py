@@ -3,23 +3,26 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import NoReturn, Optional
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
-from cheqi.exceptions import CheqiSDKError, ErrorCodes, ReceiptProcessingError
+from cheqi.exceptions import CheqiApiError, CheqiSDKError, ErrorCodes, ReceiptProcessingError
 from cheqi.http.client import CheqiApiClient
 from cheqi.models.download import DownloadLink
 from cheqi.models.generated.client_receipt_download_request import ClientReceiptDownloadRequest
+from cheqi.models.generated.client_receipt_download_response import ClientReceiptDownloadResponse
 from cheqi.models.generated.encrypted_receipt_envelope import EncryptedReceiptEnvelope
 from cheqi.models.generated.identification_details import IdentificationDetails
+from cheqi.models.generated.match_state import MatchState
+from cheqi.models.generated.match_status_response import MatchStatusResponse
 from cheqi.models.generated.receipt_envelope import ReceiptEnvelope
 from cheqi.models.generated.receipt_envelope_document import ReceiptEnvelopeDocument
 from cheqi.models.generated.receipt_payload import ReceiptPayload as GeneratedReceiptPayload
 from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
 from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
-from cheqi.models.receipt import DeliveryRouteType, ReceiptResult
+from cheqi.models.receipt import DeliveryRouteType, PreparedReceiptDownload, ReceiptResult
 from cheqi.services.download import DownloadService
 from cheqi.services.encryption import EncryptionService
 from cheqi.services.matching import MatchingService
@@ -64,12 +67,18 @@ class ReceiptService:
     ) -> ReceiptResult:
         """Resolve a route and submit the exact payload without enrichment."""
         self._require_not_none(identification_details, "identification_details")
-        self._require_not_none(receipt_payload, "receipt_payload")
+        self._validate_payload(receipt_payload)
         self._validate_access_token(access_token)
 
         try:
-            resolution = self._matching_service.match_customer(identification_details, access_token)
+            try:
+                resolution = self._matching_service.match_customer(identification_details, access_token)
+            except CheqiApiError as exc:
+                if not self._recoverable(exc):
+                    raise
+                return ReceiptResult.download_prepared(self._prepare_download(receipt_payload))
             self._validate_resolved_route(resolution)
+            assert resolution.match_id is not None
             route = self._resolve_route(resolution)
 
             if route is DeliveryRouteType.DOWNLOAD_FALLBACK:
@@ -84,25 +93,129 @@ class ReceiptService:
             if route is DeliveryRouteType.EMAIL_FALLBACK:
                 return ReceiptResult.email_required(resolution)
 
-            recipients = resolution.recipients or []
-            if not recipients:
-                self._validation_error("Recipient resolution did not include owner devices")
-            plaintext_json = _model_json(receipt_payload)
-            deliveries = [
-                self._encryption_service.encrypt_receipt_for_recipient(plaintext_json, recipient)
-                for recipient in recipients
-            ]
-            envelope = EncryptedReceiptEnvelope(
-                match_id=resolution.match_id,
-                store_id=str(store_id) if store_id else None,
-                device_deliveries=deliveries,
-            )
-            response = self._api_client.submit_encrypted_receipt(envelope, access_token)
-            return ReceiptResult.accepted(response, route)
+            envelope = self.generate_encrypted_receipt_envelope(resolution, receipt_payload, store_id=store_id)
+            try:
+                response = self._submit_payload(envelope, access_token)
+                return ReceiptResult.accepted(response, route)
+            except CheqiApiError as exc:
+                if exc.http_status_code == 410:
+                    return ReceiptResult.digital_expired(resolution.match_id)
+                if not self._ambiguous_submission(exc):
+                    raise
+                return ReceiptResult.digital_pending(
+                    resolution.match_id, self._prepare_download(receipt_payload),
+                    getattr(exc, "retry_after_seconds", None),
+                )
         except CheqiSDKError:
             raise
         except Exception as exc:
             raise ReceiptProcessingError(f"Receipt processing failed: {exc}") from exc
+
+
+    def get_match(self, match_id: str, access_token: Optional[str] = None) -> MatchStatusResponse:
+        """Fetch the original device snapshot or submission using only the opaque match id."""
+        self._validate_match_id(match_id)
+        self._validate_access_token(access_token)
+        return self._api_client.get_match(match_id, access_token)
+
+    def generate_encrypted_receipt_envelope(
+        self, match: RecipientResolutionResponse | MatchStatusResponse,
+        receipt_payload: GeneratedReceiptPayload, *, store_id: Optional[UUID] = None,
+    ) -> EncryptedReceiptEnvelope:
+        """Encrypt locally for every original device; performs no HTTP requests."""
+        self._validate_payload(receipt_payload)
+        if isinstance(match, MatchStatusResponse):
+            if match.state != MatchState.MATCHED or match.route != "DIGITAL":
+                self._validation_error("Match must be MATCHED with a digital route")
+        else:
+            self._validate_resolved_route(match)
+            if self._resolve_route(match) is not DeliveryRouteType.DIGITAL:
+                self._validation_error("Match must contain a digital route")
+        self._validate_match_id(match.match_id)
+        if not match.recipients:
+            self._validation_error("Match must contain owner devices")
+        plaintext = _model_json(receipt_payload)
+        return EncryptedReceiptEnvelope(
+            match_id=match.match_id, store_id=str(store_id) if store_id else None,
+            device_deliveries=[
+                self._encryption_service.encrypt_receipt_for_recipient(plaintext, recipient)
+                for recipient in match.recipients or []
+            ],
+        )
+
+    def resume_receipt(
+        self, match_id: str, receipt_payload: GeneratedReceiptPayload, *,
+        store_id: Optional[UUID] = None, access_token: Optional[str] = None,
+    ) -> ReceiptResult:
+        """Explicit recovery operation; no polling, scheduling, or rematching."""
+        self._validate_payload(receipt_payload)
+        try:
+            match = self.get_match(match_id, access_token)
+            if match.match_id != match_id or match.state is None:
+                self._validation_error("Invalid match status response")
+            if match.state is MatchState.SUBMITTED:
+                if (match.submission is None or not match.submission.cheqi_receipt_id
+                        or match.submission.match_id != match_id):
+                    self._validation_error("Missing original submission")
+                assert match.submission is not None
+                return ReceiptResult.accepted(match.submission)
+            if match.state is MatchState.EXPIRED:
+                return ReceiptResult.digital_expired(match_id)
+            if match.state is MatchState.IN_PROGRESS:
+                return ReceiptResult.digital_pending(match_id, retry_after_seconds=match.retry_after_seconds)
+            envelope = self.generate_encrypted_receipt_envelope(match, receipt_payload, store_id=store_id)
+            return ReceiptResult.accepted(self._submit_payload(envelope, access_token))
+        except CheqiApiError as exc:
+            if exc.http_status_code == 410:
+                return ReceiptResult.digital_expired(match_id)
+            if self._ambiguous_submission(exc):
+                return ReceiptResult.digital_pending(
+                    match_id, retry_after_seconds=getattr(exc, "retry_after_seconds", None),
+                )
+            raise
+
+    def upload_prepared_download(
+        self, download: PreparedReceiptDownload, access_token: Optional[str] = None,
+    ) -> ClientReceiptDownloadResponse:
+        """Upload the same persisted ciphertext; the URL fragment key stays local."""
+        self._require_not_none(download, "download")
+        self._validate_access_token(access_token)
+        return self._api_client.upload_encrypted_download_receipt(download.upload_request, access_token)
+
+    def _submit_payload(
+        self, envelope: EncryptedReceiptEnvelope, access_token: Optional[str],
+    ) -> ReceiptSubmissionResponse:
+        response = self.submit_encrypted_receipt(envelope, access_token)
+        if response is None or not response.cheqi_receipt_id or response.match_id != envelope.match_id:
+            raise CheqiApiError("Invalid submission response", ErrorCodes.INVALID_RESPONSE)
+        return response
+
+    @staticmethod
+    def _recoverable(exc: CheqiApiError) -> bool:
+        return exc.is_retryable or exc.is_network_error
+
+    @staticmethod
+    def _ambiguous_submission(exc: CheqiApiError) -> bool:
+        return ReceiptService._recoverable(exc) or (
+            exc.error_code == ErrorCodes.INVALID_RESPONSE
+            and (exc.http_status_code == 0 or 200 <= exc.http_status_code < 300)
+        )
+
+    @staticmethod
+    def _validate_match_id(match_id: Optional[str]) -> None:
+        if not match_id or not match_id.strip():
+            ReceiptService._validation_error("match_id is required")
+
+    @staticmethod
+    def _validate_payload(payload: GeneratedReceiptPayload) -> None:
+        ReceiptService._require_not_none(payload, "receipt_payload")
+        # Revalidate even models made using model_construct; invalid input must fail before matching.
+        try:
+            GeneratedReceiptPayload.model_validate(_model_dict(payload))
+        except ValidationError as exc:
+            raise CheqiSDKError("Invalid receipt payload", ErrorCodes.VALIDATION_ERROR, 400) from exc
+        if not payload.products:
+            ReceiptService._validation_error("receipt_payload must contain products")
 
     def issue_download_receipt(
         self,
@@ -186,8 +299,24 @@ class ReceiptService:
         receipt_payload: GeneratedReceiptPayload,
         access_token: Optional[str],
     ) -> ReceiptResult:
+        prepared = self._prepare_download(receipt_payload, identification_details)
+        try:
+            response = self.upload_prepared_download(prepared, access_token)
+            return ReceiptResult.download_accepted(match_id, response, prepared.download_url)
+        except CheqiApiError as exc:
+            if not self._recoverable(exc):
+                raise
+            return ReceiptResult.download_prepared(prepared)
+
+    def _prepare_download(
+        self, receipt_payload: GeneratedReceiptPayload,
+        identification_details: Optional[IdentificationDetails] = None,
+    ) -> PreparedReceiptDownload:
         link = self._create_download_link()
-        cheqi_document = self.build_download_cheqi_document(receipt_payload, identification_details)
+        cheqi_document = (
+            self.build_download_cheqi_document(receipt_payload, identification_details)
+            if identification_details is not None else _model_json(receipt_payload)
+        )
         envelope = ReceiptEnvelope(
             cheqi_receipt_id=link.download_id,
             documents={
@@ -207,8 +336,7 @@ class ReceiptService:
             ciphertext=ciphertext,
             template_hash=template_hash,
         )
-        response = self._api_client.upload_encrypted_download_receipt(request, access_token)
-        return ReceiptResult.download_accepted(match_id, response, link.url)
+        return PreparedReceiptDownload(download_url=link.url, upload_request=request)
 
     def _create_download_link(self) -> DownloadLink:
         if not self._receipt_download_base_url or not self._receipt_download_base_url.strip():
@@ -251,7 +379,7 @@ class ReceiptService:
             ReceiptService._validation_error(f"{name} cannot be None")
 
     @staticmethod
-    def _validation_error(message: str) -> None:
+    def _validation_error(message: str) -> NoReturn:
         raise CheqiSDKError(
             message,
             error_code=ErrorCodes.VALIDATION_ERROR,
