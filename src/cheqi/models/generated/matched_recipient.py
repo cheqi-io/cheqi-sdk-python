@@ -25,7 +25,7 @@ from typing_extensions import Self
 
 class MatchedRecipient(BaseModel):
     """
-    The list of recipients found for the given recipient
+    MatchedRecipient
     """ # noqa: E501
     id: Optional[StrictStr] = Field(default=None, description="Temporary opaque recipient identifier for this match session.")
     public_key: Optional[StrictStr] = Field(default=None, description="Public key for encrypting receipts for this recipient.", alias="publicKey")

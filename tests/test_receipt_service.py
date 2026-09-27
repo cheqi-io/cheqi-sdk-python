@@ -182,3 +182,220 @@ def test_missing_route_is_reported_as_customer_not_found() -> None:
         service.issue_receipt(IdentificationDetails(pairing_code="12345678"), _payload())
 
     assert error.value.error_code == ErrorCodes.CUSTOMER_NOT_FOUND
+
+
+def _digital_service():
+    return _service(RecipientResolutionResponse(
+        route_found=True, delivery_route_type="DIGITAL", match_id="match-1",
+        recipients=[MatchedRecipient(id="device-1", public_key="key-1")],
+    ))
+
+
+def test_public_envelope_generation_accepts_both_generated_match_models() -> None:
+    from uuid import uuid4
+
+    from cheqi.models import MatchState, MatchStatusResponse
+
+    service, api, encryption, _ = _digital_service()
+    store_id = uuid4()
+    recipients = [MatchedRecipient(id="device-1", public_key="key-1")]
+    for match in [
+        RecipientResolutionResponse(route_found=True, delivery_route_type="DIGITAL",
+                                    match_id="match-1", recipients=recipients),
+        MatchStatusResponse(state=MatchState.MATCHED, route="DIGITAL",
+                            match_id="match-1", recipients=recipients),
+    ]:
+        envelope = service.generate_encrypted_receipt_envelope(match, _payload(), store_id=store_id)
+        assert envelope.match_id == "match-1"
+        assert envelope.store_id == str(store_id)
+        assert envelope.device_deliveries[0].encrypted_content == "ciphertext"
+    assert encryption.encrypt_receipt_for_recipient.call_count == 2
+    api.submit_encrypted_receipt.assert_not_called()
+    service._matching_service.match_customer.assert_not_called()
+
+
+@pytest.mark.parametrize("status", [0, 202, 503, 408, 429])
+def test_ambiguous_submission_preserves_match_and_prepares_qr(status: int) -> None:
+    from cheqi.exceptions import CheqiApiError
+    from cheqi.models import ReceiptIssueState
+
+    service, api, _, download = _digital_service()
+    api.submit_encrypted_receipt.side_effect = CheqiApiError(
+        "Uncertain", ErrorCodes.INVALID_RESPONSE if status in (0, 202) else ErrorCodes.SERVER_ERROR, status,
+    )
+    result = service.issue_receipt(IdentificationDetails(pairing_code="12345678"), _payload())
+    assert result.state is ReceiptIssueState.DIGITAL_PENDING
+    assert result.match_id == "match-1"
+    assert result.retryable and not result.is_accepted
+    assert result.download_url and result.prepared_download
+    document = download.encrypt_download_envelope.call_args.args[0].documents["CHEQI"].content
+    assert "identificationDetails" not in document
+    assert "12345678" not in document
+    api.upload_encrypted_download_receipt.assert_not_called()
+
+
+def test_network_before_matching_returns_download_without_match() -> None:
+    from cheqi.exceptions import CheqiApiError
+    from cheqi.models import ReceiptIssueState
+
+    service, api, _, _ = _digital_service()
+    service._matching_service.match_customer.side_effect = CheqiApiError("Offline", ErrorCodes.NETWORK_ERROR)
+    result = service.issue_receipt(IdentificationDetails(pairing_code="12345678"), _payload())
+    assert result.state is ReceiptIssueState.DOWNLOAD_FALLBACK
+    assert result.match_id is None and result.prepared_download
+    api.submit_encrypted_receipt.assert_not_called()
+
+
+def test_resume_submitted_recovers_without_matching_or_encrypting() -> None:
+    from cheqi.models import MatchState, MatchStatusResponse, ReceiptIssueState
+
+    service, api, encryption, _ = _digital_service()
+    submission = ReceiptSubmissionResponse(cheqi_receipt_id="original", match_id="match-1", status="PENDING")
+    api.get_match.return_value = MatchStatusResponse(
+        state=MatchState.SUBMITTED, match_id="match-1", submission=submission,
+    )
+    result = service.resume_receipt("match-1", _payload(), access_token="rotated-key")
+    assert result.state is ReceiptIssueState.DIGITAL_SUBMITTED
+    assert result.submission == submission and not result.retryable
+    api.get_match.assert_called_once_with("match-1", "rotated-key")
+    encryption.encrypt_receipt_for_recipient.assert_not_called()
+    service._matching_service.match_customer.assert_not_called()
+    api.submit_encrypted_receipt.assert_not_called()
+
+
+def test_resume_matched_regenerates_using_only_match_id_and_payload() -> None:
+    from cheqi.models import MatchState, MatchStatusResponse, ReceiptIssueState
+
+    service, api, encryption, _ = _digital_service()
+    api.get_match.return_value = MatchStatusResponse(
+        state=MatchState.MATCHED, route="DIGITAL", match_id="match-1",
+        recipients=[MatchedRecipient(id="device-1", public_key="key-1")],
+    )
+    result = service.resume_receipt("match-1", _payload())
+    assert result.state is ReceiptIssueState.DIGITAL_SUBMITTED
+    assert api.submit_encrypted_receipt.call_args.args[0].match_id == "match-1"
+    assert "identificationDetails" not in encryption.encrypt_receipt_for_recipient.call_args.args[0]
+    service._matching_service.match_customer.assert_not_called()
+
+
+@pytest.mark.parametrize("state", ["EXPIRED", "IN_PROGRESS"])
+def test_resume_returns_expected_typed_states_without_submission(state: str) -> None:
+    from cheqi.models import MatchState, MatchStatusResponse, ReceiptIssueState
+
+    service, api, encryption, _ = _digital_service()
+    api.get_match.return_value = MatchStatusResponse(
+        state=MatchState(state), match_id="match-1", retry_after_seconds=2,
+    )
+    result = service.resume_receipt("match-1", _payload())
+    assert result.state is (ReceiptIssueState.DIGITAL_EXPIRED if state == "EXPIRED"
+                            else ReceiptIssueState.DIGITAL_PENDING)
+    assert result.retryable == (state == "IN_PROGRESS")
+    assert result.download_url is None
+    if state == "IN_PROGRESS":
+        assert result.retry_after_seconds == 2
+    encryption.encrypt_receipt_for_recipient.assert_not_called()
+    api.submit_encrypted_receipt.assert_not_called()
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404])
+def test_permanent_submission_errors_preserve_metadata(status: int) -> None:
+    from cheqi.exceptions import CheqiApiError
+
+    service, api, _, _ = _digital_service()
+    error = CheqiApiError("Permanent", ErrorCodes.INVALID_REQUEST, status, "trace")
+    api.submit_encrypted_receipt.side_effect = error
+    with pytest.raises(CheqiApiError) as caught:
+        service.issue_receipt(IdentificationDetails(pairing_code="12345678"), _payload())
+    assert caught.value is error
+    assert caught.value.correlation_id == "trace"
+
+
+def test_expiry_during_submission_is_terminal() -> None:
+    from cheqi.exceptions import CheqiApiError
+    from cheqi.models import ReceiptIssueState
+
+    service, api, _, _ = _digital_service()
+    api.submit_encrypted_receipt.side_effect = CheqiApiError("Expired", http_status_code=410)
+    result = service.issue_receipt(IdentificationDetails(pairing_code="12345678"), _payload())
+    assert result.state is ReceiptIssueState.DIGITAL_EXPIRED
+    assert not result.retryable and result.match_id == "match-1"
+
+
+def test_prepared_download_round_trip_reuses_generated_upload_request() -> None:
+    from cheqi.exceptions import CheqiApiError
+    from cheqi.models import PreparedReceiptDownload
+
+    service, api, _, _ = _digital_service()
+    api.submit_encrypted_receipt.side_effect = CheqiApiError("Offline", ErrorCodes.NETWORK_ERROR)
+    result = service.issue_receipt(IdentificationDetails(pairing_code="12345678"), _payload())
+    prepared = result.prepared_download
+    assert prepared is not None
+    restored = PreparedReceiptDownload.model_validate_json(prepared.model_dump_json())
+    assert restored == prepared
+    assert "ciphertext" not in repr(restored) and restored.download_url not in repr(restored)
+    service.upload_prepared_download(restored)
+    service.upload_prepared_download(restored)
+    assert api.upload_encrypted_download_receipt.call_args_list[0].args[0] == prepared.upload_request
+    assert api.upload_encrypted_download_receipt.call_args_list[1].args[0] == prepared.upload_request
+
+def test_lost_response_recovers_original_submission_after_expiry_without_rematching() -> None:
+    import httpx
+
+    from cheqi.config import CheqiSDKConfig
+    from cheqi.http.client import DefaultCheqiApiClient
+    from cheqi.models import ReceiptIssueState
+    from cheqi.services.matching import MatchingService
+
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        if request.url.path == "/recipient/resolve":
+            return httpx.Response(200, json={
+                "routeFound": True, "deliveryRouteType": "DIGITAL", "matchId": "match-1",
+                "recipients": [{"id": "device-1", "publicKey": "key-1"}],
+            })
+        if request.url.path == "/receipt/encrypted":
+            # Receipt committed; acknowledgement cannot be decoded.
+            return httpx.Response(202, text="{")
+        return httpx.Response(200, json={
+            "state": "SUBMITTED", "matchId": "match-1", "expiresAt": "2020-01-01T00:00:00Z",
+            "submission": {"cheqiReceiptId": "original", "matchId": "match-1", "status": "PENDING"},
+        })
+
+    _, _, encryption, download = _digital_service()
+    with httpx.Client(transport=httpx.MockTransport(handler)) as transport:
+        config = CheqiSDKConfig(custom_api_endpoint="https://api.example", api_key="test-key", max_retries=0)
+        api = DefaultCheqiApiClient(config, http_client=transport)
+        service = ReceiptService(api, encryption, MatchingService(api), download, "https://receipt.example")
+        pending = service.issue_receipt(IdentificationDetails(pairing_code="12345678"), _payload())
+        assert pending.state is ReceiptIssueState.DIGITAL_PENDING
+        recovered = service.resume_receipt(pending.match_id, _payload())
+        assert recovered.state is ReceiptIssueState.DIGITAL_SUBMITTED
+        assert recovered.submission.cheqi_receipt_id == "original"
+        assert [request.url.path for request in requests] == [
+            "/recipient/resolve", "/receipt/encrypted", "/recipient/matches/match-1",
+        ]
+        assert encryption.encrypt_receipt_for_recipient.call_count == 1
+
+
+def test_unauthorized_match_returns_original_404_without_rematching() -> None:
+    from cheqi.exceptions import CheqiApiError
+
+    service, api, encryption, _ = _digital_service()
+    api.get_match.side_effect = CheqiApiError("Not found", "NOT_FOUND", 404, "trace")
+    with pytest.raises(CheqiApiError) as caught:
+        service.resume_receipt("match-1", _payload())
+    assert caught.value.http_status_code == 404
+    assert caught.value.correlation_id == "trace"
+    service._matching_service.match_customer.assert_not_called()
+    encryption.encrypt_receipt_for_recipient.assert_not_called()
+
+
+def test_invalid_payload_is_rejected_before_matching() -> None:
+    service, api, _, _ = _digital_service()
+    payload = _payload().model_copy(update={"products": []})
+    with pytest.raises(CheqiSDKError):
+        service.issue_receipt(IdentificationDetails(pairing_code="12345678"), payload)
+    service._matching_service.match_customer.assert_not_called()
+    api.submit_encrypted_receipt.assert_not_called()

@@ -8,12 +8,13 @@ from decimal import Decimal
 from enum import Enum
 from typing import List, Optional, Union
 
-from pydantic import Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing_extensions import Self
 
 from cheqi.models.generated.barcode import Barcode as GeneratedBarcode
 from cheqi.models.generated.barcode_type import BarcodeType
 from cheqi.models.generated.charge import Charge as GeneratedCharge
+from cheqi.models.generated.client_receipt_download_request import ClientReceiptDownloadRequest
 from cheqi.models.generated.client_receipt_download_response import ClientReceiptDownloadResponse
 from cheqi.models.generated.discount import Discount as GeneratedDiscount
 from cheqi.models.generated.fiscalization_data import FiscalizationData as GeneratedFiscalizationData
@@ -295,6 +296,22 @@ class DeliveryRouteType(str, Enum):
     DOWNLOAD_FALLBACK = "DOWNLOAD_FALLBACK"
 
 
+class ReceiptIssueState(str, Enum):
+    DIGITAL_SUBMITTED = "DIGITAL_SUBMITTED"
+    DIGITAL_PENDING = "DIGITAL_PENDING"
+    DIGITAL_EXPIRED = "DIGITAL_EXPIRED"
+    DOWNLOAD_FALLBACK = "DOWNLOAD_FALLBACK"
+    EMAIL_FALLBACK = "EMAIL_FALLBACK"
+
+
+class PreparedReceiptDownload(BaseModel):
+    """Persist locally: the URL fragment key must never be sent to Cheqi."""
+
+    model_config = ConfigDict(frozen=True)
+    download_url: str = Field(repr=False)
+    upload_request: ClientReceiptDownloadRequest = Field(repr=False)
+
+
 @dataclass(frozen=True)
 class ReceiptResult:
     """Outcome of receipt routing and submission."""
@@ -308,6 +325,11 @@ class ReceiptResult:
     download_url: Optional[str] = None
     download_envelope_required: bool = False
     email_receipt_required: bool = False
+    state: ReceiptIssueState = ReceiptIssueState.DIGITAL_SUBMITTED
+    submission: Optional[ReceiptSubmissionResponse] = None
+    prepared_download: Optional[PreparedReceiptDownload] = None
+    retryable: bool = False
+    retry_after_seconds: Optional[int] = None
 
     @property
     def is_accepted(self) -> bool:
@@ -327,6 +349,8 @@ class ReceiptResult:
             cheqi_receipt_id=response.cheqi_receipt_id,
             match_id=response.match_id,
             delivery_route_type=route,
+            state=ReceiptIssueState.DIGITAL_SUBMITTED,
+            submission=response,
             status=response.status,
             created_at=response.created_at,
         )
@@ -339,6 +363,7 @@ class ReceiptResult:
             delivery_route_type=DeliveryRouteType.DOWNLOAD_FALLBACK,
             expires_at=resolution.expires_at,
             download_envelope_required=True,
+            state=ReceiptIssueState.DOWNLOAD_FALLBACK,
         )
 
     @classmethod
@@ -349,6 +374,7 @@ class ReceiptResult:
             delivery_route_type=DeliveryRouteType.EMAIL_FALLBACK,
             expires_at=resolution.expires_at,
             email_receipt_required=True,
+            state=ReceiptIssueState.EMAIL_FALLBACK,
         )
 
     @classmethod
@@ -365,10 +391,33 @@ class ReceiptResult:
             created_at=response.created_at,
             expires_at=response.expires_at,
             download_url=download_url,
+            state=ReceiptIssueState.DOWNLOAD_FALLBACK,
         )
+
+    @classmethod
+    def digital_pending(
+        cls, match_id: str, download: Optional[PreparedReceiptDownload] = None,
+        retry_after_seconds: Optional[int] = None,
+    ) -> ReceiptResult:
+        return cls(None, match_id, DeliveryRouteType.DIGITAL,
+                   state=ReceiptIssueState.DIGITAL_PENDING, prepared_download=download,
+                   download_url=download.download_url if download else None,
+                   retryable=True, retry_after_seconds=retry_after_seconds)
+
+    @classmethod
+    def digital_expired(cls, match_id: str) -> ReceiptResult:
+        return cls(None, match_id, DeliveryRouteType.DIGITAL, state=ReceiptIssueState.DIGITAL_EXPIRED)
+
+    @classmethod
+    def download_prepared(cls, download: PreparedReceiptDownload) -> ReceiptResult:
+        return cls(None, None, DeliveryRouteType.DOWNLOAD_FALLBACK,
+                   state=ReceiptIssueState.DOWNLOAD_FALLBACK, prepared_download=download,
+                   download_url=download.download_url, retryable=True)
 
 
 __all__ = [
+    "ReceiptIssueState",
+    "PreparedReceiptDownload",
     "Barcode",
     "BarcodeType",
     "Charge",

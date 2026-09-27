@@ -26,6 +26,8 @@ from cheqi.models.generated.encrypted_receipt_payload import EncryptedReceiptPay
 from cheqi.models.generated.expense_submission_envelope import ExpenseSubmissionEnvelope
 from cheqi.models.generated.identification_details import IdentificationDetails
 from cheqi.models.generated.invite_employee_request import InviteEmployeeRequest
+from cheqi.models.generated.match_state import MatchState
+from cheqi.models.generated.match_status_response import MatchStatusResponse
 from cheqi.models.generated.matched_recipient import MatchedRecipient
 from cheqi.models.generated.member_receipt_identity_response import MemberReceiptIdentityResponse
 from cheqi.models.generated.payment_account_details import PaymentAccountDetails
@@ -52,7 +54,9 @@ from cheqi.models.receipt import (
     JurisdictionField,
     JurisdictionLegalText,
     Period,
+    PreparedReceiptDownload,
     Product,
+    ReceiptIssueState,
     ReceiptPayload,
     ReceiptResult,
     Tax,
@@ -102,6 +106,10 @@ __all__ = [
     "ReceiptFormat",
     "ReceiptPayload",
     "ReceiptResult",
+    "ReceiptIssueState",
+    "PreparedReceiptDownload",
+    "MatchState",
+    "MatchStatusResponse",
     "ReceiptSubmissionResponse",
     "RecipientResolutionResponse",
     "ReceivingParty",
