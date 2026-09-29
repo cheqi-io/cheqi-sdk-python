@@ -30,10 +30,10 @@ class ReceiptEnvelope(BaseModel):
     Versioned plaintext receipt package encrypted independently for one recipient.
     """ # noqa: E501
     cheqi_receipt_id: StrictStr = Field(description="Stable Cheqi receipt or credit-note identifier.", alias="cheqiReceiptId")
-    documents: Dict[str, ReceiptEnvelopeDocument] = Field(description="Version 1 contains generated CHEQI/UBL documents. Version 2 download envelopes contain RECEIPT_PAYLOAD and optional IDENTIFICATION_DETAILS JSON.")
-    envelope_version: Annotated[int, Field(le=2, strict=True, ge=1)] = Field(description="Schema version of this encrypted plaintext envelope, 1 or 2.", alias="envelopeVersion")
+    documents: Dict[str, ReceiptEnvelopeDocument] = Field(description="Generated documents keyed by ReceiptFormat name: CHEQI, UBL_PURCHASE_RECEIPT, UBL_INVOICE, or UBL_CREDIT_NOTE. Only formats included for this recipient are present. Each document's content is serialized JSON or XML, not a nested parsed document.")
+    envelope_version: Annotated[int, Field(le=1, strict=True, ge=1)] = Field(description="Schema version of this encrypted plaintext envelope.", alias="envelopeVersion")
     expense_submission: Optional[ExpenseSubmissionEnvelope] = Field(default=None, alias="expenseSubmission")
-    receipt_generator_version: Annotated[str, Field(strict=True)] = Field(description="Generator version for version 1; payload schema marker for version 2.", alias="receiptGeneratorVersion")
+    receipt_generator_version: Annotated[str, Field(strict=True)] = Field(description="Version of the Rust receipt-template engine that generated the documents.", alias="receiptGeneratorVersion")
     receipt_uuid: StrictStr = Field(description="Shared UUID embedded in every generated representation of this receipt.", alias="receiptUuid")
     __properties: ClassVar[List[str]] = ["cheqiReceiptId", "documents", "envelopeVersion", "expenseSubmission", "receiptGeneratorVersion", "receiptUuid"]
 
@@ -123,3 +123,5 @@ class ReceiptEnvelope(BaseModel):
             "receiptUuid": obj.get("receiptUuid")
         })
         return _obj
+
+
