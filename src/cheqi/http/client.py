@@ -29,7 +29,7 @@ from cheqi.models.generated.store_dto import StoreDTO
 
 logger = logging.getLogger("cheqi.http")
 
-_USER_AGENT = "CheqiSDK-Python/1.2.0"
+_USER_AGENT = "CheqiSDK-Python/1.3.0"
 
 
 def _model_dict(model: BaseModel) -> dict[str, Any]:
