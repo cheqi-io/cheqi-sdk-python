@@ -155,8 +155,8 @@ def test_download_fallback_with_payment_context_is_uploaded_client_encrypted() -
     assert request.ciphertext == "download-ciphertext"
     assert request.template_hash
     envelope = download.encrypt_download_envelope.call_args.args[0]
-    cheqi_document = json.loads(envelope.documents["CHEQI"].content)
-    assert cheqi_document["identificationDetails"]["paymentType"] == "CASH"
+    assert envelope.envelope_version == 2
+    assert json.loads(envelope.documents["IDENTIFICATION_DETAILS"].content)["paymentType"] == "CASH"
 
 
 def test_email_route_returns_explicit_required_action() -> None:
@@ -228,7 +228,7 @@ def test_ambiguous_submission_preserves_match_and_prepares_qr(status: int) -> No
     assert result.match_id == "match-1"
     assert result.retryable and not result.is_accepted
     assert result.download_url and result.prepared_download
-    document = download.encrypt_download_envelope.call_args.args[0].documents["CHEQI"].content
+    document = download.encrypt_download_envelope.call_args.args[0].documents["RECEIPT_PAYLOAD"].content
     assert "identificationDetails" not in document
     assert "12345678" not in document
     api.upload_encrypted_download_receipt.assert_not_called()

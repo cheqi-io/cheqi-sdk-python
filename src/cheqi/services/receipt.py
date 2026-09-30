@@ -287,7 +287,7 @@ class ReceiptService:
         receipt_payload: GeneratedReceiptPayload,
         identification_details: IdentificationDetails,
     ) -> str:
-        """Build the CHEQI JSON used only by the browser download route."""
+        """Build the legacy version 1 browser document; new downloads carry ReceiptPayload."""
         document = _model_dict(receipt_payload)
         document["identificationDetails"] = _model_dict(identification_details)
         return json.dumps(document, separators=(",", ":"), ensure_ascii=False)
@@ -313,24 +313,25 @@ class ReceiptService:
         identification_details: Optional[IdentificationDetails] = None,
     ) -> PreparedReceiptDownload:
         link = self._create_download_link()
-        cheqi_document = (
-            self.build_download_cheqi_document(receipt_payload, identification_details)
-            if identification_details is not None else _model_json(receipt_payload)
-        )
+        payload_document = _model_json(receipt_payload)
+        documents = {
+            "RECEIPT_PAYLOAD": ReceiptEnvelopeDocument(
+                media_type="application/json", content=payload_document,
+            )
+        }
+        if identification_details is not None:
+            documents["IDENTIFICATION_DETAILS"] = ReceiptEnvelopeDocument(
+                media_type="application/json", content=_model_json(identification_details),
+            )
         envelope = ReceiptEnvelope(
             cheqi_receipt_id=link.download_id,
-            documents={
-                "CHEQI": ReceiptEnvelopeDocument(
-                    media_type="application/json",
-                    content=cheqi_document,
-                )
-            },
-            envelope_version=1,
+            documents=documents,
+            envelope_version=2,
             receipt_generator_version=_PAYLOAD_DOCUMENT_VERSION,
             receipt_uuid=str(uuid4()),
         )
         ciphertext = self._download_service.encrypt_download_envelope(envelope, link.content_key)
-        template_hash = self._verification_service.calculate_cheqi_receipt_hash(cheqi_document)
+        template_hash = self._verification_service.calculate_cheqi_receipt_hash(payload_document)
         request = ClientReceiptDownloadRequest(
             download_id=link.download_id,
             ciphertext=ciphertext,
