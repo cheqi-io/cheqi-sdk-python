@@ -26,11 +26,11 @@ tags:
     \ receipts)"
 - name: Receipt Collection
   description: Collect client-encrypted QR receipts after local decryption
+- name: Recipient Management
+  description: Endpoints for resolving and matching receipt recipients
 - name: Company Management
   description: Public company endpoints for trusted partner provisioning and parent-child
     company hierarchy management
-- name: Recipient Management
-  description: Endpoints for resolving and matching receipt recipients
 - name: Receipt Management
   description: Endpoints for creating and managing purchase receipts with end-to-end
     encryption
@@ -186,18 +186,6 @@ paths:
               $ref: "#/components/schemas/ClientCredentialsTokenRequest"
         required: true
       responses:
-        "401":
-          description: Invalid client credentials
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
-        "400":
-          description: Invalid authorization code or request parameters
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
         "200":
           description: OAuth exchange completed successfully
           content:
@@ -213,44 +201,19 @@ paths:
                     token_type: bearer
                     expires_in: 900
                     scope: receipt:issue
-      security: []
-  /company/{id}/receipt-delivery/devices/{deviceId}:
-    put:
-      tags:
-      - Company Management
-      summary: Update company receipt delivery for one device
-      description: |-
-        Enables or disables company receipt delivery for one of the authenticated user's devices.
-
-        **Accessible for:** User
-      operationId: updateReceiptDeliveryDevice
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: deviceId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateCompanyReceiptDeliveryPreferenceRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
+        "401":
+          description: Invalid client credentials
           content:
-            application/json:
+            '*/*':
               schema:
-                $ref: "#/components/schemas/CompanyReceiptDeliveryDeviceDto"
-      x-accessible-for: User
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
+        "400":
+          description: Invalid authorization code or request parameters
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
+      security: []
   /company/{companyId}/stores/{storeId}:
     get:
       tags:
@@ -275,12 +238,6 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Store retrieved successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to view this store
           content:
@@ -289,6 +246,12 @@ paths:
                 $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
+        "200":
+          description: Store retrieved successfully
           content:
             '*/*':
               schema:
@@ -328,18 +291,18 @@ paths:
             '*/*':
               schema:
                 type: object
-        "200":
-          description: Store updated successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to update this store
           content:
             '*/*':
               schema:
                 type: object
+        "200":
+          description: Store updated successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
         "400":
           description: Invalid request data
           content:
@@ -352,7 +315,7 @@ paths:
       - Webhook Management
       summary: Create webhook subscription
       description: |-
-        Creates a webhook subscription to receive real-time notifications for receipt and credit note events. The webhook URL will be called when events occur for the authenticated company or client application.
+        Creates subscriptions for requested events. COMPANY_INVITATION_ACCEPTED requires a company context and company:members:invite for delegated clients. Receipt events require receipt:read or receipt:read:user-shared.
 
         **Accessible for:** Company, Client Application
       operationId: handleWebhook
@@ -375,22 +338,23 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
-        "403":
-          description: Insufficient permissions - requires receipt:read or receipt:read:user-shared
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WebhookResponse"
         "200":
           description: Webhook subscription created successfully
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
+        "403":
+          description: Insufficient permissions for one or more requested event types
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
       security:
       - cheqi_oauth:
         - receipt:read
         - receipt:read:user-shared
+        - company:members:invite
       x-accessible-for: "Company, Client Application"
   /company/{companyId}/stores:
     get:
@@ -465,6 +429,12 @@ paths:
               $ref: "#/components/schemas/CreateStoreRequest"
         required: true
       responses:
+        "201":
+          description: Store created successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to create stores for this company
           content:
@@ -477,12 +447,6 @@ paths:
             '*/*':
               schema:
                 type: object
-        "201":
-          description: Store created successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "400":
           description: Invalid request data
           content:
@@ -512,14 +476,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
-        "403":
-          description: Insufficient permissions - requires receipt:issue scope
+        "200":
+          description: Recipient successfully resolved and matched
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
-        "200":
-          description: Recipient successfully resolved and matched
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
@@ -615,6 +579,12 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
+        "400":
+          description: Invalid encrypted generation request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "202":
           description: Encrypted receipt payload accepted for on-device formatting
           content:
@@ -623,12 +593,6 @@ paths:
                 oneOf:
                 - $ref: "#/components/schemas/ReceiptSubmissionResponse"
                 - $ref: "#/components/schemas/MatchStatusResponse"
-        "400":
-          description: Invalid encrypted generation request
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "410":
           description: Unsubmitted match expired
           content:
@@ -695,6 +659,12 @@ paths:
               $ref: "#/components/schemas/ClientReceiptDownloadRequest"
         required: true
       responses:
+        "200":
+          description: Idempotent replay of an identical earlier upload
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
         "409":
           description: A different receipt is already stored under this download id
           content:
@@ -707,20 +677,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "403":
-          description: Insufficient permissions - requires receipt:issue scope
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
         "201":
           description: Encrypted receipt stored
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "200":
-          description: Idempotent replay of an identical earlier upload
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
@@ -729,37 +693,6 @@ paths:
       - cheqi_oauth:
         - receipt:issue
       x-accessible-for: "Company, Client Application"
-  /receipt/download/subscriptions:
-    post:
-      tags:
-      - receipt-download-subscription-controller
-      summary: Subscribe this device to encrypted download availability
-      description: |-
-        May precede merchant upload. Does not claim ownership. Never send the URL fragment key.
-
-        **Accessible for:** User
-      operationId: subscribe
-      parameters:
-      - name: X-Device-ID
-        in: header
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Request"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/SubscriptionResponse"
-      x-accessible-for: User
   /receipt/download/collections:
     post:
       tags:
@@ -893,99 +826,6 @@ paths:
         "204":
           description: No Content
       x-accessible-for: User
-  /oauth2/company-grants/{grantId}/suspend:
-    post:
-      tags:
-      - OAuth2 Company Grants
-      summary: Suspend a company grant immediately
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: suspend
-      parameters:
-      - name: grantId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CompanyGrantActionRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/CompanyGrantResponse"
-      x-accessible-for: User
-  /oauth2/company-grants/{grantId}/revoke:
-    post:
-      tags:
-      - OAuth2 Company Grants
-      summary: Revoke a company grant immediately
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: revoke
-      parameters:
-      - name: grantId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CompanyGrantActionRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/CompanyGrantResponse"
-      x-accessible-for: User
-  /oauth2/company-grants/{grantId}/reactivate:
-    post:
-      tags:
-      - OAuth2 Company Grants
-      summary: Reactivate a suspended company grant
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: reactivate
-      parameters:
-      - name: grantId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CompanyGrantActionRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/CompanyGrantResponse"
-      x-accessible-for: User
   /credit-note/initiate:
     post:
       tags:
@@ -1107,7 +947,7 @@ paths:
       - Company Management
       summary: Invite employees to company
       description: |-
-        Sends invitation emails to one or more employees. Company-bound client applications require the company:members:invite scope and may invite only ordinary members without receipt permissions.
+        Sends invitation emails to one or more employees as ordinary company members without receipt permissions. Addresses are trimmed, lowercased and deduplicated. The response confirms processing without returning Cheqi user IDs. Company-bound client applications require the company:members:invite scope. Accepted invitations emit COMPANY_INVITATION_ACCEPTED to authorized company webhook subscribers.
 
         **Accessible for:** User, Company, Client Application
       operationId: inviteEmployees
@@ -1206,37 +1046,6 @@ paths:
         "404":
           description: Client application not found
       x-accessible-for: "Company, User"
-  /oauth2/company-grants/{grantId}:
-    patch:
-      tags:
-      - OAuth2 Company Grants
-      summary: "Update scopes, stores, or billing for a company grant"
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: update
-      parameters:
-      - name: grantId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateCompanyGrantRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/CompanyGrantResponse"
-      x-accessible-for: User
   /credit-note/requests/{requestId}/status:
     patch:
       tags:
@@ -1298,14 +1107,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "403":
-          description: Not authorized to deactivate this store
+        "200":
+          description: Store deactivated successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store deactivated successfully
+        "403":
+          description: Not authorized to deactivate this store
           content:
             '*/*':
               schema:
@@ -1334,14 +1143,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Store activated successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store activated successfully
           content:
             '*/*':
               schema:
@@ -1477,33 +1286,6 @@ paths:
                 items:
                   $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
       x-accessible-for: User
-  /oauth2/company-grants/company/{companyId}:
-    get:
-      tags:
-      - OAuth2 Company Grants
-      summary: List the integration grants for an issuer company
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: list
-      parameters:
-      - name: companyId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/CompanyGrantResponse"
-      x-accessible-for: User
   /credit-note:
     get:
       tags:
@@ -1530,41 +1312,16 @@ paths:
                 items:
                   $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequestResponse"
       x-accessible-for: "Company, Client Application"
-  /company/{id}/receipt-delivery/devices:
+  /company/{companyId}/invitation-acceptances:
     get:
       tags:
-      - Company Management
-      summary: Get company receipt delivery devices for the current user
+      - Company Invitations
+      summary: List accepted company invitations
       description: |-
-        Returns the authenticated user's active devices and whether each one is enabled to receive company receipts for the specified company.
-
-        **Accessible for:** User
-      operationId: getReceiptDeliveryDevices
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CompanyReceiptDeliverySettingsResponse"
-      x-accessible-for: User
-  /company/{companyId}/members/{userId}/receipt-identity:
-    get:
-      tags:
-      - member-receipt-identity-controller
-      summary: Resolve the active member who submitted a receipt
-      description: |-
-        Names are optional display metadata. Use userId as the stable identity, or primaryEmail for platform mapping and display fallback.
+        Recover missed COMPANY_INVITATION_ACCEPTED events. Requires the matching company context and company:members:invite for delegated clients. Results are ordered by acceptance time and invitation ID. Use the inclusive after timestamp and page number to reconcile events.
 
         **Accessible for:** Company, Client Application
-      operationId: resolve_1
+      operationId: list
       parameters:
       - name: companyId
         in: path
@@ -1572,45 +1329,34 @@ paths:
         schema:
           type: string
           format: uuid
-      - name: userId
-        in: path
+      - name: after
+        in: query
         required: true
         schema:
           type: string
-          format: uuid
+          format: date-time
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
       responses:
         "200":
           description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/MemberReceiptIdentityResponse"
+                $ref: "#/components/schemas/PageWebhookCompanyInvitationAccepted"
       x-accessible-for: "Company, Client Application"
-  /company/identifier-requirements:
-    get:
-      tags:
-      - Company Management
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: getIdentifierRequirements
-      parameters:
-      - name: countryCode
-        in: query
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/CompanyIdentifierRequirement"
-      x-accessible-for: User
   /client-application/authorized-resources:
     get:
       tags:
@@ -1628,73 +1374,21 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AuthorizedResourcesResponse"
-        "200":
-          description: Authorized resources retrieved successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/AuthorizedResourcesResponse"
         "403":
           description: Not a client application token
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AuthorizedResourcesResponse"
+        "200":
+          description: Authorized resources retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/AuthorizedResourcesResponse"
       x-accessible-for: Client Application
-  /receipt/download/subscriptions/{id}:
-    delete:
-      tags:
-      - receipt-download-subscription-controller
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: cancel
-      parameters:
-      - name: X-Device-ID
-        in: header
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "204":
-          description: No Content
-      x-accessible-for: User
 components:
   schemas:
-    UpdateCompanyReceiptDeliveryPreferenceRequest:
-      required:
-      - receiptDeliveryEnabled
-      type: object
-      properties:
-        receiptDeliveryEnabled:
-          type: boolean
-    CompanyReceiptDeliveryDeviceDto:
-      type: object
-      properties:
-        deviceId:
-          type: string
-          format: uuid
-        deviceName:
-          type: string
-        platform:
-          type: string
-          enum:
-          - IOS
-          - ANDROID
-          - SERVER
-        createdAt:
-          type: string
-          format: date-time
-        receiptDeliveryEnabled:
-          type: boolean
     AddressDTO:
       required:
       - cityName
@@ -1801,6 +1495,7 @@ components:
             - RECEIPT_CREATED
             - RETURN_REQUESTED
             - CREDIT_NOTE_CREATED
+            - COMPANY_INVITATION_ACCEPTED
         notificationUrl:
           type: string
       description: Webhook subscription request with URL and event types
@@ -2917,23 +2612,6 @@ components:
           type: string
           description: Timestamp after which the download link stops resolving.
           format: date-time
-    Request:
-      required:
-      - downloadId
-      type: object
-      properties:
-        downloadId:
-          pattern: "[A-Za-z0-9_-]{22,64}"
-          type: string
-    SubscriptionResponse:
-      type: object
-      properties:
-        subscriptionId:
-          type: string
-          format: uuid
-        expiresAt:
-          type: string
-          format: date-time
     CreateReceiptCollectionRequest:
       required:
       - downloadId
@@ -3185,65 +2863,6 @@ components:
           format: int64
         scope:
           type: string
-    CompanyGrantActionRequest:
-      required:
-      - reason
-      type: object
-      properties:
-        reason:
-          type: string
-    CompanyGrantResponse:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        integration_id:
-          type: string
-          format: uuid
-        issuer_company_id:
-          type: string
-          format: uuid
-        status:
-          type: string
-          enum:
-          - ACTIVE
-          - SUSPENDED
-          - REVOKED
-        version:
-          type: integer
-          format: int64
-        scopes:
-          uniqueItems: true
-          type: array
-          items:
-            type: string
-        store_access_mode:
-          type: string
-          enum:
-          - ALL_STORES
-          - SELECTED_STORES
-        store_ids:
-          uniqueItems: true
-          type: array
-          items:
-            type: string
-            format: uuid
-        origin:
-          type: string
-          enum:
-          - USER_CONSENT
-          - TRUSTED_PROVISIONING
-          - ADMIN_BULK_GRANT
-        expires_at:
-          type: string
-          format: date-time
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
     AuthorizationCodeExchangeRequest:
       type: object
       properties:
@@ -3478,17 +3097,9 @@ components:
             $ref: "#/components/schemas/CompanyIdentifierDTO"
         website:
           type: string
-    CompanyRole:
-      type: string
-      description: The role of a user in a company
-      example: COMPANY_ADMIN
-      enum:
-      - COMPANY_ADMIN
-      - COMPANY_USER
     InviteEmployeeRequest:
       required:
       - emails
-      - role
       type: object
       properties:
         emails:
@@ -3496,13 +3107,7 @@ components:
           type: array
           items:
             type: string
-        role:
-          $ref: "#/components/schemas/CompanyRole"
-        receiptRecipient:
-          type: boolean
-        receiptWriter:
-          type: boolean
-      description: Invitation request with email addresses and role
+      description: Invitation request with email addresses
     KeyAlgorithm:
       type: string
       description: Key algorithm for encryption
@@ -3520,30 +3125,6 @@ components:
         keyAlgorithm:
           $ref: "#/components/schemas/KeyAlgorithm"
       description: Public key upload request with key data and algorithm
-    UpdateCompanyGrantRequest:
-      required:
-      - reason
-      - scopes
-      type: object
-      properties:
-        scopes:
-          uniqueItems: true
-          type: array
-          items:
-            type: string
-        store_access_mode:
-          type: string
-          enum:
-          - ALL_STORES
-          - SELECTED_STORES
-        store_ids:
-          uniqueItems: true
-          type: array
-          items:
-            type: string
-            format: uuid
-        reason:
-          type: string
     UpdateCreditNoteRequestStatusRequest:
       required:
       - status
@@ -3678,64 +3259,88 @@ components:
           enum:
           - ALL_STORES
           - SELECTED_STORES
-    CompanyReceiptDeliverySettingsResponse:
+    PageWebhookCompanyInvitationAccepted:
       type: object
       properties:
-        receiptRecipient:
-          type: boolean
-        devices:
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        content:
           type: array
           items:
-            $ref: "#/components/schemas/CompanyReceiptDeliveryDeviceDto"
-    MemberReceiptIdentityResponse:
+            $ref: "#/components/schemas/WebhookCompanyInvitationAccepted"
+        number:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        numberOfElements:
+          type: integer
+          format: int32
+        first:
+          type: boolean
+        last:
+          type: boolean
+        empty:
+          type: boolean
+    PageableObject:
       type: object
       properties:
-        userId:
+        offset:
+          type: integer
+          format: int64
+        paged:
+          type: boolean
+        pageNumber:
+          type: integer
+          format: int32
+        pageSize:
+          type: integer
+          format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        unpaged:
+          type: boolean
+    SortObject:
+      type: object
+      properties:
+        empty:
+          type: boolean
+        sorted:
+          type: boolean
+        unsorted:
+          type: boolean
+    WebhookCompanyInvitationAccepted:
+      type: object
+      properties:
+        eventId:
           type: string
           format: uuid
-        firstName:
+        occurredAt:
           type: string
-          description: Optional profile first name. Integrations must not require
-            this field.
-          nullable: true
-        lastName:
+          format: date-time
+        companyId:
           type: string
-          description: Optional profile last name. Integrations must not require this
-            field.
-          nullable: true
-        primaryEmail:
+          format: uuid
+        invitedEmail:
           type: string
-          description: Primary email; use as the display fallback when both names
-            are absent.
-      description: Minimal identity metadata for attributing a company receipt or
-        expense.
-    CompanyIdentifierRequirement:
-      type: object
-      properties:
-        identifierType:
-          $ref: "#/components/schemas/CompanyIdentifierType"
-        registrationScheme:
+        cheqiUserId:
           type: string
-          description: Optional registry or local scheme
-          nullable: true
-          example: KVK
-        label:
+          format: uuid
+        clientId:
           type: string
-          description: User-facing label
-          example: KVK number
-        placeholder:
+        cheqiReceiptId:
           type: string
-          description: Input placeholder
-          example: e.g. 12345678
-        required:
-          type: boolean
-          description: Whether this identifier should be collected for this country
-        receiptRelevant:
-          type: boolean
-          description: Whether this identifier is typically printed on receipts or
-            invoices
-      description: Country-specific company identifier option for onboarding and company
-        creation.
+      description: A company invitation accepted after membership was committed. The
+        eventId is stable across retries.
     PublicKeyResponse:
       type: object
       properties:
@@ -3873,6 +3478,8 @@ components:
     WebhookData:
       type: object
       properties:
+        companyInvitationAccepted:
+          $ref: "#/components/schemas/WebhookCompanyInvitationAccepted"
         encryptedReceipt:
           $ref: "#/components/schemas/WebhookReceiptEnvelope"
         encryptedCreditNote:
@@ -3889,6 +3496,7 @@ components:
           - RECEIPT_CREATED
           - RETURN_REQUESTED
           - CREDIT_NOTE_CREATED
+          - COMPANY_INVITATION_ACCEPTED
         data:
           $ref: "#/components/schemas/WebhookData"
       description: Payload delivered to registered webhook notification URLs when

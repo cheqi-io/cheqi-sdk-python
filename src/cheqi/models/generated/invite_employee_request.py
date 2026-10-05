@@ -17,21 +17,17 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from cheqi.models.generated.company_role import CompanyRole
+from pydantic import BaseModel, ConfigDict, StrictStr
+from typing import Any, ClassVar, Dict, List
 from typing import Optional, Set
 from typing_extensions import Self
 
 class InviteEmployeeRequest(BaseModel):
     """
-    Invitation request with email addresses and role
+    Invitation request with email addresses
     """ # noqa: E501
     emails: List[StrictStr]
-    role: CompanyRole
-    receipt_recipient: Optional[StrictBool] = Field(default=None, alias="receiptRecipient")
-    receipt_writer: Optional[StrictBool] = Field(default=None, alias="receiptWriter")
-    __properties: ClassVar[List[str]] = ["emails", "role", "receiptRecipient", "receiptWriter"]
+    __properties: ClassVar[List[str]] = ["emails"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -84,10 +80,7 @@ class InviteEmployeeRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "emails": obj.get("emails"),
-            "role": obj.get("role"),
-            "receiptRecipient": obj.get("receiptRecipient"),
-            "receiptWriter": obj.get("receiptWriter")
+            "emails": obj.get("emails")
         })
         return _obj
 

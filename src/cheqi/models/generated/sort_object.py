@@ -17,30 +17,19 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, StrictBool
 from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
-class UpdateCompanyGrantRequest(BaseModel):
+class SortObject(BaseModel):
     """
-    UpdateCompanyGrantRequest
+    SortObject
     """ # noqa: E501
-    scopes: List[StrictStr]
-    store_access_mode: Optional[StrictStr] = None
-    store_ids: Optional[List[StrictStr]] = None
-    reason: StrictStr
-    __properties: ClassVar[List[str]] = ["scopes", "store_access_mode", "store_ids", "reason"]
-
-    @field_validator('store_access_mode')
-    def store_access_mode_validate_enum(cls, value):
-        """Validates the enum"""
-        if value is None:
-            return value
-
-        if value not in set(['ALL_STORES', 'SELECTED_STORES']):
-            raise ValueError("must be one of enum values ('ALL_STORES', 'SELECTED_STORES')")
-        return value
+    empty: Optional[StrictBool] = None
+    sorted: Optional[StrictBool] = None
+    unsorted: Optional[StrictBool] = None
+    __properties: ClassVar[List[str]] = ["empty", "sorted", "unsorted"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -60,7 +49,7 @@ class UpdateCompanyGrantRequest(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of UpdateCompanyGrantRequest from a JSON string"""
+        """Create an instance of SortObject from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -85,7 +74,7 @@ class UpdateCompanyGrantRequest(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of UpdateCompanyGrantRequest from a dict"""
+        """Create an instance of SortObject from a dict"""
         if obj is None:
             return None
 
@@ -93,10 +82,9 @@ class UpdateCompanyGrantRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "scopes": obj.get("scopes"),
-            "store_access_mode": obj.get("store_access_mode"),
-            "store_ids": obj.get("store_ids"),
-            "reason": obj.get("reason")
+            "empty": obj.get("empty"),
+            "sorted": obj.get("sorted"),
+            "unsorted": obj.get("unsorted")
         })
         return _obj
 

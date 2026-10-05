@@ -17,20 +17,23 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 from typing import Any, ClassVar, Dict, List, Optional
+from cheqi.models.generated.sort_object import SortObject
 from typing import Optional, Set
 from typing_extensions import Self
 
-class MemberReceiptIdentityResponse(BaseModel):
+class PageableObject(BaseModel):
     """
-    Minimal identity metadata for attributing a company receipt or expense.
+    PageableObject
     """ # noqa: E501
-    user_id: Optional[StrictStr] = Field(default=None, alias="userId")
-    first_name: Optional[StrictStr] = Field(default=None, description="Optional profile first name. Integrations must not require this field.", alias="firstName")
-    last_name: Optional[StrictStr] = Field(default=None, description="Optional profile last name. Integrations must not require this field.", alias="lastName")
-    primary_email: Optional[StrictStr] = Field(default=None, description="Primary email; use as the display fallback when both names are absent.", alias="primaryEmail")
-    __properties: ClassVar[List[str]] = ["userId", "firstName", "lastName", "primaryEmail"]
+    offset: Optional[StrictInt] = None
+    paged: Optional[StrictBool] = None
+    page_number: Optional[StrictInt] = Field(default=None, alias="pageNumber")
+    page_size: Optional[StrictInt] = Field(default=None, alias="pageSize")
+    sort: Optional[SortObject] = None
+    unpaged: Optional[StrictBool] = None
+    __properties: ClassVar[List[str]] = ["offset", "paged", "pageNumber", "pageSize", "sort", "unpaged"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -50,7 +53,7 @@ class MemberReceiptIdentityResponse(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of MemberReceiptIdentityResponse from a JSON string"""
+        """Create an instance of PageableObject from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -71,21 +74,14 @@ class MemberReceiptIdentityResponse(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # set to None if first_name (nullable) is None
-        # and model_fields_set contains the field
-        if self.first_name is None and "first_name" in self.model_fields_set:
-            _dict['firstName'] = None
-
-        # set to None if last_name (nullable) is None
-        # and model_fields_set contains the field
-        if self.last_name is None and "last_name" in self.model_fields_set:
-            _dict['lastName'] = None
-
+        # override the default output from pydantic by calling `to_dict()` of sort
+        if self.sort:
+            _dict['sort'] = self.sort.to_dict()
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of MemberReceiptIdentityResponse from a dict"""
+        """Create an instance of PageableObject from a dict"""
         if obj is None:
             return None
 
@@ -93,10 +89,12 @@ class MemberReceiptIdentityResponse(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "userId": obj.get("userId"),
-            "firstName": obj.get("firstName"),
-            "lastName": obj.get("lastName"),
-            "primaryEmail": obj.get("primaryEmail")
+            "offset": obj.get("offset"),
+            "paged": obj.get("paged"),
+            "pageNumber": obj.get("pageNumber"),
+            "pageSize": obj.get("pageSize"),
+            "sort": SortObject.from_dict(obj["sort"]) if obj.get("sort") is not None else None,
+            "unpaged": obj.get("unpaged")
         })
         return _obj
 

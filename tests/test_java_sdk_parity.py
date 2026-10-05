@@ -8,12 +8,10 @@ import httpx
 from cheqi import CheqiApiError, CheqiSDK, ErrorCodes, __version__
 from cheqi.config import Environment
 from cheqi.models import (
-    CompanyRole,
     EncryptedReceiptDeliveryResponse,
     ExpenseSubmissionEnvelope,
     IdentificationDetails,
     InviteEmployeeRequest,
-    MemberReceiptIdentityResponse,
     ReceiptEnvelope,
     ReceiptEnvelopeDocument,
     ReceivingParty,
@@ -41,9 +39,9 @@ def test_sdk_version_and_user_agent_use_python_release_line() -> None:
     sdk.matching_service.match_customer(IdentificationDetails(pairing_code="12345678"))
     sdk.close()
 
-    assert __version__ == "1.3.0"
+    assert __version__ == "1.4.0"
     assert requests[0].url == "https://sandbox.api.cheqi.io/recipient/resolve"
-    assert requests[0].headers["User-Agent"] == "CheqiSDK-Python/1.3.0"
+    assert requests[0].headers["User-Agent"] == "CheqiSDK-Python/1.4.0"
     assert not client.is_closed
     client.close()
 
@@ -72,15 +70,11 @@ def test_java_2_3_schema_models_are_public_and_nested_in_receipt_envelope() -> N
     )
     invitation = InviteEmployeeRequest(
         emails=["employee@example.com"],
-        role=CompanyRole.COMPANY_USER,
-        receipt_recipient=True,
     )
-    identity = MemberReceiptIdentityResponse(primary_email="employee@example.com")
 
     data = json.loads(envelope.model_dump_json(by_alias=True))
     assert data["expenseSubmission"]["reason"] == "Customer visit"
-    assert invitation.role is CompanyRole.COMPANY_USER
-    assert identity.primary_email == "employee@example.com"
+    assert invitation.emails == ["employee@example.com"]
 
     delivery = EncryptedReceiptDeliveryResponse(
         delivery_purpose="COMPANY_EXPENSE",

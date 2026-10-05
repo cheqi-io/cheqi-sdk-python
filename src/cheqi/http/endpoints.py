@@ -13,6 +13,10 @@ class Endpoints:
     EMAIL_RECEIPT = "/receipt/email"
 
     @staticmethod
+    def company_invite_employees(company_id: str) -> str:
+        return f"/company/{company_id}/invite/employees"
+
+    @staticmethod
     def company_stores(company_id: str) -> str:
         return f"/company/{company_id}/stores"
 

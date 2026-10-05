@@ -8,6 +8,7 @@ import httpx
 
 from cheqi.config import CheqiSDKConfig, Environment
 from cheqi.http.client import DefaultCheqiApiClient
+from cheqi.services.company import CompanyService
 from cheqi.services.credit_note import CreditNoteService
 from cheqi.services.decryption import DecryptionService
 from cheqi.services.download import DownloadService
@@ -57,6 +58,7 @@ class CheqiSDK:
             self._config.receipt_download_base_url,
         )
         self._store_service = StoreService(self._api_client)
+        self._company_service = CompanyService(self._api_client)
         self._credit_note_service = CreditNoteService(
             self._api_client,
             self._encryption_service,
@@ -94,6 +96,10 @@ class CheqiSDK:
     @property
     def store_service(self) -> StoreService:
         return self._store_service
+
+    @property
+    def company_service(self) -> CompanyService:
+        return self._company_service
 
     @property
     def verification_service(self) -> VerificationService:

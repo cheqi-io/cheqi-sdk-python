@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from uuid import UUID
 
 import pytest
 from pytest_httpx import HTTPXMock
@@ -26,6 +27,25 @@ def _delivery() -> EncryptedReceiptPayload:
         encrypted_content="ciphertext",
         encrypted_aes_key="key",
     )
+
+
+def test_invite_users_posts_emails_and_accepts_empty_success(httpx_mock: HTTPXMock) -> None:
+    from cheqi.services.company import CompanyService
+
+    company_id = UUID("8a4153e0-3fb5-4760-b049-c0d5f4665261")
+    httpx_mock.add_response(
+        method="POST",
+        url=f"https://sandbox.api.cheqi.io/company/{company_id}/invite/employees",
+        status_code=200,
+        text="",
+    )
+    client = _client()
+    assert CompanyService(client).invite_users(company_id, ["employee@example.com"], "oauth-token") is None
+    request = httpx_mock.get_request()
+    assert request is not None
+    assert request.headers["Authorization"] == "Bearer oauth-token"
+    assert json.loads(request.content) == {"emails": ["employee@example.com"]}
+    client.close()
 
 
 def test_match_customer_posts_generated_contract(httpx_mock: HTTPXMock) -> None:

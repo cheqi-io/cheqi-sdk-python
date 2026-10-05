@@ -17,7 +17,6 @@ from cheqi.models.generated.card_details import CardDetails
 from cheqi.models.generated.cheqi_receipt import CheqiReceipt
 from cheqi.models.generated.client_receipt_download_request import ClientReceiptDownloadRequest
 from cheqi.models.generated.client_receipt_download_response import ClientReceiptDownloadResponse
-from cheqi.models.generated.company_role import CompanyRole
 from cheqi.models.generated.create_store_request import CreateStoreRequest
 from cheqi.models.generated.encrypted_credit_note_envelope import EncryptedCreditNoteEnvelope
 from cheqi.models.generated.encrypted_receipt_delivery_response import EncryptedReceiptDeliveryResponse
@@ -29,7 +28,6 @@ from cheqi.models.generated.invite_employee_request import InviteEmployeeRequest
 from cheqi.models.generated.match_state import MatchState
 from cheqi.models.generated.match_status_response import MatchStatusResponse
 from cheqi.models.generated.matched_recipient import MatchedRecipient
-from cheqi.models.generated.member_receipt_identity_response import MemberReceiptIdentityResponse
 from cheqi.models.generated.payment_account_details import PaymentAccountDetails
 from cheqi.models.generated.payment_details import PaymentDetails
 from cheqi.models.generated.payment_type import PaymentType
@@ -73,7 +71,6 @@ __all__ = [
     "CheqiReceipt",
     "ClientReceiptDownloadRequest",
     "ClientReceiptDownloadResponse",
-    "CompanyRole",
     "CreateStoreRequest",
     "CreditNoteInitiationRequest",
     "CreditNoteResult",
@@ -95,7 +92,6 @@ __all__ = [
     "JurisdictionLegalText",
     "JurisdictionalData",
     "MatchedRecipient",
-    "MemberReceiptIdentityResponse",
     "PaymentAccountDetails",
     "PaymentDetails",
     "PaymentType",
