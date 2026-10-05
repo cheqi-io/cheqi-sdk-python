@@ -119,3 +119,5 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
             "empty": obj.get("empty")
         })
         return _obj
+
+
