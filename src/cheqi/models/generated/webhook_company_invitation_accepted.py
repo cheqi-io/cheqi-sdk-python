@@ -18,31 +18,23 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
-class CompanyReceiptDeliveryDeviceDto(BaseModel):
+class WebhookCompanyInvitationAccepted(BaseModel):
     """
-    CompanyReceiptDeliveryDeviceDto
+    A company invitation accepted after membership was committed. The eventId is stable across retries.
     """ # noqa: E501
-    device_id: Optional[StrictStr] = Field(default=None, alias="deviceId")
-    device_name: Optional[StrictStr] = Field(default=None, alias="deviceName")
-    platform: Optional[StrictStr] = None
-    created_at: Optional[datetime] = Field(default=None, alias="createdAt")
-    receipt_delivery_enabled: Optional[StrictBool] = Field(default=None, alias="receiptDeliveryEnabled")
-    __properties: ClassVar[List[str]] = ["deviceId", "deviceName", "platform", "createdAt", "receiptDeliveryEnabled"]
-
-    @field_validator('platform')
-    def platform_validate_enum(cls, value):
-        """Validates the enum"""
-        if value is None:
-            return value
-
-        if value not in set(['IOS', 'ANDROID', 'SERVER']):
-            raise ValueError("must be one of enum values ('IOS', 'ANDROID', 'SERVER')")
-        return value
+    event_id: Optional[StrictStr] = Field(default=None, alias="eventId")
+    occurred_at: Optional[datetime] = Field(default=None, alias="occurredAt")
+    company_id: Optional[StrictStr] = Field(default=None, alias="companyId")
+    invited_email: Optional[StrictStr] = Field(default=None, alias="invitedEmail")
+    cheqi_user_id: Optional[StrictStr] = Field(default=None, alias="cheqiUserId")
+    client_id: Optional[StrictStr] = Field(default=None, alias="clientId")
+    cheqi_receipt_id: Optional[StrictStr] = Field(default=None, alias="cheqiReceiptId")
+    __properties: ClassVar[List[str]] = ["eventId", "occurredAt", "companyId", "invitedEmail", "cheqiUserId", "clientId", "cheqiReceiptId"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -62,7 +54,7 @@ class CompanyReceiptDeliveryDeviceDto(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of CompanyReceiptDeliveryDeviceDto from a JSON string"""
+        """Create an instance of WebhookCompanyInvitationAccepted from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -87,7 +79,7 @@ class CompanyReceiptDeliveryDeviceDto(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of CompanyReceiptDeliveryDeviceDto from a dict"""
+        """Create an instance of WebhookCompanyInvitationAccepted from a dict"""
         if obj is None:
             return None
 
@@ -95,11 +87,13 @@ class CompanyReceiptDeliveryDeviceDto(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "deviceId": obj.get("deviceId"),
-            "deviceName": obj.get("deviceName"),
-            "platform": obj.get("platform"),
-            "createdAt": obj.get("createdAt"),
-            "receiptDeliveryEnabled": obj.get("receiptDeliveryEnabled")
+            "eventId": obj.get("eventId"),
+            "occurredAt": obj.get("occurredAt"),
+            "companyId": obj.get("companyId"),
+            "invitedEmail": obj.get("invitedEmail"),
+            "cheqiUserId": obj.get("cheqiUserId"),
+            "clientId": obj.get("clientId"),
+            "cheqiReceiptId": obj.get("cheqiReceiptId")
         })
         return _obj
 

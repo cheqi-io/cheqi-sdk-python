@@ -1,5 +1,6 @@
 """Public Cheqi SDK services."""
 
+from cheqi.services.company import CompanyService
 from cheqi.services.credit_note import CreditNoteService
 from cheqi.services.decryption import DecryptionService
 from cheqi.services.download import DownloadService
@@ -10,6 +11,7 @@ from cheqi.services.store import StoreService
 from cheqi.services.verification import VerificationService
 
 __all__ = [
+    "CompanyService",
     "CreditNoteService",
     "DecryptionService",
     "DownloadService",

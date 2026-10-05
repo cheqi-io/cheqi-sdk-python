@@ -37,8 +37,8 @@ class WebhookEvent(BaseModel):
         if value is None:
             return value
 
-        if value not in set(['RECEIPT_CREATED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED']):
-            raise ValueError("must be one of enum values ('RECEIPT_CREATED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED')")
+        if value not in set(['RECEIPT_CREATED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED', 'COMPANY_INVITATION_ACCEPTED']):
+            raise ValueError("must be one of enum values ('RECEIPT_CREATED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED', 'COMPANY_INVITATION_ACCEPTED')")
         return value
 
     model_config = ConfigDict(

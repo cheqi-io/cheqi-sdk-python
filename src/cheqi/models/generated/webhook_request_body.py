@@ -38,8 +38,8 @@ class WebhookRequestBody(BaseModel):
             return value
 
         for i in value:
-            if i not in set(['RECEIPT_CREATED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED']):
-                raise ValueError("each list item must be one of ('RECEIPT_CREATED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED')")
+            if i not in set(['RECEIPT_CREATED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED', 'COMPANY_INVITATION_ACCEPTED']):
+                raise ValueError("each list item must be one of ('RECEIPT_CREATED', 'RETURN_REQUESTED', 'CREDIT_NOTE_CREATED', 'COMPANY_INVITATION_ACCEPTED')")
         return value
 
     model_config = ConfigDict(

@@ -29,7 +29,7 @@ from cheqi.models.generated.store_dto import StoreDTO
 
 logger = logging.getLogger("cheqi.http")
 
-_USER_AGENT = "CheqiSDK-Python/1.3.0"
+_USER_AGENT = "CheqiSDK-Python/1.4.0"
 
 
 def _model_dict(model: BaseModel) -> dict[str, Any]:
@@ -77,6 +77,10 @@ class CheqiApiClient(Protocol):
         request: CreateStoreRequest,
         access_token: Optional[str] = None,
     ) -> StoreDTO: ...
+
+    def invite_users(
+        self, company_id: UUID, emails: List[str], access_token: Optional[str] = None
+    ) -> None: ...
 
     def get_stores(
         self,
@@ -357,6 +361,16 @@ class DefaultCheqiApiClient:
             access_token,
         )
         return StoreDTO.model_validate(data)
+
+    def invite_users(
+        self, company_id: UUID, emails: List[str], access_token: Optional[str] = None
+    ) -> None:
+        self._post(
+            Endpoints.company_invite_employees(str(company_id)),
+            {"emails": emails},
+            "inviteEmployees",
+            access_token,
+        )
 
     def get_stores(
         self,

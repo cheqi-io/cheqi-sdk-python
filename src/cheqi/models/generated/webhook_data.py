@@ -19,6 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, ClassVar, Dict, List, Optional
+from cheqi.models.generated.webhook_company_invitation_accepted import WebhookCompanyInvitationAccepted
 from cheqi.models.generated.webhook_credit_note_initiation_request import WebhookCreditNoteInitiationRequest
 from cheqi.models.generated.webhook_receipt_envelope import WebhookReceiptEnvelope
 from typing import Optional, Set
@@ -28,10 +29,11 @@ class WebhookData(BaseModel):
     """
     Container for the event-specific webhook object.
     """ # noqa: E501
+    company_invitation_accepted: Optional[WebhookCompanyInvitationAccepted] = Field(default=None, alias="companyInvitationAccepted")
     encrypted_receipt: Optional[WebhookReceiptEnvelope] = Field(default=None, alias="encryptedReceipt")
     encrypted_credit_note: Optional[WebhookReceiptEnvelope] = Field(default=None, alias="encryptedCreditNote")
     credit_note_initiation_request: Optional[WebhookCreditNoteInitiationRequest] = Field(default=None, alias="creditNoteInitiationRequest")
-    __properties: ClassVar[List[str]] = ["encryptedReceipt", "encryptedCreditNote", "creditNoteInitiationRequest"]
+    __properties: ClassVar[List[str]] = ["companyInvitationAccepted", "encryptedReceipt", "encryptedCreditNote", "creditNoteInitiationRequest"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -72,6 +74,9 @@ class WebhookData(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # override the default output from pydantic by calling `to_dict()` of company_invitation_accepted
+        if self.company_invitation_accepted:
+            _dict['companyInvitationAccepted'] = self.company_invitation_accepted.to_dict()
         # override the default output from pydantic by calling `to_dict()` of encrypted_receipt
         if self.encrypted_receipt:
             _dict['encryptedReceipt'] = self.encrypted_receipt.to_dict()
@@ -93,6 +98,7 @@ class WebhookData(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
+            "companyInvitationAccepted": WebhookCompanyInvitationAccepted.from_dict(obj["companyInvitationAccepted"]) if obj.get("companyInvitationAccepted") is not None else None,
             "encryptedReceipt": WebhookReceiptEnvelope.from_dict(obj["encryptedReceipt"]) if obj.get("encryptedReceipt") is not None else None,
             "encryptedCreditNote": WebhookReceiptEnvelope.from_dict(obj["encryptedCreditNote"]) if obj.get("encryptedCreditNote") is not None else None,
             "creditNoteInitiationRequest": WebhookCreditNoteInitiationRequest.from_dict(obj["creditNoteInitiationRequest"]) if obj.get("creditNoteInitiationRequest") is not None else None
