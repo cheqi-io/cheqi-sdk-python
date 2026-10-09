@@ -39,9 +39,9 @@ def test_sdk_version_and_user_agent_use_python_release_line() -> None:
     sdk.matching_service.match_customer(IdentificationDetails(pairing_code="12345678"))
     sdk.close()
 
-    assert __version__ == "1.4.0"
+    assert __version__ == "1.5.0"
     assert requests[0].url == "https://sandbox.api.cheqi.io/recipient/resolve"
-    assert requests[0].headers["User-Agent"] == "CheqiSDK-Python/1.4.0"
+    assert requests[0].headers["User-Agent"] == "CheqiSDK-Python/1.5.0"
     assert not client.is_closed
     client.close()
 
