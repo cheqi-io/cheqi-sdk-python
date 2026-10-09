@@ -29,7 +29,8 @@ class WebhookRequestBody(BaseModel):
     name: Optional[StrictStr] = None
     events: Optional[List[StrictStr]] = None
     notification_url: Optional[StrictStr] = Field(default=None, alias="notificationUrl")
-    __properties: ClassVar[List[str]] = ["name", "events", "notificationUrl"]
+    destination_id: Optional[StrictStr] = Field(default=None, alias="destinationId")
+    __properties: ClassVar[List[str]] = ["name", "events", "notificationUrl", "destinationId"]
 
     @field_validator('events')
     def events_validate_enum(cls, value):
@@ -95,7 +96,8 @@ class WebhookRequestBody(BaseModel):
         _obj = cls.model_validate({
             "name": obj.get("name"),
             "events": obj.get("events"),
-            "notificationUrl": obj.get("notificationUrl")
+            "notificationUrl": obj.get("notificationUrl"),
+            "destinationId": obj.get("destinationId")
         })
         return _obj
 

@@ -17,8 +17,8 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, StrictStr
-from typing import Any, ClassVar, Dict, List
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -27,7 +27,8 @@ class InviteEmployeeRequest(BaseModel):
     Invitation request with email addresses
     """ # noqa: E501
     emails: List[StrictStr]
-    __properties: ClassVar[List[str]] = ["emails"]
+    resend_pending: Optional[StrictBool] = Field(default=None, alias="resendPending")
+    __properties: ClassVar[List[str]] = ["emails", "resendPending"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -80,7 +81,8 @@ class InviteEmployeeRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "emails": obj.get("emails")
+            "emails": obj.get("emails"),
+            "resendPending": obj.get("resendPending")
         })
         return _obj
 

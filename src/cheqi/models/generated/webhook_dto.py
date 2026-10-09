@@ -26,13 +26,15 @@ class WebhookDTO(BaseModel):
     """
     WebhookDTO
     """ # noqa: E501
+    id: Optional[StrictStr] = None
     name: Optional[StrictStr] = None
     notification_url: Optional[StrictStr] = Field(default=None, alias="notificationUrl")
     event: Optional[StrictStr] = None
     client_application_id: Optional[StrictStr] = Field(default=None, alias="clientApplicationId")
     user_id: Optional[StrictStr] = Field(default=None, alias="userId")
     company_id: Optional[StrictStr] = Field(default=None, alias="companyId")
-    __properties: ClassVar[List[str]] = ["name", "notificationUrl", "event", "clientApplicationId", "userId", "companyId"]
+    destination_id: Optional[StrictStr] = Field(default=None, alias="destinationId")
+    __properties: ClassVar[List[str]] = ["id", "name", "notificationUrl", "event", "clientApplicationId", "userId", "companyId", "destinationId"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -85,12 +87,14 @@ class WebhookDTO(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
+            "id": obj.get("id"),
             "name": obj.get("name"),
             "notificationUrl": obj.get("notificationUrl"),
             "event": obj.get("event"),
             "clientApplicationId": obj.get("clientApplicationId"),
             "userId": obj.get("userId"),
-            "companyId": obj.get("companyId")
+            "companyId": obj.get("companyId"),
+            "destinationId": obj.get("destinationId")
         })
         return _obj
 

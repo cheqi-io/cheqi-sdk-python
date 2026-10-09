@@ -14,18 +14,27 @@ from cheqi.config import CheqiSDKConfig
 from cheqi.exceptions import CheqiApiError, ErrorCodes, SubmissionInProgressError
 from cheqi.http.endpoints import Endpoints
 from cheqi.http.retry import RetryHandler
+from cheqi.models.generated.acknowledge_request import AcknowledgeRequest
 from cheqi.models.generated.cheqi_receipt import CheqiReceipt
 from cheqi.models.generated.client_receipt_download_request import ClientReceiptDownloadRequest
 from cheqi.models.generated.client_receipt_download_response import ClientReceiptDownloadResponse
 from cheqi.models.generated.create_store_request import CreateStoreRequest
+from cheqi.models.generated.destination_response import DestinationResponse
 from cheqi.models.generated.email_receipt_request import EmailReceiptRequest
 from cheqi.models.generated.encrypted_credit_note_envelope import EncryptedCreditNoteEnvelope
 from cheqi.models.generated.encrypted_receipt_envelope import EncryptedReceiptEnvelope
 from cheqi.models.generated.identification_details import IdentificationDetails
+from cheqi.models.generated.invite_employee_request import InviteEmployeeRequest
+from cheqi.models.generated.invite_employees_response import InviteEmployeesResponse
 from cheqi.models.generated.match_status_response import MatchStatusResponse
 from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
 from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
+from cheqi.models.generated.register_request import RegisterRequest
+from cheqi.models.generated.register_response import RegisterResponse
 from cheqi.models.generated.store_dto import StoreDTO
+from cheqi.models.generated.update_subscription_request import UpdateSubscriptionRequest
+from cheqi.models.generated.webhook_dto import WebhookDTO
+from cheqi.models.generated.webhook_receipt_envelope import WebhookReceiptEnvelope
 
 logger = logging.getLogger("cheqi.http")
 
@@ -79,8 +88,31 @@ class CheqiApiClient(Protocol):
     ) -> StoreDTO: ...
 
     def invite_users(
-        self, company_id: UUID, emails: List[str], access_token: Optional[str] = None
+        self, company_id: UUID, emails: List[str], access_token: Optional[str] = None,
+        resend_pending: Optional[bool] = None,
+    ) -> InviteEmployeesResponse: ...
+
+    def list_receipt_destinations(self, access_token: Optional[str] = None) -> List[DestinationResponse]: ...
+
+    def register_receipt_destination(
+        self, request: RegisterRequest, access_token: Optional[str] = None,
+    ) -> RegisterResponse: ...
+
+    def get_pending_receipts(
+        self, destination_id: UUID, access_token: Optional[str] = None,
+    ) -> List[WebhookReceiptEnvelope]: ...
+
+    def acknowledge_receipts(
+        self, destination_id: UUID, receipt_ids: List[str], access_token: Optional[str] = None,
     ) -> None: ...
+
+    def deactivate_receipt_destination(
+        self, destination_id: UUID, access_token: Optional[str] = None,
+    ) -> None: ...
+
+    def update_webhook_subscription_url(
+        self, subscription_id: UUID, notification_url: str, access_token: Optional[str] = None,
+    ) -> WebhookDTO: ...
 
     def get_stores(
         self,
@@ -259,6 +291,19 @@ class DefaultCheqiApiClient:
             operation,
         )
 
+    def _patch(
+        self, path: str, body: Any, operation: str, access_token: Optional[str] = None,
+    ) -> Any:
+        headers = self._auth_headers(access_token)
+        headers["Content-Type"] = "application/json"
+
+        def request() -> httpx.Response:
+            return self._client.patch(self._url(path), json=body, headers=headers)
+
+        return self._handle_response(
+            self._retry_handler.execute_with_retry(request, operation), operation,
+        )
+
     def get_match(self, match_id: str, access_token: Optional[str] = None) -> MatchStatusResponse:
         if not match_id or not match_id.strip():
             raise CheqiApiError("match_id is required", ErrorCodes.INVALID_REQUEST, 400)
@@ -363,14 +408,55 @@ class DefaultCheqiApiClient:
         return StoreDTO.model_validate(data)
 
     def invite_users(
-        self, company_id: UUID, emails: List[str], access_token: Optional[str] = None
-    ) -> None:
-        self._post(
+        self, company_id: UUID, emails: List[str], access_token: Optional[str] = None,
+        resend_pending: Optional[bool] = None,
+    ) -> InviteEmployeesResponse:
+        data = self._post(
             Endpoints.company_invite_employees(str(company_id)),
-            {"emails": emails},
+            _model_dict(InviteEmployeeRequest(emails=emails, resend_pending=resend_pending)),
             "inviteEmployees",
             access_token,
         )
+        return InviteEmployeesResponse.model_validate(data)
+
+    def list_receipt_destinations(self, access_token: Optional[str] = None) -> List[DestinationResponse]:
+        data = self._get(Endpoints.RECEIPT_DESTINATIONS, "listReceiptDestinations", access_token=access_token)
+        return [DestinationResponse.model_validate(item) for item in data]
+
+    def register_receipt_destination(
+        self, request: RegisterRequest, access_token: Optional[str] = None,
+    ) -> RegisterResponse:
+        data = self._post(Endpoints.RECEIPT_DESTINATIONS, _model_dict(request),
+                          "registerReceiptDestination", access_token)
+        return RegisterResponse.model_validate(data)
+
+    def get_pending_receipts(
+        self, destination_id: UUID, access_token: Optional[str] = None,
+    ) -> List[WebhookReceiptEnvelope]:
+        data = self._get(Endpoints.receipt_destination_queue(str(destination_id)),
+                         "getPendingReceipts", access_token=access_token)
+        return [WebhookReceiptEnvelope.model_validate(item) for item in data]
+
+    def acknowledge_receipts(
+        self, destination_id: UUID, receipt_ids: List[str], access_token: Optional[str] = None,
+    ) -> None:
+        self._post(Endpoints.receipt_destination_acknowledge(str(destination_id)),
+                   _model_dict(AcknowledgeRequest(receipt_ids=receipt_ids)),
+                   "acknowledgeReceipts", access_token)
+
+    def deactivate_receipt_destination(
+        self, destination_id: UUID, access_token: Optional[str] = None,
+    ) -> None:
+        self._delete(Endpoints.receipt_destination(str(destination_id)),
+                     "deactivateReceiptDestination", access_token)
+
+    def update_webhook_subscription_url(
+        self, subscription_id: UUID, notification_url: str, access_token: Optional[str] = None,
+    ) -> WebhookDTO:
+        data = self._patch(Endpoints.webhook_subscription(str(subscription_id)),
+                           _model_dict(UpdateSubscriptionRequest(notification_url=notification_url)),
+                           "updateWebhookSubscriptionUrl", access_token)
+        return WebhookDTO.model_validate(data)
 
     def get_stores(
         self,

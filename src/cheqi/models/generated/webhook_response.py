@@ -29,7 +29,8 @@ class WebhookResponse(BaseModel):
     """ # noqa: E501
     created_webhooks: Optional[List[WebhookDTO]] = Field(default=None, alias="createdWebhooks")
     failed_events: Optional[List[StrictStr]] = Field(default=None, alias="failedEvents")
-    __properties: ClassVar[List[str]] = ["createdWebhooks", "failedEvents"]
+    existing_webhooks: Optional[List[WebhookDTO]] = Field(default=None, alias="existingWebhooks")
+    __properties: ClassVar[List[str]] = ["createdWebhooks", "failedEvents", "existingWebhooks"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -77,6 +78,13 @@ class WebhookResponse(BaseModel):
                 if _item_created_webhooks:
                     _items.append(_item_created_webhooks.to_dict())
             _dict['createdWebhooks'] = _items
+        # override the default output from pydantic by calling `to_dict()` of each item in existing_webhooks (list)
+        _items = []
+        if self.existing_webhooks:
+            for _item_existing_webhooks in self.existing_webhooks:
+                if _item_existing_webhooks:
+                    _items.append(_item_existing_webhooks.to_dict())
+            _dict['existingWebhooks'] = _items
         return _dict
 
     @classmethod
@@ -90,7 +98,8 @@ class WebhookResponse(BaseModel):
 
         _obj = cls.model_validate({
             "createdWebhooks": [WebhookDTO.from_dict(_item) for _item in obj["createdWebhooks"]] if obj.get("createdWebhooks") is not None else None,
-            "failedEvents": obj.get("failedEvents")
+            "failedEvents": obj.get("failedEvents"),
+            "existingWebhooks": [WebhookDTO.from_dict(_item) for _item in obj["existingWebhooks"]] if obj.get("existingWebhooks") is not None else None
         })
         return _obj
 

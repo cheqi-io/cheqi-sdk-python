@@ -17,6 +17,7 @@ from cheqi.services.matching import MatchingService
 from cheqi.services.receipt import ReceiptService
 from cheqi.services.store import StoreService
 from cheqi.services.verification import VerificationService
+from cheqi.services.webhook import WebhookService
 
 
 class CheqiSDK:
@@ -59,6 +60,7 @@ class CheqiSDK:
         )
         self._store_service = StoreService(self._api_client)
         self._company_service = CompanyService(self._api_client)
+        self._webhook_service = WebhookService(self._api_client)
         self._credit_note_service = CreditNoteService(
             self._api_client,
             self._encryption_service,
@@ -100,6 +102,10 @@ class CheqiSDK:
     @property
     def company_service(self) -> CompanyService:
         return self._company_service
+
+    @property
+    def webhook_service(self) -> WebhookService:
+        return self._webhook_service
 
     @property
     def verification_service(self) -> VerificationService:
