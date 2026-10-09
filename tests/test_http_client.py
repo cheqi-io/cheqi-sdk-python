@@ -29,7 +29,7 @@ def _delivery() -> EncryptedReceiptPayload:
     )
 
 
-def test_invite_users_posts_emails_and_accepts_empty_success(httpx_mock: HTTPXMock) -> None:
+def test_invite_users_posts_emails_and_returns_outcomes(httpx_mock: HTTPXMock) -> None:
     from cheqi.services.company import CompanyService
 
     company_id = UUID("8a4153e0-3fb5-4760-b049-c0d5f4665261")
@@ -37,14 +37,46 @@ def test_invite_users_posts_emails_and_accepts_empty_success(httpx_mock: HTTPXMo
         method="POST",
         url=f"https://sandbox.api.cheqi.io/company/{company_id}/invite/employees",
         status_code=200,
-        text="",
+        json={"invitedEmails": ["employee@example.com"], "pendingEmails": [], "existingMembers": []},
     )
     client = _client()
-    assert CompanyService(client).invite_users(company_id, ["employee@example.com"], "oauth-token") is None
+    result = CompanyService(client).invite_users(company_id, ["employee@example.com"], "oauth-token", True)
+    assert result.invited_emails == ["employee@example.com"]
     request = httpx_mock.get_request()
     assert request is not None
     assert request.headers["Authorization"] == "Bearer oauth-token"
-    assert json.loads(request.content) == {"emails": ["employee@example.com"]}
+    assert json.loads(request.content) == {"emails": ["employee@example.com"], "resendPending": True}
+    client.close()
+
+
+def test_receipt_destination_and_webhook_routes(httpx_mock: HTTPXMock) -> None:
+    from cheqi.models.generated.register_request import RegisterRequest
+
+    destination_id = UUID("8a4153e0-3fb5-4760-b049-c0d5f4665261")
+    subscription_id = UUID("f92fa3d7-7c37-41e2-9ff3-3fa5483f4506")
+    base = "https://sandbox.api.cheqi.io/company/receipt-destinations"
+    httpx_mock.add_response(method="GET", url=base, json=[])
+    httpx_mock.add_response(method="POST", url=base, json={"id": str(destination_id)})
+    httpx_mock.add_response(method="GET", url=f"{base}/{destination_id}/receipts/queue", json=[])
+    httpx_mock.add_response(method="POST", url=f"{base}/{destination_id}/receipts/queue/acknowledge", json={})
+    httpx_mock.add_response(method="DELETE", url=f"{base}/{destination_id}", status_code=204)
+    httpx_mock.add_response(
+        method="PATCH",
+        url=f"https://sandbox.api.cheqi.io/webhook/subscription/{subscription_id}",
+        json={"notificationUrl": "https://example.com/hook"},
+    )
+
+    client = _client()
+    assert client.list_receipt_destinations() == []
+    assert client.register_receipt_destination(RegisterRequest(name="ERP", public_key="key", key_algorithm="RSA"))
+    assert client.get_pending_receipts(destination_id) == []
+    client.acknowledge_receipts(destination_id, ["receipt-1"])
+    client.deactivate_receipt_destination(destination_id)
+    assert client.update_webhook_subscription_url(subscription_id, "https://example.com/hook").notification_url == "https://example.com/hook"
+    requests = httpx_mock.get_requests()
+    assert json.loads(requests[1].content)["name"] == "ERP"
+    assert json.loads(requests[3].content) == {"receiptIds": ["receipt-1"]}
+    assert json.loads(requests[5].content) == {"notificationUrl": "https://example.com/hook"}
     client.close()
 
 
