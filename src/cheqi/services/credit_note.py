@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from cheqi.exceptions import CheqiSDKError, CreditNoteProcessingError, ErrorCodes
 from cheqi.http.client import CheqiApiClient
+from cheqi.http.request_options import RequestOptions
 from cheqi.models.credit_note import CreditNoteResult
 from cheqi.models.generated.encrypted_credit_note_envelope import EncryptedCreditNoteEnvelope
 from cheqi.models.generated.identification_details import IdentificationDetails
@@ -42,16 +43,13 @@ class CreditNoteService:
         credit_note_payload: Any,
         *,
         store_id: Optional[UUID] = None,
-        access_token: Optional[str] = None,
+        options: Optional[RequestOptions] = None,
     ) -> CreditNoteResult:
         self._require_not_none(identification_details, "identification_details")
         self._require_text(parent_cheqi_receipt_id, "parent_cheqi_receipt_id")
         self._require_not_none(credit_note_payload, "credit_note_payload")
-        if access_token is not None and not access_token.strip():
-            self._validation_error("access_token cannot be empty")
-
         try:
-            resolution = self._matching_service.match_customer(identification_details, access_token)
+            resolution = self._matching_service.match_customer(identification_details, options=options)
             self._validate_device_route(resolution)
             plaintext_json = self._serialize_payload(credit_note_payload)
             deliveries = [
@@ -67,7 +65,7 @@ class CreditNoteService:
                 parent_cheqi_receipt_id=parent_cheqi_receipt_id,
                 device_deliveries=deliveries,
             )
-            response = self._api_client.submit_encrypted_credit_note(envelope, access_token)
+            response = self._api_client.submit_encrypted_credit_note(envelope, options=options)
             return CreditNoteResult.accepted(parent_cheqi_receipt_id, response)
         except CheqiSDKError:
             raise
@@ -77,10 +75,11 @@ class CreditNoteService:
     def submit_encrypted_credit_note(
         self,
         envelope: EncryptedCreditNoteEnvelope,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> ReceiptSubmissionResponse:
         self._require_not_none(envelope, "envelope")
-        return self._api_client.submit_encrypted_credit_note(envelope, access_token)
+        return self._api_client.submit_encrypted_credit_note(envelope, options=options)
 
     @staticmethod
     def _serialize_payload(payload: Any) -> str:

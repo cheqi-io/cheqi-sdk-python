@@ -32,8 +32,41 @@ sdk = CheqiSDK(
 )
 ```
 
-For OAuth, omit `api_key` and pass `access_token=` to service calls. A custom backend can be used
-with `custom_api_endpoint=` and, when needed, `receipt_download_base_url=`.
+A custom backend can be used with `custom_api_endpoint=` and, when needed,
+`receipt_download_base_url=`.
+
+## Request options and OAuth
+
+Every API method takes a keyword-only `options: RequestOptions`. Use it to act on behalf of a
+connected company with its OAuth access token, or to override the timeout or retry count for one
+call. Without an access token, the call uses the configured `api_key`.
+
+```python
+from cheqi import RequestOptions
+
+options = RequestOptions.with_access_token(access_token)
+stores = sdk.store_service.get_stores(company_id, options=options)
+
+slow_call = RequestOptions(access_token=access_token, timeout_seconds=60, max_retries=0)
+```
+
+Company access tokens are short-lived and bound to one Grant, so an integration that serves
+several companies holds one token per Grant. Request one with the client-credentials grant:
+
+```python
+from cheqi.models.generated.client_credentials_token_request import ClientCredentialsTokenRequest
+
+token = sdk.oauth_service.request_access_token(ClientCredentialsTokenRequest(
+    client_id=client_id,
+    client_secret=client_secret,
+    grant_id=str(grant_id),
+    scope="receipt:issue",
+))
+# token.access_token, token.expires_in
+```
+
+The SDK does not cache or refresh tokens. Store each token with its expiry in your own token
+store, request a new one before it expires, and pass the current token with `RequestOptions`.
 
 An existing synchronous `httpx.Client` can be injected with `http_client=`. The SDK leaves an
 injected client open; clients created by the SDK are closed by `sdk.close()` or the context manager.
@@ -118,7 +151,7 @@ result = sdk.receipt_service.issue_receipt(
     identification,
     payload,
     store_id=store_id,
-    access_token=access_token,
+    options=RequestOptions.with_access_token(access_token),
 )
 ```
 
@@ -141,7 +174,7 @@ An explicit customer-without-Cheqi flow can skip matching:
 result = sdk.receipt_service.issue_download_receipt(
     IdentificationDetails(payment_type=PaymentType.CASH),
     payload,
-    access_token=access_token,
+    options=RequestOptions.with_access_token(access_token),
 )
 print(result.download_url)
 ```
@@ -158,7 +191,7 @@ result = sdk.credit_note_service.issue_credit_note(
     identification,
     parent_cheqi_receipt_id,
     credit_note_payload,
-    access_token=access_token,
+    options=RequestOptions.with_access_token(access_token),
 )
 ```
 
@@ -193,12 +226,12 @@ The matching, encryption, submission, download, verification, and store services
 `CheqiSDK`. Examples include:
 
 ```python
-resolution = sdk.matching_service.match_customer(identification, access_token)
+resolution = sdk.matching_service.match_customer(identification, options=options)
 delivery = sdk.encryption_service.encrypt_for_device(payload.to_json(), resolution.recipients[0])
 receipt_hash = sdk.verification_service.calculate_cheqi_receipt_hash(payload.to_json())
 canonical_json = sdk.verification_service.canonicalize_cheqi_receipt(payload)
 ubl_hash = sdk.verification_service.calculate_ubl_hash(ubl_xml)
-stores = sdk.store_service.get_stores(company_id, access_token=access_token)
+stores = sdk.store_service.get_stores(company_id, options=options)
 ```
 
 ## Development

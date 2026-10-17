@@ -8,6 +8,7 @@ from pytest_httpx import HTTPXMock
 
 from cheqi.config import CheqiSDKConfig, Environment
 from cheqi.http.client import DefaultCheqiApiClient
+from cheqi.http.request_options import RequestOptions
 from cheqi.models import (
     ClientReceiptDownloadRequest,
     EncryptedCreditNoteEnvelope,
@@ -40,7 +41,9 @@ def test_invite_users_posts_emails_and_returns_outcomes(httpx_mock: HTTPXMock) -
         json={"invitedEmails": ["employee@example.com"], "pendingEmails": [], "existingMembers": []},
     )
     client = _client()
-    result = CompanyService(client).invite_users(company_id, ["employee@example.com"], "oauth-token", True)
+    result = CompanyService(client).invite_users(
+        company_id, ["employee@example.com"], True, options=RequestOptions.with_access_token("oauth-token"),
+    )
     assert result.invited_emails == ["employee@example.com"]
     request = httpx_mock.get_request()
     assert request is not None
@@ -140,7 +143,7 @@ def test_upload_encrypted_download_receipt(httpx_mock: HTTPXMock) -> None:
             ciphertext="ciphertext",
             template_hash="hash",
         ),
-        "oauth-token",
+        options=RequestOptions.with_access_token("oauth-token"),
     )
 
     request = httpx_mock.get_request()
@@ -156,7 +159,7 @@ def test_get_match_uses_authenticated_get_and_generated_state(httpx_mock: HTTPXM
     httpx_mock.add_response(method="GET", url="https://sandbox.api.cheqi.io/recipient/matches/match-1",
                             json={"state": "MATCHED", "matchId": "match-1", "route": "DIGITAL"})
     client = _client()
-    response = client.get_match("match-1", "rotated-key")
+    response = client.get_match("match-1", options=RequestOptions.with_access_token("rotated-key"))
     assert response.state is MatchState.MATCHED
     request = httpx_mock.get_request()
     assert request.headers["Authorization"] == "Bearer rotated-key"
@@ -191,3 +194,85 @@ def test_low_level_in_progress_preserves_retry_delay(httpx_mock: HTTPXMock) -> N
     assert caught.value.error_code == "SUBMISSION_IN_PROGRESS"
     assert caught.value.retry_after_seconds == 7
     client.close()
+
+
+def test_per_call_access_token_overrides_api_key_and_nothing_is_cached(httpx_mock: HTTPXMock) -> None:
+    for _ in range(3):
+        httpx_mock.add_response(method="GET", url="https://sandbox.api.cheqi.io/company/receipt-destinations", json=[])
+    client = _client()
+    client.list_receipt_destinations(options=RequestOptions.with_access_token("customer-a"))
+    client.list_receipt_destinations(options=RequestOptions.with_access_token("customer-b"))
+    client.list_receipt_destinations()
+    assert [r.headers["Authorization"] for r in httpx_mock.get_requests()] == [
+        "Bearer customer-a", "Bearer customer-b", "Bearer example_api_key",
+    ]
+    client.close()
+
+
+def test_missing_credentials_fail_before_any_request(httpx_mock: HTTPXMock) -> None:
+    from cheqi.exceptions import CheqiApiError, ErrorCodes
+
+    client = DefaultCheqiApiClient(CheqiSDKConfig(environment=Environment.SANDBOX))
+    with pytest.raises(CheqiApiError) as caught:
+        client.list_receipt_destinations()
+    assert caught.value.error_code == ErrorCodes.AUTHENTICATION_FAILED
+    assert httpx_mock.get_requests() == []
+    client.close()
+
+
+def test_request_access_token_posts_client_credentials_for_one_grant_without_bearer(httpx_mock: HTTPXMock) -> None:
+    from cheqi.models.generated.client_credentials_token_request import ClientCredentialsTokenRequest
+    from cheqi.services.oauth import OAuthService
+
+    httpx_mock.add_response(method="POST", url="https://sandbox.api.cheqi.io/oauth2/token", json={
+        "access_token": "company-token", "token_type": "bearer", "expires_in": 900, "scope": "receipt:issue",
+    })
+    client = _client()
+    token = OAuthService(client).request_access_token(ClientCredentialsTokenRequest(
+        client_id="client", client_secret="secret", grant_id="9f5968f2-93b7-4b4e-a1c3-7220a92f7d98",
+        scope="receipt:issue",
+    ))
+    assert token.access_token == "company-token"
+    assert token.expires_in == 900
+    request = httpx_mock.get_request()
+    assert request is not None
+    assert "Authorization" not in request.headers
+    assert json.loads(request.content) == {
+        "grant_type": "client_credentials", "client_id": "client", "client_secret": "secret",
+        "grant_id": "9f5968f2-93b7-4b4e-a1c3-7220a92f7d98", "scope": "receipt:issue",
+    }
+    client.close()
+
+
+def test_request_access_token_requires_a_grant() -> None:
+    from cheqi.exceptions import CheqiApiError
+    from cheqi.models.generated.client_credentials_token_request import ClientCredentialsTokenRequest
+
+    client = _client()
+    with pytest.raises(CheqiApiError):
+        client.request_access_token(ClientCredentialsTokenRequest(client_id="client", client_secret="secret"))
+    client.close()
+
+
+def test_per_call_max_retries_and_timeout_override_configuration(httpx_mock: HTTPXMock) -> None:
+    from cheqi.exceptions import CheqiApiError
+
+    httpx_mock.add_response(method="GET", url="https://sandbox.api.cheqi.io/company/receipt-destinations",
+                            status_code=503, json={})
+    client = DefaultCheqiApiClient(CheqiSDKConfig(environment=Environment.SANDBOX, api_key="key", max_retries=3))
+    with pytest.raises(CheqiApiError):
+        client.list_receipt_destinations(options=RequestOptions(max_retries=0, timeout_seconds=7))
+    requests = httpx_mock.get_requests()
+    assert len(requests) == 1
+    assert requests[0].extensions["timeout"]["read"] == 7
+    client.close()
+
+
+def test_request_options_validate_and_hide_the_token() -> None:
+    from cheqi.exceptions import CheqiSDKError
+
+    with pytest.raises(CheqiSDKError):
+        RequestOptions(access_token=" ")
+    with pytest.raises(CheqiSDKError):
+        RequestOptions(max_retries=-1)
+    assert "secret-token" not in repr(RequestOptions.with_access_token("secret-token"))

@@ -11,16 +11,18 @@ from cheqi.exceptions import (
     ReceiptProcessingError,
     SubmissionInProgressError,
 )
+from cheqi.http.request_options import RequestOptions
 from cheqi.sdk import CheqiSDK
 from cheqi.services.download import DownloadService
 
-__version__ = "1.5.0"
+__version__ = "2.0.0"
 
 __all__ = [
     "__version__",
     "CheqiSDK",
     "CheqiSDKConfig",
     "DownloadService",
+    "RequestOptions",
     "Environment",
     "CheqiSDKError",
     "CheqiApiError",

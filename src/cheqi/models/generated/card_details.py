@@ -38,8 +38,8 @@ class CardDetails(BaseModel):
         if value is None:
             return value
 
-        if value not in set(['MAESTRO', 'MASTERCARD', 'VISA', 'AMERICAN_EXPRESS']):
-            raise ValueError("must be one of enum values ('MAESTRO', 'MASTERCARD', 'VISA', 'AMERICAN_EXPRESS')")
+        if value not in set(['MAESTRO', 'MASTERCARD', 'VISA', 'AMERICAN_EXPRESS', 'UNKNOWN']):
+            raise ValueError("must be one of enum values ('MAESTRO', 'MASTERCARD', 'VISA', 'AMERICAN_EXPRESS', 'UNKNOWN')")
         return value
 
     @field_validator('last_four_digits')

@@ -14,6 +14,7 @@ from cheqi.services.decryption import DecryptionService
 from cheqi.services.download import DownloadService
 from cheqi.services.encryption import EncryptionService
 from cheqi.services.matching import MatchingService
+from cheqi.services.oauth import OAuthService
 from cheqi.services.receipt import ReceiptService
 from cheqi.services.store import StoreService
 from cheqi.services.verification import VerificationService
@@ -61,6 +62,7 @@ class CheqiSDK:
         self._store_service = StoreService(self._api_client)
         self._company_service = CompanyService(self._api_client)
         self._webhook_service = WebhookService(self._api_client)
+        self._oauth_service = OAuthService(self._api_client)
         self._credit_note_service = CreditNoteService(
             self._api_client,
             self._encryption_service,
@@ -106,6 +108,10 @@ class CheqiSDK:
     @property
     def webhook_service(self) -> WebhookService:
         return self._webhook_service
+
+    @property
+    def oauth_service(self) -> OAuthService:
+        return self._oauth_service
 
     @property
     def verification_service(self) -> VerificationService:
