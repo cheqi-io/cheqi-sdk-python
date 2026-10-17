@@ -16,10 +16,16 @@ pip install cheqi-sdk
 
 Python 3.9 or newer is required.
 
-Version `1.3.0` adds version 2 QR download envelopes carrying the unmodified
-receipt payload and separate identification details. It retains match-recovery
-tools, company-expense receipt attribution, member receipt identities, employee
-invitation roles, and the latest encrypted delivery metadata.
+Version `2.0.0` replaces the per-method `access_token` argument with a keyword-only
+`options: RequestOptions` on every API call, and adds `sdk.oauth_service` for requesting
+per-Grant company access tokens. See [Request options and OAuth](#request-options-and-oauth).
+It retains version 2 QR download envelopes, match-recovery tools, company-expense receipt
+attribution, member receipt identities, employee invitation roles, and the latest encrypted
+delivery metadata.
+
+Upgrading from 1.x: replace `access_token=token` with
+`options=RequestOptions.with_access_token(token)`, and pass `resend_pending` to
+`invite_users` before the keyword-only options.
 
 ## Initialize
 
@@ -46,9 +52,9 @@ from cheqi import RequestOptions
 
 options = RequestOptions.with_access_token(access_token)
 stores = sdk.store_service.get_stores(company_id, options=options)
-
-slow_call = RequestOptions(access_token=access_token, timeout_seconds=60, max_retries=0)
 ```
+
+The same `RequestOptions` can also set `timeout_seconds` and `max_retries` for a single call.
 
 Company access tokens are short-lived and bound to one Grant, so an integration that serves
 several companies holds one token per Grant. Request one with the client-credentials grant:
