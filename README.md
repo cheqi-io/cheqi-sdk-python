@@ -52,9 +52,9 @@ from cheqi import RequestOptions
 
 options = RequestOptions.with_access_token(access_token)
 stores = sdk.store_service.get_stores(company_id, options=options)
-
-slow_call = RequestOptions(access_token=access_token, timeout_seconds=60, max_retries=0)
 ```
+
+The same `RequestOptions` can also set `timeout_seconds` and `max_retries` for a single call.
 
 Company access tokens are short-lived and bound to one Grant, so an integration that serves
 several companies holds one token per Grant. Request one with the client-credentials grant:
