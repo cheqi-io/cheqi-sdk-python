@@ -16,10 +16,16 @@ pip install cheqi-sdk
 
 Python 3.9 or newer is required.
 
-Version `1.3.0` adds version 2 QR download envelopes carrying the unmodified
-receipt payload and separate identification details. It retains match-recovery
-tools, company-expense receipt attribution, member receipt identities, employee
-invitation roles, and the latest encrypted delivery metadata.
+Version `2.0.0` replaces the per-method `access_token` argument with a keyword-only
+`options: RequestOptions` on every API call, and adds `sdk.oauth_service` for requesting
+per-Grant company access tokens. See [Request options and OAuth](#request-options-and-oauth).
+It retains version 2 QR download envelopes, match-recovery tools, company-expense receipt
+attribution, member receipt identities, employee invitation roles, and the latest encrypted
+delivery metadata.
+
+Upgrading from 1.x: replace `access_token=token` with
+`options=RequestOptions.with_access_token(token)`, and pass `resend_pending` to
+`invite_users` before the keyword-only options.
 
 ## Initialize
 
