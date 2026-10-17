@@ -6,6 +6,7 @@ from __future__ import annotations
 class Endpoints:
     """Cheqi API endpoint paths."""
 
+    OAUTH_TOKEN = "/oauth2/token"
     CUSTOMER_MATCH = "/recipient/resolve"
     ENCRYPTED_RECEIPT = "/receipt/encrypted"
     CLIENT_RECEIPT_DOWNLOAD = "/receipt/download"

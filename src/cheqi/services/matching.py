@@ -7,6 +7,7 @@ from typing import Optional
 
 from cheqi.exceptions import CheqiApiError, ErrorCodes
 from cheqi.http.client import CheqiApiClient
+from cheqi.http.request_options import RequestOptions
 from cheqi.models.matching import IdentificationDetails, RecipientResolutionResponse
 
 logger = logging.getLogger("cheqi.matching")
@@ -21,7 +22,8 @@ class MatchingService:
     def match_customer(
         self,
         identification_details: IdentificationDetails,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> RecipientResolutionResponse:
         """Match a customer using the provided identification details.
 
@@ -39,7 +41,7 @@ class MatchingService:
         self._log_available_identifiers(identification_details)
 
         try:
-            response = self._api_client.match_customer(identification_details, access_token)
+            response = self._api_client.match_customer(identification_details, options=options)
 
             if response.route_found:
                 count = len(response.recipients) if response.recipients else 0

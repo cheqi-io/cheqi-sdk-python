@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import random
 import time
-from typing import Callable, TypeVar
+from typing import Callable, Optional, TypeVar
 
 import httpx
 
@@ -31,23 +31,25 @@ class RetryHandler:
         self,
         operation: Callable[[], httpx.Response],
         operation_name: str,
+        max_retries: Optional[int] = None,
     ) -> httpx.Response:
         """Execute an HTTP operation with automatic retry for transient failures.
 
         Retries on: 408, 429, 5xx status codes, and network errors.
         Respects Retry-After header.
         """
+        max_retries = self._max_retries if max_retries is None else max_retries
         attempt = 0
         last_exception: Exception | None = None
 
-        while attempt <= self._max_retries:
+        while attempt <= max_retries:
             try:
                 if attempt > 0:
                     logger.debug("Retry attempt %d for %s", attempt, operation_name)
 
                 response = operation()
 
-                if self._should_retry(response.status_code, attempt):
+                if self._should_retry(response.status_code, attempt, max_retries):
                     retry_after = response.headers.get("Retry-After")
                     delay_ms = self._calculate_backoff(attempt, response.status_code, retry_after)
                     logger.warning(
@@ -55,7 +57,7 @@ class RetryHandler:
                         operation_name,
                         response.status_code,
                         attempt + 1,
-                        self._max_retries + 1,
+                        max_retries + 1,
                         delay_ms,
                     )
                     time.sleep(delay_ms / 1000.0)
@@ -68,13 +70,13 @@ class RetryHandler:
                 attempt += 1
                 last_exception = e
 
-                if attempt <= self._max_retries:
+                if attempt <= max_retries:
                     delay_ms = self._calculate_backoff(attempt, 0, None)
                     logger.warning(
                         "%s network error (attempt %d/%d), retrying in %dms: %s",
                         operation_name,
                         attempt,
-                        self._max_retries + 1,
+                        max_retries + 1,
                         delay_ms,
                         e,
                     )
@@ -89,12 +91,13 @@ class RetryHandler:
             ) from last_exception
 
         raise CheqiApiError(
-            f"{operation_name} failed after {self._max_retries + 1} attempts",
+            f"{operation_name} failed after {max_retries + 1} attempts",
             error_code=ErrorCodes.UNKNOWN_ERROR,
         )
 
-    def _should_retry(self, status_code: int, attempt: int) -> bool:
-        if attempt >= self._max_retries:
+    @staticmethod
+    def _should_retry(status_code: int, attempt: int, max_retries: int) -> bool:
+        if attempt >= max_retries:
             return False
         return status_code in _RETRYABLE_STATUS_CODES
 

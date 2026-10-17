@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from cheqi.exceptions import CheqiSDKError, ErrorCodes
+from cheqi.http.request_options import RequestOptions
 from cheqi.models import (
     ClientReceiptDownloadResponse,
     DeliveryRouteType,
@@ -99,7 +100,7 @@ def test_issue_receipt_encrypts_same_definitive_json_for_each_device() -> None:
     result = service.issue_receipt(
         IdentificationDetails(pairing_code="12345678"),
         _payload(),
-        access_token="oauth-token",
+        options=RequestOptions.with_access_token("oauth-token"),
     )
 
     assert result.is_accepted
@@ -111,7 +112,9 @@ def test_issue_receipt_encrypts_same_definitive_json_for_each_device() -> None:
     envelope = api.submit_encrypted_receipt.call_args.args[0]
     assert envelope.match_id == "match-1"
     assert len(envelope.device_deliveries) == 2
-    api.submit_encrypted_receipt.assert_called_once_with(envelope, "oauth-token")
+    api.submit_encrypted_receipt.assert_called_once_with(
+        envelope, options=RequestOptions.with_access_token("oauth-token"),
+    )
 
 
 def test_download_fallback_without_payment_context_requests_final_envelope() -> None:
@@ -254,10 +257,10 @@ def test_resume_submitted_recovers_without_matching_or_encrypting() -> None:
     api.get_match.return_value = MatchStatusResponse(
         state=MatchState.SUBMITTED, match_id="match-1", submission=submission,
     )
-    result = service.resume_receipt("match-1", _payload(), access_token="rotated-key")
+    result = service.resume_receipt("match-1", _payload(), options=RequestOptions.with_access_token("rotated-key"))
     assert result.state is ReceiptIssueState.DIGITAL_SUBMITTED
     assert result.submission == submission and not result.retryable
-    api.get_match.assert_called_once_with("match-1", "rotated-key")
+    api.get_match.assert_called_once_with("match-1", options=RequestOptions.with_access_token("rotated-key"))
     encryption.encrypt_receipt_for_recipient.assert_not_called()
     service._matching_service.match_customer.assert_not_called()
     api.submit_encrypted_receipt.assert_not_called()

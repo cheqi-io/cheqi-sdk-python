@@ -13,9 +13,11 @@ from pydantic import BaseModel, ValidationError
 from cheqi.config import CheqiSDKConfig
 from cheqi.exceptions import CheqiApiError, ErrorCodes, SubmissionInProgressError
 from cheqi.http.endpoints import Endpoints
+from cheqi.http.request_options import DEFAULT_REQUEST_OPTIONS, RequestOptions
 from cheqi.http.retry import RetryHandler
 from cheqi.models.generated.acknowledge_request import AcknowledgeRequest
 from cheqi.models.generated.cheqi_receipt import CheqiReceipt
+from cheqi.models.generated.client_credentials_token_request import ClientCredentialsTokenRequest
 from cheqi.models.generated.client_receipt_download_request import ClientReceiptDownloadRequest
 from cheqi.models.generated.client_receipt_download_response import ClientReceiptDownloadResponse
 from cheqi.models.generated.create_store_request import CreateStoreRequest
@@ -27,6 +29,7 @@ from cheqi.models.generated.identification_details import IdentificationDetails
 from cheqi.models.generated.invite_employee_request import InviteEmployeeRequest
 from cheqi.models.generated.invite_employees_response import InviteEmployeesResponse
 from cheqi.models.generated.match_status_response import MatchStatusResponse
+from cheqi.models.generated.o_auth_token_exchange_response import OAuthTokenExchangeResponse
 from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
 from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
 from cheqi.models.generated.register_request import RegisterRequest
@@ -38,7 +41,7 @@ from cheqi.models.generated.webhook_receipt_envelope import WebhookReceiptEnvelo
 
 logger = logging.getLogger("cheqi.http")
 
-_USER_AGENT = "CheqiSDK-Python/1.5.0"
+_USER_AGENT = "CheqiSDK-Python/2.0.0"
 
 
 def _model_dict(model: BaseModel) -> dict[str, Any]:
@@ -47,85 +50,97 @@ def _model_dict(model: BaseModel) -> dict[str, Any]:
 
 @runtime_checkable
 class CheqiApiClient(Protocol):
-    def get_match(self, match_id: str, access_token: Optional[str] = None) -> MatchStatusResponse: ...
+    def request_access_token(
+        self, request: ClientCredentialsTokenRequest, *, options: Optional[RequestOptions] = None,
+    ) -> OAuthTokenExchangeResponse: ...
+
+    def get_match(self, match_id: str, *, options: Optional[RequestOptions] = None) -> MatchStatusResponse: ...
 
     def match_customer(
         self,
         request: IdentificationDetails,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> RecipientResolutionResponse: ...
 
     def submit_encrypted_receipt(
         self,
         request: EncryptedReceiptEnvelope,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> ReceiptSubmissionResponse: ...
 
     def submit_encrypted_credit_note(
         self,
         request: EncryptedCreditNoteEnvelope,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> ReceiptSubmissionResponse: ...
 
     def upload_encrypted_download_receipt(
         self,
         request: ClientReceiptDownloadRequest,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> ClientReceiptDownloadResponse: ...
 
     def send_receipt_via_email(
         self,
         customer_email: str,
         receipt: CheqiReceipt,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> None: ...
 
     def create_store(
         self,
         company_id: UUID,
         request: CreateStoreRequest,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> StoreDTO: ...
 
     def invite_users(
-        self, company_id: UUID, emails: List[str], access_token: Optional[str] = None,
-        resend_pending: Optional[bool] = None,
+        self, company_id: UUID, emails: List[str], resend_pending: Optional[bool] = None,
+        *, options: Optional[RequestOptions] = None,
     ) -> InviteEmployeesResponse: ...
 
-    def list_receipt_destinations(self, access_token: Optional[str] = None) -> List[DestinationResponse]: ...
+    def list_receipt_destinations(self, *, options: Optional[RequestOptions] = None) -> List[DestinationResponse]: ...
 
     def register_receipt_destination(
-        self, request: RegisterRequest, access_token: Optional[str] = None,
+        self, request: RegisterRequest, *, options: Optional[RequestOptions] = None,
     ) -> RegisterResponse: ...
 
     def get_pending_receipts(
-        self, destination_id: UUID, access_token: Optional[str] = None,
+        self, destination_id: UUID, *, options: Optional[RequestOptions] = None,
     ) -> List[WebhookReceiptEnvelope]: ...
 
     def acknowledge_receipts(
-        self, destination_id: UUID, receipt_ids: List[str], access_token: Optional[str] = None,
+        self, destination_id: UUID, receipt_ids: List[str], *, options: Optional[RequestOptions] = None,
     ) -> None: ...
 
     def deactivate_receipt_destination(
-        self, destination_id: UUID, access_token: Optional[str] = None,
+        self, destination_id: UUID, *, options: Optional[RequestOptions] = None,
     ) -> None: ...
 
     def update_webhook_subscription_url(
-        self, subscription_id: UUID, notification_url: str, access_token: Optional[str] = None,
+        self, subscription_id: UUID, notification_url: str, *, options: Optional[RequestOptions] = None,
     ) -> WebhookDTO: ...
 
     def get_stores(
         self,
         company_id: UUID,
         active_only: Optional[bool] = None,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> List[StoreDTO]: ...
 
     def get_store(
         self,
         company_id: UUID,
         store_id: UUID,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> StoreDTO: ...
 
     def update_store(
@@ -133,28 +148,32 @@ class CheqiApiClient(Protocol):
         company_id: UUID,
         store_id: UUID,
         request: CreateStoreRequest,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> StoreDTO: ...
 
     def delete_store(
         self,
         company_id: UUID,
         store_id: UUID,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> None: ...
 
     def activate_store(
         self,
         company_id: UUID,
         store_id: UUID,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> None: ...
 
     def deactivate_store(
         self,
         company_id: UUID,
         store_id: UUID,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> None: ...
 
 
@@ -179,11 +198,13 @@ class DefaultCheqiApiClient:
     def _url(self, path: str) -> str:
         return f"{self._config.api_endpoint.rstrip('/')}/{path.lstrip('/')}"
 
-    def _auth_headers(self, access_token: Optional[str] = None) -> Dict[str, str]:
-        token = access_token or self._config.api_key
+    def _auth_headers(self, options: RequestOptions) -> Dict[str, str]:
+        """Use the per-call access token when present, otherwise the configured API key."""
+        token = options.access_token or self._config.api_key
         if not token or not token.strip():
             raise CheqiApiError(
-                "No authentication token available",
+                "No credentials for this call: pass options=RequestOptions(access_token=...) "
+                "or configure api_key",
                 error_code=ErrorCodes.AUTHENTICATION_FAILED,
                 http_status_code=401,
             )
@@ -191,6 +212,23 @@ class DefaultCheqiApiClient:
             "Authorization": f"Bearer {token}",
             "User-Agent": _USER_AGENT,
         }
+
+    def _send(
+        self, method: str, path: str, operation: str, options: Optional[RequestOptions], *,
+        json: Any = None, params: Optional[Dict[str, Any]] = None, authenticate: bool = True,
+    ) -> httpx.Response:
+        options = options or DEFAULT_REQUEST_OPTIONS
+        headers = self._auth_headers(options) if authenticate else {"User-Agent": _USER_AGENT}
+        if json is not None:
+            headers["Content-Type"] = "application/json"
+        timeout = options.timeout_seconds or self._config.timeout_seconds
+
+        def request() -> httpx.Response:
+            return self._client.request(
+                method, self._url(path), json=json, params=params, headers=headers, timeout=timeout,
+            )
+
+        return self._retry_handler.execute_with_retry(request, operation, options.max_retries)
 
     def _handle_response(self, response: httpx.Response, operation: str) -> Any:
         if response.status_code >= 400:
@@ -223,92 +261,57 @@ class DefaultCheqiApiClient:
             ) from exc
 
     def _post(
-        self,
-        path: str,
-        body: Any,
-        operation: str,
-        access_token: Optional[str] = None,
+        self, path: str, body: Any, operation: str, options: Optional[RequestOptions] = None,
     ) -> Any:
-        headers = self._auth_headers(access_token)
-        headers["Content-Type"] = "application/json"
-
-        def request() -> httpx.Response:
-            return self._client.post(self._url(path), json=body, headers=headers)
-
-        return self._handle_response(
-            self._retry_handler.execute_with_retry(request, operation),
-            operation,
-        )
+        return self._handle_response(self._send("POST", path, operation, options, json=body), operation)
 
     def _get(
-        self,
-        path: str,
-        operation: str,
-        params: Optional[Dict[str, Any]] = None,
-        access_token: Optional[str] = None,
+        self, path: str, operation: str, params: Optional[Dict[str, Any]] = None,
+        options: Optional[RequestOptions] = None,
     ) -> Any:
-        headers = self._auth_headers(access_token)
-
-        def request() -> httpx.Response:
-            return self._client.get(self._url(path), headers=headers, params=params)
-
-        return self._handle_response(
-            self._retry_handler.execute_with_retry(request, operation),
-            operation,
-        )
+        return self._handle_response(self._send("GET", path, operation, options, params=params), operation)
 
     def _put(
-        self,
-        path: str,
-        body: Any,
-        operation: str,
-        access_token: Optional[str] = None,
+        self, path: str, body: Any, operation: str, options: Optional[RequestOptions] = None,
     ) -> Any:
-        headers = self._auth_headers(access_token)
-        headers["Content-Type"] = "application/json"
+        return self._handle_response(self._send("PUT", path, operation, options, json=body), operation)
 
-        def request() -> httpx.Response:
-            return self._client.put(self._url(path), json=body, headers=headers)
-
-        return self._handle_response(
-            self._retry_handler.execute_with_retry(request, operation),
-            operation,
-        )
-
-    def _delete(
-        self,
-        path: str,
-        operation: str,
-        access_token: Optional[str] = None,
-    ) -> Any:
-        headers = self._auth_headers(access_token)
-
-        def request() -> httpx.Response:
-            return self._client.delete(self._url(path), headers=headers)
-
-        return self._handle_response(
-            self._retry_handler.execute_with_retry(request, operation),
-            operation,
-        )
+    def _delete(self, path: str, operation: str, options: Optional[RequestOptions] = None) -> Any:
+        return self._handle_response(self._send("DELETE", path, operation, options), operation)
 
     def _patch(
-        self, path: str, body: Any, operation: str, access_token: Optional[str] = None,
+        self, path: str, body: Any, operation: str, options: Optional[RequestOptions] = None,
     ) -> Any:
-        headers = self._auth_headers(access_token)
-        headers["Content-Type"] = "application/json"
+        return self._handle_response(self._send("PATCH", path, operation, options, json=body), operation)
 
-        def request() -> httpx.Response:
-            return self._client.patch(self._url(path), json=body, headers=headers)
+    def request_access_token(
+        self, request: ClientCredentialsTokenRequest, *, options: Optional[RequestOptions] = None,
+    ) -> OAuthTokenExchangeResponse:
+        """Exchange client credentials for a short-lived Company token bound to one Grant."""
+        if request is None or not request.client_id or not request.client_secret or not request.grant_id:
+            raise CheqiApiError(
+                "Token request requires client_id, client_secret and grant_id",
+                ErrorCodes.INVALID_REQUEST, 400,
+            )
+        body = _model_dict(request)
+        body.setdefault("grant_type", "client_credentials")
+        # Client credentials travel in the body; this call carries no bearer credential.
+        response = self._send("POST", Endpoints.OAUTH_TOKEN, "requestAccessToken", options,
+                              json=body, authenticate=False)
+        data = self._handle_response(response, "requestAccessToken")
+        try:
+            token = OAuthTokenExchangeResponse.model_validate(data)
+        except ValidationError as exc:
+            raise CheqiApiError("Invalid token response", ErrorCodes.INVALID_RESPONSE) from exc
+        if not token.access_token:
+            raise CheqiApiError("Token response did not include an access token", ErrorCodes.INVALID_RESPONSE)
+        return token
 
-        return self._handle_response(
-            self._retry_handler.execute_with_retry(request, operation), operation,
-        )
-
-    def get_match(self, match_id: str, access_token: Optional[str] = None) -> MatchStatusResponse:
+    def get_match(self, match_id: str, *, options: Optional[RequestOptions] = None) -> MatchStatusResponse:
         if not match_id or not match_id.strip():
             raise CheqiApiError("match_id is required", ErrorCodes.INVALID_REQUEST, 400)
         data = self._get("/recipient/matches/" + quote(match_id, safe=""),
-                         "getMatch", access_token=access_token)
+                         "getMatch", options=options)
         try:
             return MatchStatusResponse.model_validate(data)
         except ValidationError as exc:
@@ -330,24 +333,21 @@ class DefaultCheqiApiClient:
     def match_customer(
         self,
         request: IdentificationDetails,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> RecipientResolutionResponse:
-        data = self._post(Endpoints.CUSTOMER_MATCH, _model_dict(request), "matchCustomer", access_token)
+        data = self._post(Endpoints.CUSTOMER_MATCH, _model_dict(request), "matchCustomer", options)
         return RecipientResolutionResponse.model_validate(data)
 
     def submit_encrypted_receipt(
         self,
         request: EncryptedReceiptEnvelope,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> ReceiptSubmissionResponse:
         # Preserve the actual acknowledgement status even when its body is unusable.
-        body = _model_dict(request)
-        headers = self._auth_headers(access_token)
-        headers["Content-Type"] = "application/json"
-        response = self._retry_handler.execute_with_retry(
-            lambda: self._client.post(self._url(Endpoints.ENCRYPTED_RECEIPT), json=body, headers=headers),
-            "submitEncryptedReceipt",
-        )
+        response = self._send("POST", Endpoints.ENCRYPTED_RECEIPT, "submitEncryptedReceipt", options,
+                              json=_model_dict(request))
         try:
             return self._submission(self._handle_response(response, "submitEncryptedReceipt"))
         except CheqiApiError as exc:
@@ -361,26 +361,28 @@ class DefaultCheqiApiClient:
     def submit_encrypted_credit_note(
         self,
         request: EncryptedCreditNoteEnvelope,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> ReceiptSubmissionResponse:
         data = self._post(
             Endpoints.ENCRYPTED_CREDIT_NOTE,
             _model_dict(request),
             "submitEncryptedCreditNote",
-            access_token,
+            options,
         )
         return self._submission(data)
 
     def upload_encrypted_download_receipt(
         self,
         request: ClientReceiptDownloadRequest,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> ClientReceiptDownloadResponse:
         data = self._post(
             Endpoints.CLIENT_RECEIPT_DOWNLOAD,
             _model_dict(request),
             "uploadEncryptedDownloadReceipt",
-            access_token,
+            options,
         )
         return ClientReceiptDownloadResponse.model_validate(data)
 
@@ -388,88 +390,91 @@ class DefaultCheqiApiClient:
         self,
         customer_email: str,
         receipt: CheqiReceipt,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> None:
         request = EmailReceiptRequest(customer_email=customer_email, cheqi_receipt=receipt)
-        self._post(Endpoints.EMAIL_RECEIPT, _model_dict(request), "sendReceiptViaEmail", access_token)
+        self._post(Endpoints.EMAIL_RECEIPT, _model_dict(request), "sendReceiptViaEmail", options)
 
     def create_store(
         self,
         company_id: UUID,
         request: CreateStoreRequest,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> StoreDTO:
         data = self._post(
             Endpoints.company_stores(str(company_id)),
             _model_dict(request),
             "createStore",
-            access_token,
+            options,
         )
         return StoreDTO.model_validate(data)
 
     def invite_users(
-        self, company_id: UUID, emails: List[str], access_token: Optional[str] = None,
-        resend_pending: Optional[bool] = None,
+        self, company_id: UUID, emails: List[str], resend_pending: Optional[bool] = None,
+        *, options: Optional[RequestOptions] = None,
     ) -> InviteEmployeesResponse:
         data = self._post(
             Endpoints.company_invite_employees(str(company_id)),
             _model_dict(InviteEmployeeRequest(emails=emails, resend_pending=resend_pending)),
             "inviteEmployees",
-            access_token,
+            options,
         )
         return InviteEmployeesResponse.model_validate(data)
 
-    def list_receipt_destinations(self, access_token: Optional[str] = None) -> List[DestinationResponse]:
-        data = self._get(Endpoints.RECEIPT_DESTINATIONS, "listReceiptDestinations", access_token=access_token)
+    def list_receipt_destinations(self, *, options: Optional[RequestOptions] = None) -> List[DestinationResponse]:
+        data = self._get(Endpoints.RECEIPT_DESTINATIONS, "listReceiptDestinations", options=options)
         return [DestinationResponse.model_validate(item) for item in data]
 
     def register_receipt_destination(
-        self, request: RegisterRequest, access_token: Optional[str] = None,
+        self, request: RegisterRequest, *, options: Optional[RequestOptions] = None,
     ) -> RegisterResponse:
         data = self._post(Endpoints.RECEIPT_DESTINATIONS, _model_dict(request),
-                          "registerReceiptDestination", access_token)
+                          "registerReceiptDestination", options)
         return RegisterResponse.model_validate(data)
 
     def get_pending_receipts(
-        self, destination_id: UUID, access_token: Optional[str] = None,
+        self, destination_id: UUID, *, options: Optional[RequestOptions] = None,
     ) -> List[WebhookReceiptEnvelope]:
         data = self._get(Endpoints.receipt_destination_queue(str(destination_id)),
-                         "getPendingReceipts", access_token=access_token)
+                         "getPendingReceipts", options=options)
         return [WebhookReceiptEnvelope.model_validate(item) for item in data]
 
     def acknowledge_receipts(
-        self, destination_id: UUID, receipt_ids: List[str], access_token: Optional[str] = None,
+        self, destination_id: UUID, receipt_ids: List[str], *, options: Optional[RequestOptions] = None,
     ) -> None:
         self._post(Endpoints.receipt_destination_acknowledge(str(destination_id)),
                    _model_dict(AcknowledgeRequest(receipt_ids=receipt_ids)),
-                   "acknowledgeReceipts", access_token)
+                   "acknowledgeReceipts", options)
 
     def deactivate_receipt_destination(
-        self, destination_id: UUID, access_token: Optional[str] = None,
+        self, destination_id: UUID, *, options: Optional[RequestOptions] = None,
     ) -> None:
         self._delete(Endpoints.receipt_destination(str(destination_id)),
-                     "deactivateReceiptDestination", access_token)
+                     "deactivateReceiptDestination", options)
 
     def update_webhook_subscription_url(
-        self, subscription_id: UUID, notification_url: str, access_token: Optional[str] = None,
+        self, subscription_id: UUID, notification_url: str, *, options: Optional[RequestOptions] = None,
     ) -> WebhookDTO:
         data = self._patch(Endpoints.webhook_subscription(str(subscription_id)),
                            _model_dict(UpdateSubscriptionRequest(notification_url=notification_url)),
-                           "updateWebhookSubscriptionUrl", access_token)
+                           "updateWebhookSubscriptionUrl", options)
         return WebhookDTO.model_validate(data)
 
     def get_stores(
         self,
         company_id: UUID,
         active_only: Optional[bool] = None,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> List[StoreDTO]:
         params = {"activeOnly": active_only} if active_only is not None else None
         data = self._get(
             Endpoints.company_stores(str(company_id)),
             "getStores",
             params,
-            access_token,
+            options,
         )
         return [StoreDTO.model_validate(item) for item in data]
 
@@ -477,12 +482,13 @@ class DefaultCheqiApiClient:
         self,
         company_id: UUID,
         store_id: UUID,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> StoreDTO:
         data = self._get(
             Endpoints.company_store(str(company_id), str(store_id)),
             "getStore",
-            access_token=access_token,
+            options=options,
         )
         return StoreDTO.model_validate(data)
 
@@ -491,13 +497,14 @@ class DefaultCheqiApiClient:
         company_id: UUID,
         store_id: UUID,
         request: CreateStoreRequest,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> StoreDTO:
         data = self._put(
             Endpoints.company_store(str(company_id), str(store_id)),
             _model_dict(request),
             "updateStore",
-            access_token,
+            options,
         )
         return StoreDTO.model_validate(data)
 
@@ -505,38 +512,41 @@ class DefaultCheqiApiClient:
         self,
         company_id: UUID,
         store_id: UUID,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> None:
         self._delete(
             Endpoints.company_store(str(company_id), str(store_id)),
             "deleteStore",
-            access_token,
+            options,
         )
 
     def activate_store(
         self,
         company_id: UUID,
         store_id: UUID,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> None:
         self._put(
             Endpoints.company_store_activate(str(company_id), str(store_id)),
             {},
             "activateStore",
-            access_token,
+            options,
         )
 
     def deactivate_store(
         self,
         company_id: UUID,
         store_id: UUID,
-        access_token: Optional[str] = None,
+        *,
+        options: Optional[RequestOptions] = None,
     ) -> None:
         self._put(
             Endpoints.company_store_deactivate(str(company_id), str(store_id)),
             {},
             "deactivateStore",
-            access_token,
+            options,
         )
 
     def close(self) -> None:

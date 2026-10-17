@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from cheqi.exceptions import CheqiSDKError, ErrorCodes
+from cheqi.http.request_options import RequestOptions
 from cheqi.models import (
     EncryptedReceiptPayload,
     IdentificationDetails,
@@ -50,7 +51,7 @@ def test_issue_credit_note_uses_separate_envelope_and_preserves_payload() -> Non
         IdentificationDetails(cheqi_receipt_id="parent-1"),
         "parent-1",
         payload,
-        access_token="oauth-token",
+        options=RequestOptions.with_access_token("oauth-token"),
     )
 
     assert result.is_accepted
@@ -64,7 +65,9 @@ def test_issue_credit_note_uses_separate_envelope_and_preserves_payload() -> Non
     envelope = api.submit_encrypted_credit_note.call_args.args[0]
     assert envelope.parent_cheqi_receipt_id == "parent-1"
     assert envelope.device_deliveries[0].encrypted_content == "ciphertext"
-    api.submit_encrypted_credit_note.assert_called_once_with(envelope, "oauth-token")
+    api.submit_encrypted_credit_note.assert_called_once_with(
+        envelope, options=RequestOptions.with_access_token("oauth-token"),
+    )
 
 
 def test_issue_credit_note_requires_owner_devices() -> None:
