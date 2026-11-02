@@ -2,6 +2,11 @@ sequenceDiagram
     participant POS as Integration
     participant SDK as Python SDK
     participant API as Cheqi API
+    opt Prepare a browser receipt locally
+        POS->>SDK: prepare_download(payload, identification)
+        SDK->>SDK: Validate and encrypt the exact payload snapshot
+        SDK-->>POS: Prepared ciphertext and browser link, or validation findings
+    end
     POS->>SDK: issue_receipt(identification, payload)
     SDK->>SDK: Validate payload locally and freeze its JSON snapshot
     break Invalid payload or validator unavailable

@@ -207,6 +207,11 @@ specification through `make fetch-spec` and `make generate`. Shared models allow
 some nested fields to be absent in older received receipts; the issuance
 validator enforces the new receipt requirements described above.
 
+To prepare an encrypted browser download without uploading it, use
+`sdk.receipt_service.prepare_download(payload, identification)`. It applies the
+same validation and returns a `PreparedReceiptDownload` for later upload through
+`upload_prepared_download`. Invalid receipt data is rejected before encryption.
+
 The package bundles its validator. The only additional runtime dependency is
 Wasmtime; customers need no Rust installation, compiler or validator download.
 See [bundle provenance and the offline example](docs/receipt-validator.md).

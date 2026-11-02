@@ -180,6 +180,14 @@ class ReceiptService:
                 )
             raise
 
+    def prepare_download(
+        self, receipt_payload: GeneratedReceiptPayload,
+        identification_details: Optional[IdentificationDetails] = None,
+    ) -> PreparedReceiptDownload:
+        """Validate and prepare an encrypted download locally, without API requests."""
+        payload_json = self._payload_validator.require_valid_json(receipt_payload)
+        return self._prepare_download(payload_json, identification_details)
+
     def upload_prepared_download(
         self, download: PreparedReceiptDownload, *, options: Optional[RequestOptions] = None,
     ) -> ClientReceiptDownloadResponse:

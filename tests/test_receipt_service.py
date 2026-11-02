@@ -465,3 +465,30 @@ def test_matching_cannot_change_the_validated_payload_snapshot(route: str) -> No
         envelope = download.encrypt_download_envelope.call_args.args[0]
         assert envelope.documents["RECEIPT_PAYLOAD"].content == original
     assert str(payload.total_amount) == "999.00"
+
+
+def test_public_download_preparation_validates_and_encrypts_locally() -> None:
+    service, api, encryption, download = _digital_service()
+    receipt = _payload()
+    prepared = service.prepare_download(receipt, IdentificationDetails(payment_type=PaymentType.CASH))
+    assert prepared.upload_request.ciphertext == "download-ciphertext"
+    envelope = download.encrypt_download_envelope.call_args.args[0]
+    assert envelope.documents["RECEIPT_PAYLOAD"].content == receipt.to_json()
+    assert "IDENTIFICATION_DETAILS" in envelope.documents
+    assert not api.method_calls
+    assert not encryption.method_calls
+    service._matching_service.match_customer.assert_not_called()
+
+
+def test_public_download_preparation_rejects_invalid_payload_before_encryption() -> None:
+    service, api, encryption, download = _digital_service()
+    receipt = _payload()
+    receipt.payment_details.amount_due = None
+    with pytest.raises(CheqiSDKError) as caught:
+        service.prepare_download(receipt)
+    assert caught.value.is_validation_error
+    assert any(issue.path == "paymentDetails.amountDue" for issue in caught.value.validation_report.issues)
+    assert not download.method_calls
+    assert not api.method_calls
+    assert not encryption.method_calls
+    service._matching_service.match_customer.assert_not_called()
