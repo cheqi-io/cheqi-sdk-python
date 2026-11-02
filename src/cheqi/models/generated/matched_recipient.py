@@ -19,7 +19,6 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from cheqi.models.generated.receipt_document_profile import ReceiptDocumentProfile
 from cheqi.models.generated.receipt_format import ReceiptFormat
 from typing import Optional, Set
 from typing_extensions import Self
@@ -32,8 +31,7 @@ class MatchedRecipient(BaseModel):
     public_key: Optional[StrictStr] = Field(default=None, description="Public key for encrypting receipts for this recipient.", alias="publicKey")
     key_algorithm: Optional[StrictStr] = Field(default=None, description="Algorithm used for the public key (e.g., \"RSA\", \"RSA_2048\").", alias="keyAlgorithm")
     accepted_formats: Optional[List[ReceiptFormat]] = Field(default=None, description="Receipt formats this recipient accepts (e.g., CHEQI, UBL_PURCHASE_RECEIPT).", alias="acceptedFormats")
-    required_document_profiles: Optional[List[ReceiptDocumentProfile]] = Field(default=None, alias="requiredDocumentProfiles")
-    __properties: ClassVar[List[str]] = ["id", "publicKey", "keyAlgorithm", "acceptedFormats", "requiredDocumentProfiles"]
+    __properties: ClassVar[List[str]] = ["id", "publicKey", "keyAlgorithm", "acceptedFormats"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -89,8 +87,7 @@ class MatchedRecipient(BaseModel):
             "id": obj.get("id"),
             "publicKey": obj.get("publicKey"),
             "keyAlgorithm": obj.get("keyAlgorithm"),
-            "acceptedFormats": obj.get("acceptedFormats"),
-            "requiredDocumentProfiles": obj.get("requiredDocumentProfiles")
+            "acceptedFormats": obj.get("acceptedFormats")
         })
         return _obj
 

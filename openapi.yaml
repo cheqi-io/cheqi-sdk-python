@@ -184,12 +184,6 @@ paths:
               $ref: "#/components/schemas/ClientCredentialsTokenRequest"
         required: true
       responses:
-        "401":
-          description: Invalid client credentials
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
         "200":
           description: OAuth exchange completed successfully
           content:
@@ -205,6 +199,12 @@ paths:
                     token_type: bearer
                     expires_in: 900
                     scope: receipt:issue
+        "401":
+          description: Invalid client credentials
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
         "400":
           description: Invalid authorization code or request parameters
           content:
@@ -236,12 +236,6 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Store retrieved successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to view this store
           content:
@@ -250,6 +244,12 @@ paths:
                 $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
+        "200":
+          description: Store retrieved successfully
           content:
             '*/*':
               schema:
@@ -324,16 +324,16 @@ paths:
               $ref: "#/components/schemas/WebhookRequestBody"
         required: true
       responses:
-        "200":
-          description: Webhook subscription created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WebhookResponse"
         "400":
           description: Invalid webhook request data
           content:
             '*/*':
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "200":
+          description: Webhook subscription created successfully
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
         "409":
@@ -433,6 +433,12 @@ paths:
             '*/*':
               schema:
                 type: object
+        "201":
+          description: Store created successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Company not found
           content:
@@ -445,12 +451,6 @@ paths:
             '*/*':
               schema:
                 type: object
-        "201":
-          description: Store created successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
   /recipient/resolve:
     post:
       tags:
@@ -480,6 +480,12 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
+        "200":
+          description: Recipient successfully resolved and matched
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RecipientResolutionResponse"
         "401":
           description: Authentication required
           content:
@@ -488,12 +494,6 @@ paths:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
         "400":
           description: Invalid identification details provided
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RecipientResolutionResponse"
-        "200":
-          description: Recipient successfully resolved and matched
           content:
             '*/*':
               schema:
@@ -571,12 +571,6 @@ paths:
               $ref: "#/components/schemas/EncryptedReceiptEnvelope"
         required: true
       responses:
-        "403":
-          description: Insufficient permissions
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "202":
           description: Encrypted receipt payload accepted for on-device formatting
           content:
@@ -585,12 +579,24 @@ paths:
                 oneOf:
                 - $ref: "#/components/schemas/ReceiptSubmissionResponse"
                 - $ref: "#/components/schemas/MatchStatusResponse"
+        "403":
+          description: Insufficient permissions
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "400":
           description: Invalid encrypted generation request
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
+        "410":
+          description: Unsubmitted match expired
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/MatchStatusResponse"
         "404":
           description: Match absent or belongs to another requester
           content:
@@ -603,12 +609,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "410":
-          description: Unsubmitted match expired
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/MatchStatusResponse"
       security:
       - cheqi_oauth:
         - receipt:issue
@@ -669,14 +669,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "200":
-          description: Idempotent replay of an identical earlier upload
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "403":
-          description: Insufficient permissions - requires receipt:issue scope
+        "200":
+          description: Idempotent replay of an identical earlier upload
           content:
             '*/*':
               schema:
@@ -740,6 +740,12 @@ paths:
               $ref: "#/components/schemas/EncryptedCreditNoteEnvelope"
         required: true
       responses:
+        "202":
+          description: Encrypted credit-note generation job accepted
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "400":
           description: Invalid encrypted credit note data
           content:
@@ -748,12 +754,6 @@ paths:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
         "403":
           description: Insufficient permissions - requires receipt:issue scope
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "202":
-          description: Encrypted credit-note generation job accepted
           content:
             '*/*':
               schema:
@@ -1054,16 +1054,16 @@ paths:
               $ref: "#/components/schemas/UpdateSubscriptionRequest"
         required: true
       responses:
-        "200":
-          description: Notification URL updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WebhookDTO"
         "403":
           description: Insufficient permissions for the subscription's event type
           content:
             '*/*':
+              schema:
+                $ref: "#/components/schemas/WebhookDTO"
+        "200":
+          description: Notification URL updated
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/WebhookDTO"
         "400":
@@ -1184,14 +1184,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store activated successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store activated successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
@@ -1297,12 +1297,6 @@ paths:
         **Accessible for:** Company, Client Application
       operationId: getAllCreditNotes
       responses:
-        "200":
-          description: Return requests retrieved successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequestResponse"
         "403":
           description: Not authorized to access credit notes
           content:
@@ -1311,6 +1305,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequestResponse"
+        "200":
+          description: Return requests retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequestResponse"
       security:
       - cheqi_oauth:
         - receipt:read
@@ -1749,16 +1749,6 @@ components:
           description: "Receipt formats this recipient accepts (e.g., CHEQI, UBL_PURCHASE_RECEIPT)."
           items:
             $ref: "#/components/schemas/ReceiptFormat"
-        requiredDocumentProfiles:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReceiptDocumentProfile"
-    ReceiptDocumentProfile:
-      type: string
-      description: Versioned document-generation profile. EN16931_CORE_2017_V1 uses
-        EN 16931-1:2017+A1:2019 and its UBL 2.1 binding; no network-specific rules.
-      enum:
-      - EN16931_CORE_2017_V1
     ReceiptFormat:
       type: string
       description: "Receipt output selection. Choose at most one invoice format: UBL_INVOICE\
@@ -3330,17 +3320,17 @@ components:
         totalPages:
           type: integer
           format: int32
-        sort:
-          $ref: "#/components/schemas/SortObject"
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        numberOfElements:
+          type: integer
+          format: int32
         first:
           type: boolean
         last:
           type: boolean
-        numberOfElements:
-          type: integer
-          format: int32
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
+        sort:
+          $ref: "#/components/schemas/SortObject"
         size:
           type: integer
           format: int32
@@ -3356,8 +3346,6 @@ components:
     PageableObject:
       type: object
       properties:
-        sort:
-          $ref: "#/components/schemas/SortObject"
         paged:
           type: boolean
         pageNumber:
@@ -3368,6 +3356,8 @@ components:
           format: int32
         unpaged:
           type: boolean
+        sort:
+          $ref: "#/components/schemas/SortObject"
         offset:
           type: integer
           format: int64
@@ -3666,6 +3656,12 @@ components:
       description: Optional company-expense attribution carried inside the encrypted
         receipt envelope.
       nullable: true
+    ReceiptDocumentProfile:
+      type: string
+      description: Versioned document-generation profile. EN16931_CORE_2017_V1 uses
+        EN 16931-1:2017+A1:2019 and its UBL 2.1 binding; no network-specific rules.
+      enum:
+      - EN16931_CORE_2017_V1
     ReceiptEnvelope:
       required:
       - cheqiReceiptId
