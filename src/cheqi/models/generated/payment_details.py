@@ -17,8 +17,10 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from datetime import date
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, StrictStr
+from typing import Any, ClassVar, Dict, List, Optional, Union
+from cheqi.models.generated.payment_method import PaymentMethod
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -34,7 +36,13 @@ class PaymentDetails(BaseModel):
     account_identifier_type: Optional[StrictStr] = Field(default=None, description="Type of the payment-account identifier when applicable.", alias="accountIdentifierType")
     merchant_id: Optional[StrictStr] = Field(default=None, description="Merchant identifier assigned by the card acquirer or payment processor.", alias="merchantId")
     payment_terminal_id: Optional[StrictStr] = Field(default=None, description="Terminal identifier assigned by the card acquirer or payment processor.", alias="paymentTerminalId")
-    __properties: ClassVar[List[str]] = ["paymentMeansCode", "description", "cardProvider", "cardLastFour", "accountIdentifier", "accountIdentifierType", "merchantId", "paymentTerminalId"]
+    paid_amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied amount paid when the receipt was issued, across all payment methods. Required in new ReceiptPayloads, including zero when unpaid. Cheqi never calculates or fills in this value; later payments do not change it.", alias="paidAmount")
+    amount_due: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied amount still owed after the receipt was issued, for example 0 for a receipt paid in full. Required in every new ReceiptPayload. Must equal totalAmount minus paidAmount plus roundingAmount.", alias="amountDue")
+    rounding_amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied rounding applied to the amount due, for example cash rounding. Required in new ReceiptPayloads; explicitly send zero when there is no rounding.", alias="roundingAmount")
+    due_date: Optional[date] = Field(default=None, description="Date by which a remaining amountDue must be paid (YYYY-MM-DD). When amountDue is positive, supply dueDate or paymentTerms.", alias="dueDate")
+    payment_terms: Optional[StrictStr] = Field(default=None, description="Free-text payment terms for a remaining amountDue.", alias="paymentTerms")
+    payment_methods: Optional[List[PaymentMethod]] = Field(default=None, description="Split payment only: every payment method used, each with the amount paid with it. Their amounts must add up to paidAmount. When present, leave the single-method fields (paymentMeansCode, card and account fields) empty; a receipt paid with one method uses those fields instead of this list.", alias="paymentMethods")
+    __properties: ClassVar[List[str]] = ["paymentMeansCode", "description", "cardProvider", "cardLastFour", "accountIdentifier", "accountIdentifierType", "merchantId", "paymentTerminalId", "paidAmount", "amountDue", "roundingAmount", "dueDate", "paymentTerms", "paymentMethods"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -75,6 +83,13 @@ class PaymentDetails(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # override the default output from pydantic by calling `to_dict()` of each item in payment_methods (list)
+        _items = []
+        if self.payment_methods:
+            for _item_payment_methods in self.payment_methods:
+                if _item_payment_methods:
+                    _items.append(_item_payment_methods.to_dict())
+            _dict['paymentMethods'] = _items
         return _dict
 
     @classmethod
@@ -94,7 +109,13 @@ class PaymentDetails(BaseModel):
             "accountIdentifier": obj.get("accountIdentifier"),
             "accountIdentifierType": obj.get("accountIdentifierType"),
             "merchantId": obj.get("merchantId"),
-            "paymentTerminalId": obj.get("paymentTerminalId")
+            "paymentTerminalId": obj.get("paymentTerminalId"),
+            "paidAmount": obj.get("paidAmount"),
+            "amountDue": obj.get("amountDue"),
+            "roundingAmount": obj.get("roundingAmount"),
+            "dueDate": obj.get("dueDate"),
+            "paymentTerms": obj.get("paymentTerms"),
+            "paymentMethods": [PaymentMethod.from_dict(_item) for _item in obj["paymentMethods"]] if obj.get("paymentMethods") is not None else None
         })
         return _obj
 

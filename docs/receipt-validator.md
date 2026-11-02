@@ -1,0 +1,68 @@
+# Receipt payload validator
+
+The wheel and source distribution include the validator WASM module and its
+manifest from `src/cheqi/_validator`. Wasmtime 50 loads this pinned module
+locally. One compiled module is cached per process; each validation uses a new
+store and memory, with a 64 MiB memory limit and fuel limit. The module has no
+host imports or network access. Stores are closed on success and failure.
+The loader verifies ABI, source provenance and SHA-256 before use.
+
+The artifact comes from merged [Cheqi PR #712](https://github.com/cheqi-io/cheqi/pull/712),
+[successful four-language run 41487248795](https://github.com/cheqi-io/cheqi/actions/runs/41487248795),
+main commit `fb96508512b4d42eb72078632dd4238c174bbe75`.
+It is a tested main artifact, not a published validator release.
+
+`InvoiceValidationReport` and `InvoiceValidationIssue` bind the existing report
+contract. No business rules or financial calculations are duplicated in Python.
+All receipt entrypoints validate one JSON snapshot before external work and
+reuse it for every device and download fallback. No report or receipt contents
+are sent to Cheqi by validation.
+
+## Model generation
+
+```sh
+make fetch-spec
+make generate
+```
+
+The backend specification remains the source of truth. Generation is pinned to
+OpenAPI Generator 7.12.0. Generated files are produced only by these commands;
+no custom numeric rewriting or template overrides are applied.
+
+The handwritten public receipt models extend the generated classes to preserve
+`Decimal` monetary values. Their aliases, descriptions, defaults and constraints
+come from the generated contract. The generated classes remain unchanged.
+
+The production-spec CI guard remains enabled. The test API schema is ahead of
+production; normal production promotion and schema synchronization are required
+before SDK publication. No version or release tag is changed by this work.
+
+## Offline example
+
+After installing the SDK wheel, run:
+
+```sh
+python examples/validate_receipt.py tests/fixtures/validation/receipt-payload.json
+```
+
+It validates the supplied JSON file locally and prints every detected finding.
+It exits with status 1 for invalid input. It does not modify the receipt or make
+API requests. Automatic rejection before matching and encryption is covered by
+the receipt service tests.
+
+## Update the bundled validator
+
+Download a specific tested validator artifact, then run:
+
+```sh
+python scripts/update-receipt-validator.py /path/to/verified-bundle
+make test
+make lint
+make typecheck
+python -m build
+```
+
+The importer rejects dirty source builds, unsupported ABIs and checksum
+mismatches. Review the binary and manifest together. The normal SDK release
+ships this pinned bundle; customer machines never build Rust or fetch a
+validator at runtime.

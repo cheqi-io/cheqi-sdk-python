@@ -14,6 +14,7 @@ from cheqi.exceptions import (
 from cheqi.http.request_options import RequestOptions
 from cheqi.sdk import CheqiSDK
 from cheqi.services.download import DownloadService
+from cheqi.validation import ReceiptPayloadValidator
 
 __version__ = "2.0.0"
 
@@ -22,6 +23,7 @@ __all__ = [
     "CheqiSDK",
     "CheqiSDKConfig",
     "DownloadService",
+    "ReceiptPayloadValidator",
     "RequestOptions",
     "Environment",
     "CheqiSDKError",

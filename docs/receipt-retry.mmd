@@ -2,8 +2,17 @@ sequenceDiagram
     participant POS as Integration
     participant SDK as Python SDK
     participant API as Cheqi API
+    opt Prepare a browser receipt locally
+        POS->>SDK: prepare_download(payload, identification)
+        SDK->>SDK: Validate and encrypt the exact payload snapshot
+        SDK-->>POS: Prepared ciphertext and browser link, or validation findings
+    end
     POS->>SDK: issue_receipt(identification, payload)
-    SDK->>API: Resolve devices and submit ciphertext
+    SDK->>SDK: Validate payload locally and freeze its JSON snapshot
+    break Invalid payload or validator unavailable
+        SDK-->>POS: All detected rule findings or configuration error
+    end
+    SDK->>API: Resolve devices and submit encrypted validated JSON
     alt Submission accepted
         SDK-->>POS: DIGITAL_SUBMITTED and original submission
     else Ambiguous acknowledgement
@@ -12,6 +21,7 @@ sequenceDiagram
         POS->>SDK: upload_prepared_download(original download)
         SDK->>API: Original ciphertext (no URL fragment key)
         POS->>SDK: resume_receipt(match_id, payload)
+        SDK->>SDK: Validate payload before recovery request
         SDK->>API: GET match (no PAR or matching identifiers)
         alt SUBMITTED
             API-->>SDK: Original submission, even after expiry

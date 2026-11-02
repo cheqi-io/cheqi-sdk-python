@@ -93,6 +93,7 @@ from cheqi.models import (
     Product,
     ReceiptPayload,
     Tax,
+    TaxCategoryCode,
     UnitCode,
 )
 
@@ -115,7 +116,7 @@ product = Product(
     unit_price="10.00",
     subtotal="10.00",
     total="12.10",
-).add_tax(21, "VAT", "10.00", "2.10")
+).add_tax(21, "VAT", "10.00", "2.10", category=TaxCategoryCode.STANDARD)
 
 payload = ReceiptPayload(
     document_number="POS-2026-0001",
@@ -127,8 +128,11 @@ payload = ReceiptPayload(
     total_amount="12.10",
     taxes_applied=True,
     products=[product],
-    taxes=[Tax(rate=21, type="VAT", taxable_amount="10.00", amount="2.10")],
+    taxes=[Tax(rate=21, type="VAT", taxable_amount="10.00", amount="2.10", category=TaxCategoryCode.STANDARD)],
     payment_details=PaymentDetails(
+        paid_amount="12.10",
+        amount_due="0.00",
+        rounding_amount="0.00",
         payment_means_code="48",
         description="Card payment",
         card_provider="VISA",
@@ -163,6 +167,54 @@ result = sdk.receipt_service.issue_receipt(
 
 All monetary, tax, payment, barcode, and jurisdictional values remain caller-supplied. For example,
 `Product.add_tax(...)` only appends the supplied tax; it does not calculate it.
+
+## Payload validation
+
+Every new receipt is checked locally before matching, encryption or submission.
+This runs automatically for `issue_receipt`, `resume_receipt`,
+`issue_download_receipt` and `generate_encrypted_receipt_envelope`.
+The SDK encrypts the exact JSON snapshot that passed validation.
+
+Always supply `payment_details.paid_amount`, `amount_due` and `rounding_amount`,
+including zero when applicable. Supply the VAT breakdown and one explicit VAT
+category and tax amount per line, including zero tax. Receipt discounts and
+charges require their respective stated totals. The SDK never fills in or
+corrects amounts. Use `Decimal` or decimal strings for exact monetary values;
+values and scale are preserved and encoded as decimal strings.
+
+```python
+from cheqi import CheqiSDKError, ReceiptPayloadValidator
+
+report = ReceiptPayloadValidator().validate(payload)  # Optional explicit preflight.
+try:
+    result = sdk.receipt_service.issue_receipt(identification, payload)
+except CheqiSDKError as error:
+    if error.validation_report is not None:
+        for issue in error.validation_report.issues:
+            print(f"{issue.rule_id} — {issue.path}: {issue.message}")
+    raise
+```
+
+Validation errors include every detected rule, field and explanation in both
+the exception message and `validation_report`. Serialization and runtime errors
+retain their underlying cause. Errors are returned locally to the caller.
+A missing or corrupt validator stops issuance with `CONFIGURATION_ERROR`.
+A valid report has `complete_document=False`: the wallet still checks party
+context and the completed document.
+
+Required fields, collection limits and descriptions come from the backend
+specification through `make fetch-spec` and `make generate`. Shared models allow
+some nested fields to be absent in older received receipts; the issuance
+validator enforces the new receipt requirements described above.
+
+To prepare an encrypted browser download without uploading it, use
+`sdk.receipt_service.prepare_download(payload, identification)`. It applies the
+same validation and returns a `PreparedReceiptDownload` for later upload through
+`upload_prepared_download`. Invalid receipt data is rejected before encryption.
+
+The package bundles its validator. The only additional runtime dependency is
+Wasmtime; customers need no Rust installation, compiler or validator download.
+See [bundle provenance and the offline example](docs/receipt-validator.md).
 
 ## Delivery routes and downloads
 

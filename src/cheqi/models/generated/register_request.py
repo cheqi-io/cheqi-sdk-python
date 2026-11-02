@@ -19,6 +19,8 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Annotated
+from cheqi.models.generated.receipt_format import ReceiptFormat
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -30,7 +32,8 @@ class RegisterRequest(BaseModel):
     public_key: StrictStr = Field(alias="publicKey")
     key_algorithm: StrictStr = Field(alias="keyAlgorithm")
     accepts_employee_submissions: Optional[StrictBool] = Field(default=None, alias="acceptsEmployeeSubmissions")
-    __properties: ClassVar[List[str]] = ["name", "publicKey", "keyAlgorithm", "acceptsEmployeeSubmissions"]
+    format_preferences: Optional[Annotated[List[ReceiptFormat], Field(min_length=1, max_length=2147483647)]] = Field(default=None, alias="formatPreferences")
+    __properties: ClassVar[List[str]] = ["name", "publicKey", "keyAlgorithm", "acceptsEmployeeSubmissions", "formatPreferences"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -86,7 +89,8 @@ class RegisterRequest(BaseModel):
             "name": obj.get("name"),
             "publicKey": obj.get("publicKey"),
             "keyAlgorithm": obj.get("keyAlgorithm"),
-            "acceptsEmployeeSubmissions": obj.get("acceptsEmployeeSubmissions")
+            "acceptsEmployeeSubmissions": obj.get("acceptsEmployeeSubmissions"),
+            "formatPreferences": obj.get("formatPreferences")
         })
         return _obj
 

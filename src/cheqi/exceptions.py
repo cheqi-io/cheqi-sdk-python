@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from cheqi.models.validation import InvoiceValidationReport
 
 
 class ErrorCodes:
@@ -50,11 +53,14 @@ class CheqiSDKError(Exception):
         error_code: str = ErrorCodes.UNKNOWN_ERROR,
         http_status_code: int = 0,
         correlation_id: Optional[str] = None,
+        *,
+        validation_report: Optional[InvoiceValidationReport] = None,
     ) -> None:
         super().__init__(message)
         self.error_code = error_code
         self.http_status_code = http_status_code
         self.correlation_id = correlation_id
+        self.validation_report = validation_report
 
     @property
     def has_http_status_code(self) -> bool:

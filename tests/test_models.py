@@ -11,12 +11,14 @@ from cheqi.models import (
     FiscalizationData,
     FiscalizationStatus,
     JurisdictionalData,
+    PaymentDetails,
     Product,
     ReceiptPayload,
     RefundBankAccount,
     RefundPreference,
     ReturnLineItem,
     ReturnReasonCode,
+    Tax,
     UnitCode,
 )
 
@@ -35,13 +37,13 @@ def test_product_supports_compact_tax_addition() -> None:
 
     data = json.loads(product.to_json())
 
-    assert data["unitPrice"] == 10
+    assert data["unitPrice"] == "10.00"
     assert data["taxes"] == [
         {
             "rate": 21,
             "type": "VAT",
-            "amount": 2.1,
-            "taxableAmount": 10,
+            "amount": "2.10",
+            "taxableAmount": "10.00",
             "label": "VAT 21%",
         }
     ]
@@ -72,14 +74,16 @@ def test_receipt_payload_serializes_definitive_values_without_template_wrapper()
         total_tax_amount="3.03",
         total_amount="9.04",
         taxes_applied=True,
+        taxes=[Tax(rate=21, type="VAT", amount="3.03", taxable_amount="8.02")],
+        payment_details=PaymentDetails(paid_amount="9.04", amount_due="0.00", rounding_amount="0.00"),
         products=[product],
         jurisdictional_data=jurisdiction,
     ).add_qr_code("https://verify.example/AT-100", "Verify")
 
     data = json.loads(payload.to_json())
 
-    assert data["receiptSubtotal"] == 7.01
-    assert data["products"][0]["total"] == 3.33
+    assert data["receiptSubtotal"] == "7.01"
+    assert data["products"][0]["total"] == "3.33"
     assert data["jurisdictionalData"]["fiscalization"]["additionalFields"][0]["value"] == "issuer-signature"
     assert data["barcodes"][0]["data"] == "https://verify.example/AT-100"
     assert "receiptTemplateRequest" not in data
