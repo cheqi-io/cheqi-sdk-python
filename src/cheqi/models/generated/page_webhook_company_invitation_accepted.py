@@ -36,11 +36,11 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
     number: Optional[StrictInt] = None
     pageable: Optional[PageableObject] = None
     sort: Optional[SortObject] = None
-    number_of_elements: Optional[StrictInt] = Field(default=None, alias="numberOfElements")
     first: Optional[StrictBool] = None
     last: Optional[StrictBool] = None
+    number_of_elements: Optional[StrictInt] = Field(default=None, alias="numberOfElements")
     empty: Optional[StrictBool] = None
-    __properties: ClassVar[List[str]] = ["totalElements", "totalPages", "size", "content", "number", "pageable", "sort", "numberOfElements", "first", "last", "empty"]
+    __properties: ClassVar[List[str]] = ["totalElements", "totalPages", "size", "content", "number", "pageable", "sort", "first", "last", "numberOfElements", "empty"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -55,13 +55,12 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
-        return json.dumps(self.to_dict())
+        return self.model_dump_json(by_alias=True, exclude_none=True)
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of PageWebhookCompanyInvitationAccepted from a JSON string"""
-        return cls.from_dict(json.loads(json_str))
+        return cls.model_validate_json(json_str)
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.
@@ -113,9 +112,9 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
             "number": obj.get("number"),
             "pageable": PageableObject.from_dict(obj["pageable"]) if obj.get("pageable") is not None else None,
             "sort": SortObject.from_dict(obj["sort"]) if obj.get("sort") is not None else None,
-            "numberOfElements": obj.get("numberOfElements"),
             "first": obj.get("first"),
             "last": obj.get("last"),
+            "numberOfElements": obj.get("numberOfElements"),
             "empty": obj.get("empty")
         })
         return _obj

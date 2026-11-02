@@ -14,11 +14,14 @@ from cheqi.models import (
     EncryptedReceiptPayload,
     IdentificationDetails,
     MatchedRecipient,
+    PaymentDetails,
     PaymentType,
     Product,
     ReceiptPayload,
     ReceiptSubmissionResponse,
     RecipientResolutionResponse,
+    Tax,
+    TaxCategoryCode,
     UnitCode,
 )
 from cheqi.models.download import DownloadLink
@@ -35,6 +38,9 @@ def _payload() -> ReceiptPayload:
         total_tax_amount="2.10",
         total_amount="12.10",
         taxes_applied=True,
+        taxes=[Tax(rate=21, type="VAT", taxable_amount="10.00", amount="2.10",
+                   category=TaxCategoryCode.STANDARD)],
+        payment_details=PaymentDetails(paid_amount="12.10", amount_due="0.00", rounding_amount="0.00"),
         products=[
             Product(
                 name="Coffee",
@@ -45,7 +51,7 @@ def _payload() -> ReceiptPayload:
                 unit_price="10.00",
                 subtotal="10.00",
                 total="12.10",
-            ).add_tax(21, "VAT", "10.00", "2.10")
+            ).add_tax(21, "VAT", "10.00", "2.10", category=TaxCategoryCode.STANDARD)
         ],
     )
 
@@ -402,3 +408,60 @@ def test_invalid_payload_is_rejected_before_matching() -> None:
         service.issue_receipt(IdentificationDetails(pairing_code="12345678"), payload)
     service._matching_service.match_customer.assert_not_called()
     api.submit_encrypted_receipt.assert_not_called()
+
+
+@pytest.mark.parametrize("operation", ["issue", "resume", "download", "envelope"])
+def test_every_receipt_entrypoint_rejects_all_missing_facts_before_side_effects(operation: str) -> None:
+    service, api, encryption, download = _digital_service()
+    payload = _payload()
+    payload.payment_details.amount_due = None
+    payload.payment_details.rounding_amount = None
+    payload.products[0].taxes[0].category = None
+    with pytest.raises(CheqiSDKError) as caught:
+        if operation == "issue":
+            service.issue_receipt(IdentificationDetails(pairing_code="12345678"), payload)
+        elif operation == "resume":
+            service.resume_receipt("match-1", payload)
+        elif operation == "download":
+            service.issue_download_receipt(IdentificationDetails(payment_type=PaymentType.CASH), payload)
+        else:
+            service.generate_encrypted_receipt_envelope(service._matching_service.match_customer.return_value, payload)
+    assert caught.value.error_code == ErrorCodes.VALIDATION_ERROR
+    paths = {issue.path for issue in caught.value.validation_report.issues}
+    assert {"paymentDetails.amountDue", "paymentDetails.roundingAmount", "products[0].taxes[0].category"} <= paths
+    assert "paymentDetails.amountDue" in str(caught.value)
+    assert "paymentDetails.roundingAmount" in str(caught.value)
+    api.assert_not_called()
+    assert not api.method_calls
+    assert not encryption.method_calls
+    assert not download.method_calls
+    service._matching_service.match_customer.assert_not_called()
+
+
+@pytest.mark.parametrize("route", ["DIGITAL", "DOWNLOAD_FALLBACK", "AMBIGUOUS"])
+def test_matching_cannot_change_the_validated_payload_snapshot(route: str) -> None:
+    from cheqi.exceptions import CheqiApiError
+
+    service, api, encryption, download = _digital_service()
+    payload = _payload()
+    original = payload.to_json()
+    resolution = service._matching_service.match_customer.return_value
+    if route == "DOWNLOAD_FALLBACK":
+        resolution.delivery_route_type = "DOWNLOAD_FALLBACK"
+        resolution.recipients = []
+        api.upload_encrypted_download_receipt.return_value = ClientReceiptDownloadResponse(cheqi_receipt_id="download")
+    if route == "AMBIGUOUS":
+        api.submit_encrypted_receipt.side_effect = CheqiApiError("Offline", ErrorCodes.NETWORK_ERROR)
+
+    def match(*args, **kwargs):
+        payload.total_amount = "999.00"
+        return resolution
+
+    service._matching_service.match_customer.side_effect = match
+    service.issue_receipt(IdentificationDetails(payment_type=PaymentType.CASH), payload)
+    if route != "DOWNLOAD_FALLBACK":
+        assert encryption.encrypt_receipt_for_recipient.call_args.args[0] == original
+    if route != "DIGITAL":
+        envelope = download.encrypt_download_envelope.call_args.args[0]
+        assert envelope.documents["RECEIPT_PAYLOAD"].content == original
+    assert str(payload.total_amount) == "999.00"

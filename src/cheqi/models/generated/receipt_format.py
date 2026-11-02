@@ -20,7 +20,7 @@ from typing_extensions import Self
 
 class ReceiptFormat(str, Enum):
     """
-    Receipt output format
+    Receipt output selection. Choose at most one invoice format: UBL_INVOICE (generic UBL 2.1, valid against the UBL 2.1-2.5 schemas) or UBL_INVOICE_2_1_EN16931_CORE_2017_V1 (EN 16931:2017 core invoice, UBL 2.1 binding).
     """
 
     """
@@ -30,6 +30,7 @@ class ReceiptFormat(str, Enum):
     UBL_PURCHASE_RECEIPT = 'UBL_PURCHASE_RECEIPT'
     UBL_INVOICE = 'UBL_INVOICE'
     UBL_CREDIT_NOTE = 'UBL_CREDIT_NOTE'
+    UBL_INVOICE_2_1_EN16931_CORE_2017_V1 = 'UBL_INVOICE_2_1_EN16931_CORE_2017_V1'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

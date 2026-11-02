@@ -1,0 +1,58 @@
+{
+  "documentNumber": "INV-2026-001",
+  "identifiers": [],
+  "issueDate": "2026-03-28T09:15:00Z",
+  "currency": "EUR",
+  "receiptSubtotal": 17.81,
+  "totalBeforeTax": 17.81,
+  "totalTaxAmount": 1.6,
+  "totalAmount": 19.41,
+  "products": [
+    {
+      "name": "Croissants & coffee",
+      "brandName": "Cheqi Bakery",
+      "identifier": "SKU-001",
+      "description": "Breakfast <special>",
+      "quantity": 2.0,
+      "baseQuantity": 1.0,
+      "unitCode": "C62",
+      "unitPrice": 8.905,
+      "discounts": [],
+      "charges": [],
+      "taxes": [
+        {
+          "rate": 9.0,
+          "type": "VAT",
+          "amount": 1.6,
+          "taxableAmount": 17.81,
+          "category": "STANDARD"
+        }
+      ],
+      "subtotal": 17.81,
+      "total": 19.41,
+      "barcodes": []
+    }
+  ],
+  "discounts": [],
+  "charges": [],
+  "taxes": [
+    {
+      "rate": 9.0,
+      "type": "VAT",
+      "amount": 1.6,
+      "taxableAmount": 17.81,
+      "label": "VAT 9%",
+      "category": "STANDARD"
+    }
+  ],
+  "note": "The current Java generator intentionally ignores this request note.",
+  "barcodes": [],
+  "paymentDetails": {
+    "amountDue": 19.41,
+    "dueDate": "2026-05-01",
+    "paymentTerms": "Pay within 30 days",
+    "paidAmount": "0.00",
+    "roundingAmount": "0.00"
+  },
+  "taxesApplied": true
+}

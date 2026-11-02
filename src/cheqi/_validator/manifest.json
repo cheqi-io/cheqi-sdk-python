@@ -1,0 +1,8 @@
+{
+  "abiVersion": 1,
+  "engineVersion": "0.4.4",
+  "sourceCommit": "fb96508512b4d42eb72078632dd4238c174bbe75",
+  "sourceDirty": false,
+  "sha256": "676ad56eed9851a0ea3b5b8912e3377e5ba3e357e9fb93c24a6850c088cafa6a",
+  "target": "wasm32-unknown-unknown"
+}

@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from cheqi.models.generated.expense_submission_envelope import ExpenseSubmissionEnvelope
+from cheqi.models.generated.receipt_document_profile import ReceiptDocumentProfile
 from cheqi.models.generated.receipt_envelope_document import ReceiptEnvelopeDocument
 from typing import Optional, Set
 from typing_extensions import Self
@@ -35,7 +36,8 @@ class ReceiptEnvelope(BaseModel):
     expense_submission: Optional[ExpenseSubmissionEnvelope] = Field(default=None, alias="expenseSubmission")
     receipt_generator_version: Annotated[str, Field(strict=True)] = Field(description="Generated-document engine version for version 1; payload schema marker for version 2 download envelopes.", alias="receiptGeneratorVersion")
     receipt_uuid: StrictStr = Field(description="Shared UUID embedded in every generated representation of this receipt.", alias="receiptUuid")
-    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "documents", "envelopeVersion", "expenseSubmission", "receiptGeneratorVersion", "receiptUuid"]
+    document_profiles: Optional[List[ReceiptDocumentProfile]] = Field(default=None, description="Versioned profiles of documents inside this encrypted envelope. Recipients validate their decrypted documents against these profiles.", alias="documentProfiles")
+    __properties: ClassVar[List[str]] = ["cheqiReceiptId", "documents", "envelopeVersion", "expenseSubmission", "receiptGeneratorVersion", "receiptUuid", "documentProfiles"]
 
     @field_validator('receipt_generator_version')
     def receipt_generator_version_validate_regular_expression(cls, value):
@@ -57,13 +59,12 @@ class ReceiptEnvelope(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
-        return json.dumps(self.to_dict())
+        return self.model_dump_json(by_alias=True, exclude_none=True)
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of ReceiptEnvelope from a JSON string"""
-        return cls.from_dict(json.loads(json_str))
+        return cls.model_validate_json(json_str)
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.
@@ -120,7 +121,8 @@ class ReceiptEnvelope(BaseModel):
             "envelopeVersion": obj.get("envelopeVersion"),
             "expenseSubmission": ExpenseSubmissionEnvelope.from_dict(obj["expenseSubmission"]) if obj.get("expenseSubmission") is not None else None,
             "receiptGeneratorVersion": obj.get("receiptGeneratorVersion"),
-            "receiptUuid": obj.get("receiptUuid")
+            "receiptUuid": obj.get("receiptUuid"),
+            "documentProfiles": obj.get("documentProfiles")
         })
         return _obj
 

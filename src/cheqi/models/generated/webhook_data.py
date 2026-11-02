@@ -32,8 +32,9 @@ class WebhookData(BaseModel):
     company_invitation_accepted: Optional[WebhookCompanyInvitationAccepted] = Field(default=None, alias="companyInvitationAccepted")
     encrypted_receipt: Optional[WebhookReceiptEnvelope] = Field(default=None, alias="encryptedReceipt")
     encrypted_credit_note: Optional[WebhookReceiptEnvelope] = Field(default=None, alias="encryptedCreditNote")
+    encrypted_self_billed_invoice: Optional[WebhookReceiptEnvelope] = Field(default=None, alias="encryptedSelfBilledInvoice")
     credit_note_initiation_request: Optional[WebhookCreditNoteInitiationRequest] = Field(default=None, alias="creditNoteInitiationRequest")
-    __properties: ClassVar[List[str]] = ["companyInvitationAccepted", "encryptedReceipt", "encryptedCreditNote", "creditNoteInitiationRequest"]
+    __properties: ClassVar[List[str]] = ["companyInvitationAccepted", "encryptedReceipt", "encryptedCreditNote", "encryptedSelfBilledInvoice", "creditNoteInitiationRequest"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -48,13 +49,12 @@ class WebhookData(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
-        return json.dumps(self.to_dict())
+        return self.model_dump_json(by_alias=True, exclude_none=True)
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of WebhookData from a JSON string"""
-        return cls.from_dict(json.loads(json_str))
+        return cls.model_validate_json(json_str)
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.
@@ -83,6 +83,9 @@ class WebhookData(BaseModel):
         # override the default output from pydantic by calling `to_dict()` of encrypted_credit_note
         if self.encrypted_credit_note:
             _dict['encryptedCreditNote'] = self.encrypted_credit_note.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of encrypted_self_billed_invoice
+        if self.encrypted_self_billed_invoice:
+            _dict['encryptedSelfBilledInvoice'] = self.encrypted_self_billed_invoice.to_dict()
         # override the default output from pydantic by calling `to_dict()` of credit_note_initiation_request
         if self.credit_note_initiation_request:
             _dict['creditNoteInitiationRequest'] = self.credit_note_initiation_request.to_dict()
@@ -101,6 +104,7 @@ class WebhookData(BaseModel):
             "companyInvitationAccepted": WebhookCompanyInvitationAccepted.from_dict(obj["companyInvitationAccepted"]) if obj.get("companyInvitationAccepted") is not None else None,
             "encryptedReceipt": WebhookReceiptEnvelope.from_dict(obj["encryptedReceipt"]) if obj.get("encryptedReceipt") is not None else None,
             "encryptedCreditNote": WebhookReceiptEnvelope.from_dict(obj["encryptedCreditNote"]) if obj.get("encryptedCreditNote") is not None else None,
+            "encryptedSelfBilledInvoice": WebhookReceiptEnvelope.from_dict(obj["encryptedSelfBilledInvoice"]) if obj.get("encryptedSelfBilledInvoice") is not None else None,
             "creditNoteInitiationRequest": WebhookCreditNoteInitiationRequest.from_dict(obj["creditNoteInitiationRequest"]) if obj.get("creditNoteInitiationRequest") is not None else None
         })
         return _obj

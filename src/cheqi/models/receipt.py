@@ -31,19 +31,17 @@ from cheqi.models.generated.receipt_payload import ReceiptPayload as GeneratedRe
 from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
 from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
 from cheqi.models.generated.tax import Tax as GeneratedTax
+from cheqi.models.generated.tax_category_code import TaxCategoryCode
 from cheqi.models.generated.unit_code import UnitCode
 
 Number = Union[Decimal, str, int, float]
 
 
-def _coerce_generated_number(value: object) -> Union[int, float]:
-    """Accept Python monetary inputs while retaining generated wire field types."""
+def _coerce_generated_number(value: object) -> Decimal:
+    """Accept decimal amounts without converting them to binary floats."""
     if isinstance(value, bool):
-        raise TypeError("boolean values are not valid numbers")
-    if isinstance(value, (int, float)):
-        return value
-    decimal = Decimal(str(value))
-    return int(decimal) if decimal == decimal.to_integral_value() else float(decimal)
+        raise ValueError("boolean values are not valid numbers")
+    return value if isinstance(value, Decimal) else Decimal(str(value))
 
 
 class _GeneratedModelMixin:
@@ -73,7 +71,7 @@ class Discount(_GeneratedModelMixin, GeneratedDiscount):
 
     @field_validator("amount", mode="before")
     @classmethod
-    def coerce_amount(cls, value: object) -> Union[int, float]:
+    def coerce_amount(cls, value: object) -> Decimal:
         return _coerce_generated_number(value)
 
     @classmethod
@@ -91,7 +89,7 @@ class Charge(_GeneratedModelMixin, GeneratedCharge):
 
     @field_validator("amount", mode="before")
     @classmethod
-    def coerce_amount(cls, value: object) -> Union[int, float]:
+    def coerce_amount(cls, value: object) -> Decimal:
         return _coerce_generated_number(value)
 
     @classmethod
@@ -109,7 +107,7 @@ class Tax(_GeneratedModelMixin, GeneratedTax):
 
     @field_validator("amount", "taxable_amount", mode="before")
     @classmethod
-    def coerce_amounts(cls, value: object) -> Optional[Union[int, float]]:
+    def coerce_amounts(cls, value: object) -> Optional[Decimal]:
         if value is None:
             return None
         return _coerce_generated_number(value)
@@ -182,7 +180,7 @@ class Product(_GeneratedModelMixin, GeneratedProduct):
 
     @field_validator("unit_price", "subtotal", "total", mode="before")
     @classmethod
-    def coerce_amounts(cls, value: object) -> Union[int, float]:
+    def coerce_amounts(cls, value: object) -> Decimal:
         return _coerce_generated_number(value)
 
     def add_tax(
@@ -193,6 +191,9 @@ class Product(_GeneratedModelMixin, GeneratedProduct):
         amount: Optional[Number] = None,
         *,
         label: Optional[str] = None,
+        category: Optional[TaxCategoryCode] = None,
+        exemption_reason_code: Optional[str] = None,
+        exemption_reason: Optional[str] = None,
     ) -> Self:
         """Add either a ``Tax`` object or a compact tax definition."""
         if isinstance(tax_or_rate, GeneratedTax):
@@ -206,6 +207,9 @@ class Product(_GeneratedModelMixin, GeneratedProduct):
                 taxable_amount=taxable_amount,
                 amount=amount,
                 label=label,
+                category=category,
+                exemption_reason_code=exemption_reason_code,
+                exemption_reason=exemption_reason,
             )
         self.taxes = [*self.taxes, tax]
         return self
@@ -260,11 +264,13 @@ class ReceiptPayload(_GeneratedModelMixin, GeneratedReceiptPayload):
         "total_before_tax",
         "total_tax_amount",
         "total_amount",
+        "total_discount_amount",
+        "total_charge_amount",
         mode="before",
     )
     @classmethod
-    def coerce_amounts(cls, value: object) -> Union[int, float]:
-        return _coerce_generated_number(value)
+    def coerce_amounts(cls, value: object) -> Optional[Decimal]:
+        return None if value is None else _coerce_generated_number(value)
 
     def add_product(self, product: GeneratedProduct) -> Self:
         self.products = [*self.products, product]

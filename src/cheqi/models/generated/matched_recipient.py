@@ -19,6 +19,7 @@ import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
+from cheqi.models.generated.receipt_document_profile import ReceiptDocumentProfile
 from cheqi.models.generated.receipt_format import ReceiptFormat
 from typing import Optional, Set
 from typing_extensions import Self
@@ -31,7 +32,8 @@ class MatchedRecipient(BaseModel):
     public_key: Optional[StrictStr] = Field(default=None, description="Public key for encrypting receipts for this recipient.", alias="publicKey")
     key_algorithm: Optional[StrictStr] = Field(default=None, description="Algorithm used for the public key (e.g., \"RSA\", \"RSA_2048\").", alias="keyAlgorithm")
     accepted_formats: Optional[List[ReceiptFormat]] = Field(default=None, description="Receipt formats this recipient accepts (e.g., CHEQI, UBL_PURCHASE_RECEIPT).", alias="acceptedFormats")
-    __properties: ClassVar[List[str]] = ["id", "publicKey", "keyAlgorithm", "acceptedFormats"]
+    required_document_profiles: Optional[List[ReceiptDocumentProfile]] = Field(default=None, alias="requiredDocumentProfiles")
+    __properties: ClassVar[List[str]] = ["id", "publicKey", "keyAlgorithm", "acceptedFormats", "requiredDocumentProfiles"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -46,13 +48,12 @@ class MatchedRecipient(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
-        return json.dumps(self.to_dict())
+        return self.model_dump_json(by_alias=True, exclude_none=True)
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of MatchedRecipient from a JSON string"""
-        return cls.from_dict(json.loads(json_str))
+        return cls.model_validate_json(json_str)
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.
@@ -87,7 +88,8 @@ class MatchedRecipient(BaseModel):
             "id": obj.get("id"),
             "publicKey": obj.get("publicKey"),
             "keyAlgorithm": obj.get("keyAlgorithm"),
-            "acceptedFormats": obj.get("acceptedFormats")
+            "acceptedFormats": obj.get("acceptedFormats"),
+            "requiredDocumentProfiles": obj.get("requiredDocumentProfiles")
         })
         return _obj
 
