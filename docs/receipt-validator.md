@@ -1,7 +1,7 @@
 # Receipt payload validator
 
-The wheel and source distribution bundle `src/cheqi/_validator` with the same
-WASM and manifest used by the Java SDK. Wasmtime 50 loads this pinned module
+The wheel and source distribution include the validator WASM module and its
+manifest from `src/cheqi/_validator`. Wasmtime 50 loads this pinned module
 locally. One compiled module is cached per process; each validation uses a new
 store and memory, with a 64 MiB memory limit and fuel limit. The module has no
 host imports or network access. Stores are closed on success and failure.
