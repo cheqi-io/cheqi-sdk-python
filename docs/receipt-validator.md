@@ -26,11 +26,12 @@ make generate
 ```
 
 The backend specification remains the source of truth. Generation is pinned to
-OpenAPI Generator 7.12.0. `scripts/finalize_models.py`, invoked by `make generate`,
-uses the specification's `format: decimal` to emit Python `Decimal` fields and
-Pydantic JSON helpers. This avoids converting financial values to floats or
-losing precision through `json.loads`. Generated classes are never edited
-manually. Quantity and rate fields retain the backend's numeric types.
+OpenAPI Generator 7.12.0. Generated files are produced only by these commands;
+no custom numeric rewriting or template overrides are applied.
+
+The handwritten public receipt models extend the generated classes to preserve
+`Decimal` monetary values. Their aliases, descriptions, defaults and constraints
+come from the generated contract. The generated classes remain unchanged.
 
 The production-spec CI guard remains enabled. The test API schema is ahead of
 production; normal production promotion and schema synchronization are required
@@ -44,9 +45,10 @@ After installing the SDK wheel, run:
 python examples/validate_receipt.py tests/fixtures/validation/receipt-payload.json
 ```
 
-It validates a complete receipt, removes amount due and rounding, then calls
-normal issuance. Both findings are reported before any API request. It uses a
-mock HTTP transport and does not contact Odoo or Cheqi.
+It validates the supplied JSON file locally and prints every detected finding.
+It exits with status 1 for invalid input. It does not modify the receipt or make
+API requests. Automatic rejection before matching and encryption is covered by
+the receipt service tests.
 
 ## Update the bundled validator
 

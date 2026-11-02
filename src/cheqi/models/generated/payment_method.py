@@ -13,7 +13,6 @@
 
 
 from __future__ import annotations
-from decimal import Decimal
 import pprint
 import re  # noqa: F401
 import json
@@ -27,7 +26,7 @@ class PaymentMethod(BaseModel):
     """
     One issuer-supplied payment method used for the receipt, with the amount paid with it. Cheqi never receives this object in plaintext.
     """ # noqa: E501
-    amount: Decimal = Field(description="Issuer-supplied amount paid with this method.")
+    amount: Union[StrictFloat, StrictInt] = Field(description="Issuer-supplied amount paid with this method.")
     payment_means_code: Optional[StrictStr] = Field(default=None, description="Issuer-supplied payment means code, such as 10 for cash, 48 for card, or 49 for direct debit.", alias="paymentMeansCode")
     description: Optional[StrictStr] = Field(default=None, description="Issuer-supplied display description for the payment method.")
     card_provider: Optional[StrictStr] = Field(default=None, description="Card scheme or provider when applicable.", alias="cardProvider")
@@ -51,12 +50,13 @@ class PaymentMethod(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        return self.model_dump_json(by_alias=True, exclude_none=True)
+        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
+        return json.dumps(self.to_dict())
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of PaymentMethod from a JSON string"""
-        return cls.model_validate_json(json_str)
+        return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.

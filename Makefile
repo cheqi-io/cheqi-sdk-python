@@ -37,7 +37,6 @@ generate:
 	mkdir -p $(GENERATED_DIR)
 	cp /tmp/cheqi-python-gen/cheqi_generated/models/*.py $(GENERATED_DIR)/
 	perl -pi -e 's/from cheqi_generated\.models/from cheqi.models.generated/g' $(GENERATED_DIR)/*.py
-	python scripts/finalize_models.py $(GENERATED_DIR)
 	rm -rf /tmp/cheqi-python-gen
 	@echo "Generated OpenAPI models in $(GENERATED_DIR)/"
 

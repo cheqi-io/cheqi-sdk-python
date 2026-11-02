@@ -45,12 +45,13 @@ class ContactDetailDto(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        return self.model_dump_json(by_alias=True, exclude_none=True)
+        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
+        return json.dumps(self.to_dict())
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of ContactDetailDto from a JSON string"""
-        return cls.model_validate_json(json_str)
+        return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.

@@ -13,7 +13,6 @@
 
 
 from __future__ import annotations
-from decimal import Decimal
 import pprint
 import re  # noqa: F401
 import json
@@ -27,7 +26,7 @@ class Discount(BaseModel):
     """
     The list of discounts applied to the receipt on total receipt level. Example: discount on total receipt level, 20% discount on complete order, etc.
     """ # noqa: E501
-    amount: Decimal = Field(description="The total discount amount")
+    amount: Union[StrictFloat, StrictInt] = Field(description="The total discount amount")
     percentage: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="The percentage discount")
     label: Optional[StrictStr] = Field(default=None, description="A human-readable label for the discount")
     __properties: ClassVar[List[str]] = ["amount", "percentage", "label"]
@@ -45,12 +44,13 @@ class Discount(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        return self.model_dump_json(by_alias=True, exclude_none=True)
+        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
+        return json.dumps(self.to_dict())
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of Discount from a JSON string"""
-        return cls.model_validate_json(json_str)
+        return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.

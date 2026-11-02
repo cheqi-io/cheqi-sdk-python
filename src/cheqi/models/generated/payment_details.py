@@ -13,7 +13,6 @@
 
 
 from __future__ import annotations
-from decimal import Decimal
 import pprint
 import re  # noqa: F401
 import json
@@ -37,9 +36,9 @@ class PaymentDetails(BaseModel):
     account_identifier_type: Optional[StrictStr] = Field(default=None, description="Type of the payment-account identifier when applicable.", alias="accountIdentifierType")
     merchant_id: Optional[StrictStr] = Field(default=None, description="Merchant identifier assigned by the card acquirer or payment processor.", alias="merchantId")
     payment_terminal_id: Optional[StrictStr] = Field(default=None, description="Terminal identifier assigned by the card acquirer or payment processor.", alias="paymentTerminalId")
-    paid_amount: Optional[Decimal] = Field(default=None, description="Issuer-supplied amount paid when the receipt was issued, across all payment methods. Required in new ReceiptPayloads, including zero when unpaid. Cheqi never calculates or fills in this value; later payments do not change it.", alias="paidAmount")
-    amount_due: Optional[Decimal] = Field(default=None, description="Issuer-supplied amount still owed after the receipt was issued, for example 0 for a receipt paid in full. Required in every new ReceiptPayload. Must equal totalAmount minus paidAmount plus roundingAmount.", alias="amountDue")
-    rounding_amount: Optional[Decimal] = Field(default=None, description="Issuer-supplied rounding applied to the amount due, for example cash rounding. Required in new ReceiptPayloads; explicitly send zero when there is no rounding.", alias="roundingAmount")
+    paid_amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied amount paid when the receipt was issued, across all payment methods. Required in new ReceiptPayloads, including zero when unpaid. Cheqi never calculates or fills in this value; later payments do not change it.", alias="paidAmount")
+    amount_due: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied amount still owed after the receipt was issued, for example 0 for a receipt paid in full. Required in every new ReceiptPayload. Must equal totalAmount minus paidAmount plus roundingAmount.", alias="amountDue")
+    rounding_amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied rounding applied to the amount due, for example cash rounding. Required in new ReceiptPayloads; explicitly send zero when there is no rounding.", alias="roundingAmount")
     due_date: Optional[date] = Field(default=None, description="Date by which a remaining amountDue must be paid (YYYY-MM-DD). When amountDue is positive, supply dueDate or paymentTerms.", alias="dueDate")
     payment_terms: Optional[StrictStr] = Field(default=None, description="Free-text payment terms for a remaining amountDue.", alias="paymentTerms")
     payment_methods: Optional[List[PaymentMethod]] = Field(default=None, description="Split payment only: every payment method used, each with the amount paid with it. Their amounts must add up to paidAmount. When present, leave the single-method fields (paymentMeansCode, card and account fields) empty; a receipt paid with one method uses those fields instead of this list.", alias="paymentMethods")
@@ -58,12 +57,13 @@ class PaymentDetails(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        return self.model_dump_json(by_alias=True, exclude_none=True)
+        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
+        return json.dumps(self.to_dict())
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of PaymentDetails from a JSON string"""
-        return cls.model_validate_json(json_str)
+        return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.

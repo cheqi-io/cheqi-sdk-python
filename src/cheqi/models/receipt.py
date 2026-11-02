@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -9,6 +10,7 @@ from enum import Enum
 from typing import List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.fields import FieldInfo
 from typing_extensions import Self
 
 from cheqi.models.generated.barcode import Barcode as GeneratedBarcode
@@ -24,7 +26,8 @@ from cheqi.models.generated.jurisdiction_legal_text import (
     JurisdictionLegalText as GeneratedJurisdictionLegalText,
 )
 from cheqi.models.generated.jurisdictional_data import JurisdictionalData as GeneratedJurisdictionalData
-from cheqi.models.generated.payment_details import PaymentDetails
+from cheqi.models.generated.payment_details import PaymentDetails as GeneratedPaymentDetails
+from cheqi.models.generated.payment_method import PaymentMethod as GeneratedPaymentMethod
 from cheqi.models.generated.period import Period as GeneratedPeriod
 from cheqi.models.generated.product import Product as GeneratedProduct
 from cheqi.models.generated.receipt_payload import ReceiptPayload as GeneratedReceiptPayload
@@ -35,6 +38,10 @@ from cheqi.models.generated.tax_category_code import TaxCategoryCode
 from cheqi.models.generated.unit_code import UnitCode
 
 Number = Union[Decimal, str, int, float]
+
+
+def _field(model: type[BaseModel], name: str) -> FieldInfo:
+    return deepcopy(model.model_fields[name])
 
 
 def _coerce_generated_number(value: object) -> Decimal:
@@ -54,6 +61,15 @@ class _GeneratedModelMixin:
         return self.model_dump_json(by_alias=True, exclude_none=True)  # type: ignore[attr-defined,no-any-return]
 
 
+    @classmethod
+    def from_json(cls, value: str) -> Self:
+        return cls.model_validate_json(value)  # type: ignore[attr-defined,no-any-return]
+
+    @classmethod
+    def from_dict(cls, value: Optional[dict[str, object]]) -> Optional[Self]:
+        return None if value is None else cls.model_validate(value)  # type: ignore[attr-defined]
+
+
 class Barcode(_GeneratedModelMixin, GeneratedBarcode):
     """Barcode with small named constructors."""
 
@@ -68,6 +84,9 @@ class Barcode(_GeneratedModelMixin, GeneratedBarcode):
 
 class Discount(_GeneratedModelMixin, GeneratedDiscount):
     """Receipt discount accepting Python ``Decimal`` and decimal strings."""
+
+    model_config = ConfigDict(from_attributes=True)
+    amount: Decimal = _field(GeneratedDiscount, "amount")  # type: ignore[assignment]
 
     @field_validator("amount", mode="before")
     @classmethod
@@ -87,6 +106,9 @@ class Discount(_GeneratedModelMixin, GeneratedDiscount):
 class Charge(_GeneratedModelMixin, GeneratedCharge):
     """Receipt charge accepting Python ``Decimal`` and decimal strings."""
 
+    model_config = ConfigDict(from_attributes=True)
+    amount: Decimal = _field(GeneratedCharge, "amount")  # type: ignore[assignment]
+
     @field_validator("amount", mode="before")
     @classmethod
     def coerce_amount(cls, value: object) -> Decimal:
@@ -105,12 +127,33 @@ class Charge(_GeneratedModelMixin, GeneratedCharge):
 class Tax(_GeneratedModelMixin, GeneratedTax):
     """Tax applied to a product line or an entire receipt."""
 
+    model_config = ConfigDict(from_attributes=True)
+    amount: Optional[Decimal] = _field(GeneratedTax, "amount")  # type: ignore[assignment]
+    taxable_amount: Decimal = _field(GeneratedTax, "taxable_amount")  # type: ignore[assignment]
+
     @field_validator("amount", "taxable_amount", mode="before")
     @classmethod
     def coerce_amounts(cls, value: object) -> Optional[Decimal]:
         if value is None:
             return None
         return _coerce_generated_number(value)
+
+
+class PaymentMethod(_GeneratedModelMixin, GeneratedPaymentMethod):
+    """One issuer-supplied payment method and its exact paid amount."""
+
+    model_config = ConfigDict(from_attributes=True)
+    amount: Decimal = _field(GeneratedPaymentMethod, "amount")  # type: ignore[assignment]
+
+
+class PaymentDetails(_GeneratedModelMixin, GeneratedPaymentDetails):
+    """Issuer-supplied payment details with exact monetary amounts."""
+
+    model_config = ConfigDict(from_attributes=True)
+    paid_amount: Optional[Decimal] = _field(GeneratedPaymentDetails, "paid_amount")  # type: ignore[assignment]
+    amount_due: Optional[Decimal] = _field(GeneratedPaymentDetails, "amount_due")  # type: ignore[assignment]
+    rounding_amount: Optional[Decimal] = _field(GeneratedPaymentDetails, "rounding_amount")  # type: ignore[assignment]
+    payment_methods: Optional[List[PaymentMethod]] = _field(GeneratedPaymentDetails, "payment_methods")  # type: ignore[assignment]
 
 
 class Period(_GeneratedModelMixin, GeneratedPeriod):
@@ -176,7 +219,13 @@ class Product(_GeneratedModelMixin, GeneratedProduct):
     discounts, charges, or barcodes. The SDK never calculates monetary values.
     """
 
-    taxes: List[GeneratedTax] = Field(default_factory=list)
+    model_config = ConfigDict(from_attributes=True)
+    unit_price: Decimal = _field(GeneratedProduct, "unit_price")  # type: ignore[assignment]
+    subtotal: Decimal = _field(GeneratedProduct, "subtotal")  # type: ignore[assignment]
+    total: Decimal = _field(GeneratedProduct, "total")  # type: ignore[assignment]
+    taxes: List[Tax] = Field(default_factory=list)  # type: ignore[assignment]
+    discounts: Optional[List[Discount]] = _field(GeneratedProduct, "discounts")  # type: ignore[assignment]
+    charges: Optional[List[Charge]] = _field(GeneratedProduct, "charges")  # type: ignore[assignment]
 
     @field_validator("unit_price", "subtotal", "total", mode="before")
     @classmethod
@@ -211,7 +260,7 @@ class Product(_GeneratedModelMixin, GeneratedProduct):
                 exemption_reason_code=exemption_reason_code,
                 exemption_reason=exemption_reason,
             )
-        self.taxes = [*self.taxes, tax]
+        self.taxes = [*self.taxes, Tax.model_validate(tax)]
         return self
 
     def add_discount(
@@ -226,7 +275,7 @@ class Product(_GeneratedModelMixin, GeneratedProduct):
             if isinstance(discount_or_amount, GeneratedDiscount)
             else Discount.of(discount_or_amount, label, percentage)
         )
-        self.discounts = [*(self.discounts or []), discount]
+        self.discounts = [*(self.discounts or []), Discount.model_validate(discount)]
         return self
 
     def add_charge(
@@ -241,7 +290,7 @@ class Product(_GeneratedModelMixin, GeneratedProduct):
             if isinstance(charge_or_amount, GeneratedCharge)
             else Charge.of(charge_or_amount, label, percentage)
         )
-        self.charges = [*(self.charges or []), charge]
+        self.charges = [*(self.charges or []), Charge.model_validate(charge)]
         return self
 
     def add_barcode(self, barcode: GeneratedBarcode) -> Self:
@@ -259,6 +308,18 @@ class ReceiptPayload(_GeneratedModelMixin, GeneratedReceiptPayload):
     calculations, enrichment, fiscalization, signature, sequence, or QR generation.
     """
 
+    receipt_subtotal: Decimal = _field(GeneratedReceiptPayload, "receipt_subtotal")  # type: ignore[assignment]
+    total_before_tax: Decimal = _field(GeneratedReceiptPayload, "total_before_tax")  # type: ignore[assignment]
+    total_tax_amount: Decimal = _field(GeneratedReceiptPayload, "total_tax_amount")  # type: ignore[assignment]
+    total_amount: Decimal = _field(GeneratedReceiptPayload, "total_amount")  # type: ignore[assignment]
+    total_discount_amount: Optional[Decimal] = _field(GeneratedReceiptPayload, "total_discount_amount")  # type: ignore[assignment]
+    total_charge_amount: Optional[Decimal] = _field(GeneratedReceiptPayload, "total_charge_amount")  # type: ignore[assignment]
+    products: List[Product] = _field(GeneratedReceiptPayload, "products")  # type: ignore[assignment]
+    taxes: List[Tax] = _field(GeneratedReceiptPayload, "taxes")  # type: ignore[assignment]
+    discounts: Optional[List[Discount]] = _field(GeneratedReceiptPayload, "discounts")  # type: ignore[assignment]
+    charges: Optional[List[Charge]] = _field(GeneratedReceiptPayload, "charges")  # type: ignore[assignment]
+    payment_details: PaymentDetails = _field(GeneratedReceiptPayload, "payment_details")  # type: ignore[assignment]
+
     @field_validator(
         "receipt_subtotal",
         "total_before_tax",
@@ -273,19 +334,19 @@ class ReceiptPayload(_GeneratedModelMixin, GeneratedReceiptPayload):
         return None if value is None else _coerce_generated_number(value)
 
     def add_product(self, product: GeneratedProduct) -> Self:
-        self.products = [*self.products, product]
+        self.products = [*self.products, Product.model_validate(product)]
         return self
 
     def add_tax(self, tax: GeneratedTax) -> Self:
-        self.taxes = [*(self.taxes or []), tax]
+        self.taxes = [*(self.taxes or []), Tax.model_validate(tax)]
         return self
 
     def add_discount(self, discount: GeneratedDiscount) -> Self:
-        self.discounts = [*(self.discounts or []), discount]
+        self.discounts = [*(self.discounts or []), Discount.model_validate(discount)]
         return self
 
     def add_charge(self, charge: GeneratedCharge) -> Self:
-        self.charges = [*(self.charges or []), charge]
+        self.charges = [*(self.charges or []), Charge.model_validate(charge)]
         return self
 
     def add_barcode(self, barcode: GeneratedBarcode) -> Self:

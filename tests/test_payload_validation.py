@@ -51,9 +51,8 @@ def test_all_findings_are_structured_and_readable_on_the_existing_exception() ->
         error.validation_report.valid = True
 
 
-@pytest.mark.parametrize("model", [ReceiptPayload, GeneratedReceiptPayload])
-def test_decimal_values_and_scale_survive_models_and_validation_unchanged(model: type) -> None:
-    receipt = model.model_validate_json((FIXTURES / "receipt-payload.json").read_bytes())
+def test_decimal_values_and_scale_survive_models_and_validation_unchanged() -> None:
+    receipt = ReceiptPayload.model_validate_json((FIXTURES / "receipt-payload.json").read_bytes())
     precise = Decimal("8.9050000000000001")
     receipt.products[0].unit_price = precise
     before = receipt.model_dump_json(by_alias=True, exclude_none=True)
@@ -66,24 +65,25 @@ def test_decimal_values_and_scale_survive_models_and_validation_unchanged(model:
     assert json.loads(receipt.model_dump_json(by_alias=True))["totalAmount"] == "19.4100"
 
 
-def test_generated_json_helpers_preserve_precise_input() -> None:
+def test_public_json_helpers_preserve_precise_input() -> None:
     receipt = payload()
     receipt.products[0].unit_price = Decimal("8.9050000000000001")
-    restored = GeneratedReceiptPayload.from_json(receipt.to_json())
+    restored = ReceiptPayload.from_json(receipt.to_json())
     assert restored.products[0].unit_price == Decimal("8.9050000000000001")
 
 
-def test_required_fields_and_collection_limits_come_from_generated_schema() -> None:
+@pytest.mark.parametrize("model", [GeneratedReceiptPayload, ReceiptPayload])
+def test_required_fields_and_collection_limits_come_from_generated_schema(model: type) -> None:
     data = json.loads((FIXTURES / "receipt-payload.json").read_text())
     for field in ["paymentDetails", "taxes"]:
         invalid = dict(data)
         del invalid[field]
         with pytest.raises(ValidationError) as caught:
-            GeneratedReceiptPayload.model_validate(invalid)
+            model.model_validate(invalid)
         assert any(item["loc"] == (field,) for item in caught.value.errors())
     for field in ["taxes", "products"]:
         with pytest.raises(ValidationError):
-            GeneratedReceiptPayload.model_validate({**data, field: []})
+            model.model_validate({**data, field: []})
 
 
 def test_concurrent_validation_calls_have_independent_state() -> None:
@@ -139,3 +139,22 @@ def test_serialization_failure_keeps_the_underlying_exception() -> None:
     assert caught.value.error_code == ErrorCodes.VALIDATION_ERROR
     assert isinstance(caught.value.__cause__, TypeError)
     assert "ReceiptPayload" in str(caught.value)
+
+
+def test_public_split_payment_amounts_remain_exact() -> None:
+    from cheqi.models import PaymentDetails, PaymentMethod
+
+    receipt = payload()
+    receipt.payment_details = PaymentDetails(
+        paid_amount=Decimal("19.41"), amount_due=Decimal("0.00"), rounding_amount=Decimal("0.00"),
+        payment_methods=[
+            PaymentMethod(amount=Decimal("9.41"), payment_means_code="10"),
+            PaymentMethod(amount=Decimal("10.00"), payment_means_code="48", card_last_four="4242"),
+        ],
+    )
+    encoded = ReceiptPayloadValidator().require_valid_json(receipt)
+    details = json.loads(encoded)["paymentDetails"]
+    assert details["paidAmount"] == "19.41"
+    assert details["amountDue"] == "0.00"
+    assert details["roundingAmount"] == "0.00"
+    assert [method["amount"] for method in details["paymentMethods"]] == ["9.41", "10.00"]

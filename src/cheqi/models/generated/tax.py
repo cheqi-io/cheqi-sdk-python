@@ -13,7 +13,6 @@
 
 
 from __future__ import annotations
-from decimal import Decimal
 import pprint
 import re  # noqa: F401
 import json
@@ -30,8 +29,8 @@ class Tax(BaseModel):
     """ # noqa: E501
     rate: Union[StrictFloat, StrictInt] = Field(description="The tax rate as a percentage (e.g. 21.0 for 21%)")
     type: StrictStr = Field(description="The type of tax, e.g. \"VAT\", \"GST\", \"Sales Tax\"")
-    amount: Optional[Decimal] = Field(default=None, description="The calculated tax amount")
-    taxable_amount: Decimal = Field(description="The total taxable amount for this tax rate", alias="taxableAmount")
+    amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="The calculated tax amount")
+    taxable_amount: Union[StrictFloat, StrictInt] = Field(description="The total taxable amount for this tax rate", alias="taxableAmount")
     label: Optional[StrictStr] = Field(default=None, description="The label of the tax")
     category: Optional[TaxCategoryCode] = None
     exemption_reason_code: Optional[StrictStr] = Field(default=None, description="Tax exemption reason code, applicable only when category is EXEMPT", alias="exemptionReasonCode")
@@ -51,12 +50,13 @@ class Tax(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        return self.model_dump_json(by_alias=True, exclude_none=True)
+        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
+        return json.dumps(self.to_dict())
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of Tax from a JSON string"""
-        return cls.model_validate_json(json_str)
+        return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.

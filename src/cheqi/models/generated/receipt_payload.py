@@ -13,7 +13,6 @@
 
 
 from __future__ import annotations
-from decimal import Decimal
 import pprint
 import re  # noqa: F401
 import json
@@ -42,12 +41,12 @@ class ReceiptPayload(BaseModel):
     identifiers: Optional[List[Identifier]] = Field(default=None, description="Additional issuer-supplied receipt references.")
     issue_date: datetime = Field(description="Date and time at which the issuer issued the receipt.", alias="issueDate")
     currency: Annotated[str, Field(strict=True)] = Field(description="ISO 4217 currency code.")
-    receipt_subtotal: Decimal = Field(description="Issuer-supplied receipt subtotal.", alias="receiptSubtotal")
-    total_before_tax: Decimal = Field(description="Issuer-supplied total excluding tax.", alias="totalBeforeTax")
-    total_tax_amount: Decimal = Field(description="Issuer-supplied total tax amount.", alias="totalTaxAmount")
-    total_amount: Decimal = Field(description="Issuer-supplied final receipt total.", alias="totalAmount")
-    total_discount_amount: Optional[Decimal] = Field(default=None, description="Issuer-supplied sum of the receipt-level discounts. Cheqi never calculates or fills in this value; it only checks it against the discounts. Required whenever receipt-level discounts are present.", alias="totalDiscountAmount")
-    total_charge_amount: Optional[Decimal] = Field(default=None, description="Issuer-supplied sum of the receipt-level charges. Cheqi never calculates or fills in this value; it only checks it against the charges. Required whenever receipt-level charges are present.", alias="totalChargeAmount")
+    receipt_subtotal: Union[StrictFloat, StrictInt] = Field(description="Issuer-supplied receipt subtotal.", alias="receiptSubtotal")
+    total_before_tax: Union[StrictFloat, StrictInt] = Field(description="Issuer-supplied total excluding tax.", alias="totalBeforeTax")
+    total_tax_amount: Union[StrictFloat, StrictInt] = Field(description="Issuer-supplied total tax amount.", alias="totalTaxAmount")
+    total_amount: Union[StrictFloat, StrictInt] = Field(description="Issuer-supplied final receipt total.", alias="totalAmount")
+    total_discount_amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied sum of the receipt-level discounts. Cheqi never calculates or fills in this value; it only checks it against the discounts. Required whenever receipt-level discounts are present.", alias="totalDiscountAmount")
+    total_charge_amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied sum of the receipt-level charges. Cheqi never calculates or fills in this value; it only checks it against the charges. Required whenever receipt-level charges are present.", alias="totalChargeAmount")
     taxes_applied: StrictBool = Field(description="Issuer-supplied indication whether taxes apply to this receipt.", alias="taxesApplied")
     products: Annotated[List[Product], Field(min_length=1, max_length=1024)] = Field(description="Issuer-supplied receipt line items. Each line must have exactly one VAT entry with an explicit category and tax amount, including zero tax.")
     discounts: Optional[Annotated[List[Discount], Field(min_length=0, max_length=256)]] = Field(default=None, description="Issuer-supplied receipt-level discounts.")
@@ -81,12 +80,13 @@ class ReceiptPayload(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        return self.model_dump_json(by_alias=True, exclude_none=True)
+        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
+        return json.dumps(self.to_dict())
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of ReceiptPayload from a JSON string"""
-        return cls.model_validate_json(json_str)
+        return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.

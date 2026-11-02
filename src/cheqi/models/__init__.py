@@ -29,8 +29,6 @@ from cheqi.models.generated.match_state import MatchState
 from cheqi.models.generated.match_status_response import MatchStatusResponse
 from cheqi.models.generated.matched_recipient import MatchedRecipient
 from cheqi.models.generated.payment_account_details import PaymentAccountDetails
-from cheqi.models.generated.payment_details import PaymentDetails
-from cheqi.models.generated.payment_method import PaymentMethod
 from cheqi.models.generated.payment_type import PaymentType
 from cheqi.models.generated.receipt_envelope import ReceiptEnvelope
 from cheqi.models.generated.receipt_envelope_document import ReceiptEnvelopeDocument
@@ -52,6 +50,8 @@ from cheqi.models.receipt import (
     JurisdictionalData,
     JurisdictionField,
     JurisdictionLegalText,
+    PaymentDetails,
+    PaymentMethod,
     Period,
     PreparedReceiptDownload,
     Product,

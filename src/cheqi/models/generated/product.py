@@ -13,7 +13,6 @@
 
 
 from __future__ import annotations
-from decimal import Decimal
 import pprint
 import re  # noqa: F401
 import json
@@ -41,12 +40,12 @@ class Product(BaseModel):
     base_quantity: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="The base quantity of this item", alias="baseQuantity")
     unit_code: UnitCode = Field(alias="unitCode")
     period: Optional[Period] = None
-    unit_price: Decimal = Field(description="The unit price of this item", alias="unitPrice")
+    unit_price: Union[StrictFloat, StrictInt] = Field(description="The unit price of this item", alias="unitPrice")
     discounts: Optional[List[Discount]] = Field(default=None, description="The discounts applied to this line item")
     charges: Optional[List[Charge]] = Field(default=None, description="The extra charges applied to this line item")
     taxes: Optional[List[Tax]] = Field(default=None, description="The taxes applied to this line item")
-    subtotal: Decimal = Field(description="The line subtotal, before tax. Typically: quantity * unitPrice - discounts + charges (net).")
-    total: Decimal = Field(description="The line total, after tax. Typically: subtotal + tax amounts (gross).")
+    subtotal: Union[StrictFloat, StrictInt] = Field(description="The line subtotal, before tax. Typically: quantity * unitPrice - discounts + charges (net).")
+    total: Union[StrictFloat, StrictInt] = Field(description="The line total, after tax. Typically: subtotal + tax amounts (gross).")
     barcodes: Optional[List[Barcode]] = None
     __properties: ClassVar[List[str]] = ["name", "brandName", "identifier", "description", "quantity", "baseQuantity", "unitCode", "period", "unitPrice", "discounts", "charges", "taxes", "subtotal", "total", "barcodes"]
 
@@ -63,12 +62,13 @@ class Product(BaseModel):
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
-        return self.model_dump_json(by_alias=True, exclude_none=True)
+        # TODO: pydantic v2: use .model_dump_json(by_alias=True, exclude_unset=True) instead
+        return json.dumps(self.to_dict())
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
         """Create an instance of Product from a JSON string"""
-        return cls.model_validate_json(json_str)
+        return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
         """Return the dictionary representation of the model using alias.
