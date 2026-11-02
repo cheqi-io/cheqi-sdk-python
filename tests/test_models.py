@@ -11,12 +11,14 @@ from cheqi.models import (
     FiscalizationData,
     FiscalizationStatus,
     JurisdictionalData,
+    PaymentDetails,
     Product,
     ReceiptPayload,
     RefundBankAccount,
     RefundPreference,
     ReturnLineItem,
     ReturnReasonCode,
+    Tax,
     UnitCode,
 )
 
@@ -72,6 +74,8 @@ def test_receipt_payload_serializes_definitive_values_without_template_wrapper()
         total_tax_amount="3.03",
         total_amount="9.04",
         taxes_applied=True,
+        taxes=[Tax(rate=21, type="VAT", taxable_amount=8.02, amount=3.03)],
+        payment_details=PaymentDetails(paid_amount=9.04, amount_due=0, rounding_amount=0),
         products=[product],
         jurisdictional_data=jurisdiction,
     ).add_qr_code("https://verify.example/AT-100", "Verify")

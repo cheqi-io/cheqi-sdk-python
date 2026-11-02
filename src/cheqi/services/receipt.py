@@ -28,6 +28,7 @@ from cheqi.services.download import DownloadService
 from cheqi.services.encryption import EncryptionService
 from cheqi.services.matching import MatchingService
 from cheqi.services.verification import VerificationService
+from cheqi.validation import ReceiptPayloadValidator
 
 _PAYLOAD_DOCUMENT_VERSION = "receipt-payload-v1"
 
@@ -207,6 +208,7 @@ class ReceiptService:
     @staticmethod
     def _validate_payload(payload: GeneratedReceiptPayload) -> None:
         ReceiptService._require_not_none(payload, "receipt_payload")
+        ReceiptPayloadValidator().validate_or_raise(payload)
         # Revalidate even models made using model_construct; invalid input must fail before matching.
         try:
             GeneratedReceiptPayload.model_validate(_model_dict(payload))
@@ -224,7 +226,7 @@ class ReceiptService:
     ) -> ReceiptResult:
         """Create an encrypted download without recipient matching."""
         self._require_not_none(identification_details, "identification_details")
-        self._require_not_none(receipt_payload, "receipt_payload")
+        self._validate_payload(receipt_payload)
         if identification_details.payment_type is None:
             self._validation_error("identification_details.payment_type is required")
         try:
@@ -308,6 +310,7 @@ class ReceiptService:
         self, receipt_payload: GeneratedReceiptPayload,
         identification_details: Optional[IdentificationDetails] = None,
     ) -> PreparedReceiptDownload:
+        self._validate_payload(receipt_payload)
         link = self._create_download_link()
         payload_document = _model_json(receipt_payload)
         documents = {

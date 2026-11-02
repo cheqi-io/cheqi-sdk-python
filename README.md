@@ -93,6 +93,7 @@ from cheqi.models import (
     Product,
     ReceiptPayload,
     Tax,
+    TaxCategoryCode,
     UnitCode,
 )
 
@@ -115,7 +116,7 @@ product = Product(
     unit_price="10.00",
     subtotal="10.00",
     total="12.10",
-).add_tax(21, "VAT", "10.00", "2.10")
+).add_tax(Tax(rate=21, type="VAT", taxable_amount=10, amount=2.1, category=TaxCategoryCode.STANDARD))
 
 payload = ReceiptPayload(
     document_number="POS-2026-0001",
@@ -127,8 +128,11 @@ payload = ReceiptPayload(
     total_amount="12.10",
     taxes_applied=True,
     products=[product],
-    taxes=[Tax(rate=21, type="VAT", taxable_amount="10.00", amount="2.10")],
+    taxes=[Tax(rate=21, type="VAT", taxable_amount=10, amount=2.1, category=TaxCategoryCode.STANDARD)],
     payment_details=PaymentDetails(
+        paid_amount=12.1,
+        amount_due=0,
+        rounding_amount=0,
         payment_means_code="48",
         description="Card payment",
         card_provider="VISA",
@@ -163,6 +167,30 @@ result = sdk.receipt_service.issue_receipt(
 
 All monetary, tax, payment, barcode, and jurisdictional values remain caller-supplied. For example,
 `Product.add_tax(...)` only appends the supplied tax; it does not calculate it.
+
+## Receipt validation
+
+The SDK checks receipt data locally before matching, encryption or submission.
+Supply all payment amounts, including zero, and the VAT category and amount for
+each line and receipt-level tax entry. Invalid data stops issuance; the SDK
+never fills in or corrects financial values.
+
+```python
+from cheqi import CheqiSDKError
+
+try:
+    result = sdk.receipt_service.issue_receipt(identification, payload)
+except CheqiSDKError as error:
+    if error.validation_report is None:
+        raise
+    for issue in error.validation_report.issues:
+        print(f"{issue.rule_id} — {issue.path}: {issue.message}")
+```
+
+For an optional preflight, call `ReceiptPayloadValidator().validate(payload)`
+after importing `ReceiptPayloadValidator` from `cheqi`.
+The validator is bundled with the SDK and runs without a network request.
+The [validation flow](docs/receipt-validation.mmd) precedes the existing issuance flow.
 
 ## Delivery routes and downloads
 

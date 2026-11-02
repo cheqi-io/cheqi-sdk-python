@@ -1,0 +1,9 @@
+flowchart TD
+    POS[Issuer-supplied ReceiptPayload] --> Validate[Validate receipt data locally]
+    WASM[Bundled receipt validator] --> Validate
+    Validate -->|Invalid| Error[CheqiSDKError with all detected issues]
+    Validate -->|Valid| Existing[Existing receipt issuance flow]
+    Existing --> Matching[Resolve owner devices]
+    Matching --> Encrypt[Encrypt receipt payload locally]
+    Encrypt --> Submit[Submit encrypted receipt]
+    Existing --> Download[Existing encrypted download fallback]

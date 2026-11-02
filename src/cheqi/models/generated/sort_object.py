@@ -26,10 +26,10 @@ class SortObject(BaseModel):
     """
     SortObject
     """ # noqa: E501
-    empty: Optional[StrictBool] = None
     sorted: Optional[StrictBool] = None
     unsorted: Optional[StrictBool] = None
-    __properties: ClassVar[List[str]] = ["empty", "sorted", "unsorted"]
+    empty: Optional[StrictBool] = None
+    __properties: ClassVar[List[str]] = ["sorted", "unsorted", "empty"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -82,9 +82,9 @@ class SortObject(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "empty": obj.get("empty"),
             "sorted": obj.get("sorted"),
-            "unsorted": obj.get("unsorted")
+            "unsorted": obj.get("unsorted"),
+            "empty": obj.get("empty")
         })
         return _obj
 

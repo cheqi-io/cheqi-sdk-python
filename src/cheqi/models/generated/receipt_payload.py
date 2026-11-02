@@ -18,8 +18,9 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional, Union
+from typing_extensions import Annotated
 from cheqi.models.generated.barcode import Barcode
 from cheqi.models.generated.charge import Charge
 from cheqi.models.generated.discount import Discount
@@ -34,28 +35,37 @@ from typing_extensions import Self
 
 class ReceiptPayload(BaseModel):
     """
-    Definitive merchant-supplied receipt values encrypted independently for each matched owner device. Cheqi never receives this object in plaintext. All monetary, tax, fiscalization, signature, sequence, and QR values must be provided by the issuer; the SDK does not calculate them.
+    Definitive merchant-supplied receipt values encrypted independently for each matched owner device. Cheqi never receives this object in plaintext. All monetary, tax, fiscalization, signature, sequence, and QR values must be provided by the issuer. Every new payload must satisfy the shared issuer validator, regardless of receiver formats; no financial values are inferred or repaired.
     """ # noqa: E501
     document_number: StrictStr = Field(description="Issuer-assigned receipt number.", alias="documentNumber")
     identifiers: Optional[List[Identifier]] = Field(default=None, description="Additional issuer-supplied receipt references.")
     issue_date: datetime = Field(description="Date and time at which the issuer issued the receipt.", alias="issueDate")
-    currency: StrictStr = Field(description="ISO 4217 currency code.")
+    currency: Annotated[str, Field(strict=True)] = Field(description="ISO 4217 currency code.")
     receipt_subtotal: Union[StrictFloat, StrictInt] = Field(description="Issuer-supplied receipt subtotal.", alias="receiptSubtotal")
     total_before_tax: Union[StrictFloat, StrictInt] = Field(description="Issuer-supplied total excluding tax.", alias="totalBeforeTax")
     total_tax_amount: Union[StrictFloat, StrictInt] = Field(description="Issuer-supplied total tax amount.", alias="totalTaxAmount")
     total_amount: Union[StrictFloat, StrictInt] = Field(description="Issuer-supplied final receipt total.", alias="totalAmount")
+    total_discount_amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied sum of the receipt-level discounts. Cheqi never calculates or fills in this value; it only checks it against the discounts. Required whenever receipt-level discounts are present.", alias="totalDiscountAmount")
+    total_charge_amount: Optional[Union[StrictFloat, StrictInt]] = Field(default=None, description="Issuer-supplied sum of the receipt-level charges. Cheqi never calculates or fills in this value; it only checks it against the charges. Required whenever receipt-level charges are present.", alias="totalChargeAmount")
     taxes_applied: StrictBool = Field(description="Issuer-supplied indication whether taxes apply to this receipt.", alias="taxesApplied")
-    products: List[Product] = Field(description="Issuer-supplied receipt line items.")
-    discounts: Optional[List[Discount]] = Field(default=None, description="Issuer-supplied receipt-level discounts.")
-    charges: Optional[List[Charge]] = Field(default=None, description="Issuer-supplied receipt-level charges.")
-    taxes: Optional[List[Tax]] = Field(default=None, description="Issuer-supplied receipt-level tax breakdown.")
+    products: Annotated[List[Product], Field(min_length=1, max_length=1024)] = Field(description="Issuer-supplied receipt line items. Each line must have exactly one VAT entry with an explicit category and tax amount, including zero tax.")
+    discounts: Optional[Annotated[List[Discount], Field(min_length=0, max_length=256)]] = Field(default=None, description="Issuer-supplied receipt-level discounts.")
+    charges: Optional[Annotated[List[Charge], Field(min_length=0, max_length=256)]] = Field(default=None, description="Issuer-supplied receipt-level charges.")
+    taxes: Annotated[List[Tax], Field(min_length=1, max_length=64)] = Field(description="Issuer-supplied VAT breakdown, including zero tax. Each entry must state category, rate, taxableAmount and amount.")
     transaction_date: Optional[datetime] = Field(default=None, description="Transaction date when it differs from the issue date.", alias="transactionDate")
     purchase_date: Optional[datetime] = Field(default=None, description="Purchase date when it differs from the issue date.", alias="purchaseDate")
     period: Optional[Period] = None
     barcodes: Optional[List[Barcode]] = Field(default=None, description="Issuer-supplied receipt-level barcodes or QR-code payloads.")
-    payment_details: Optional[PaymentDetails] = Field(default=None, alias="paymentDetails")
+    payment_details: PaymentDetails = Field(alias="paymentDetails")
     jurisdictional_data: Optional[JurisdictionalData] = Field(default=None, alias="jurisdictionalData")
-    __properties: ClassVar[List[str]] = ["documentNumber", "identifiers", "issueDate", "currency", "receiptSubtotal", "totalBeforeTax", "totalTaxAmount", "totalAmount", "taxesApplied", "products", "discounts", "charges", "taxes", "transactionDate", "purchaseDate", "period", "barcodes", "paymentDetails", "jurisdictionalData"]
+    __properties: ClassVar[List[str]] = ["documentNumber", "identifiers", "issueDate", "currency", "receiptSubtotal", "totalBeforeTax", "totalTaxAmount", "totalAmount", "totalDiscountAmount", "totalChargeAmount", "taxesApplied", "products", "discounts", "charges", "taxes", "transactionDate", "purchaseDate", "period", "barcodes", "paymentDetails", "jurisdictionalData"]
+
+    @field_validator('currency')
+    def currency_validate_regular_expression(cls, value):
+        """Validates the regular expression"""
+        if not re.match(r"[A-Z]{3}", value):
+            raise ValueError(r"must validate the regular expression /[A-Z]{3}/")
+        return value
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -167,6 +177,8 @@ class ReceiptPayload(BaseModel):
             "totalBeforeTax": obj.get("totalBeforeTax"),
             "totalTaxAmount": obj.get("totalTaxAmount"),
             "totalAmount": obj.get("totalAmount"),
+            "totalDiscountAmount": obj.get("totalDiscountAmount"),
+            "totalChargeAmount": obj.get("totalChargeAmount"),
             "taxesApplied": obj.get("taxesApplied"),
             "products": [Product.from_dict(_item) for _item in obj["products"]] if obj.get("products") is not None else None,
             "discounts": [Discount.from_dict(_item) for _item in obj["discounts"]] if obj.get("discounts") is not None else None,

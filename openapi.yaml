@@ -27,8 +27,6 @@ tags:
 - name: Company Management
   description: "Manage company profiles, memberships, invitations, receipt destinations,\
     \ and company hierarchy"
-- name: Receipt Collection
-  description: Collect client-encrypted QR receipts after local decryption
 - name: Recipient Management
   description: Endpoints for resolving and matching receipt recipients
 - name: Receipt Management
@@ -192,12 +190,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/OAuthTokenExchangeResponse"
-        "400":
-          description: Invalid authorization code or request parameters
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
         "200":
           description: OAuth exchange completed successfully
           content:
@@ -213,6 +205,12 @@ paths:
                     token_type: bearer
                     expires_in: 900
                     scope: receipt:issue
+        "400":
+          description: Invalid authorization code or request parameters
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
       security: []
   /company/{companyId}/stores/{storeId}:
     get:
@@ -285,18 +283,18 @@ paths:
               $ref: "#/components/schemas/UpdateStoreRequest"
         required: true
       responses:
-        "404":
-          description: Store or company not found
-          content:
-            '*/*':
-              schema:
-                type: object
         "200":
           description: Store updated successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
+        "404":
+          description: Store or company not found
+          content:
+            '*/*':
+              schema:
+                type: object
         "403":
           description: Not authorized to update this store
           content:
@@ -441,18 +439,18 @@ paths:
             '*/*':
               schema:
                 type: object
-        "201":
-          description: Store created successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "400":
           description: Invalid request data
           content:
             '*/*':
               schema:
                 type: object
+        "201":
+          description: Store created successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
   /recipient/resolve:
     post:
       tags:
@@ -476,12 +474,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
-        "200":
-          description: Recipient successfully resolved and matched
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RecipientResolutionResponse"
         "403":
           description: Insufficient permissions - requires receipt:issue scope
           content:
@@ -496,6 +488,12 @@ paths:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
         "400":
           description: Invalid identification details provided
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RecipientResolutionResponse"
+        "200":
+          description: Recipient successfully resolved and matched
           content:
             '*/*':
               schema:
@@ -579,8 +577,28 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
+        "202":
+          description: Encrypted receipt payload accepted for on-device formatting
+          content:
+            '*/*':
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/ReceiptSubmissionResponse"
+                - $ref: "#/components/schemas/MatchStatusResponse"
         "400":
           description: Invalid encrypted generation request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
+        "404":
+          description: Match absent or belongs to another requester
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReceiptSubmissionResponse"
+        "409":
+          description: Match already used for another document
           content:
             '*/*':
               schema:
@@ -591,26 +609,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/MatchStatusResponse"
-        "404":
-          description: Match absent or belongs to another requester
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "202":
-          description: Encrypted receipt payload accepted for on-device formatting
-          content:
-            '*/*':
-              schema:
-                oneOf:
-                - $ref: "#/components/schemas/ReceiptSubmissionResponse"
-                - $ref: "#/components/schemas/MatchStatusResponse"
-        "409":
-          description: Match already used for another document
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptSubmissionResponse"
       security:
       - cheqi_oauth:
         - receipt:issue
@@ -671,6 +669,12 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
+        "200":
+          description: Idempotent replay of an identical earlier upload
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
         "403":
           description: Insufficient permissions - requires receipt:issue scope
           content:
@@ -683,149 +687,10 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "200":
-          description: Idempotent replay of an identical earlier upload
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
       security:
       - cheqi_oauth:
         - receipt:issue
       x-accessible-for: "Company, Client Application"
-  /receipt/download/collections:
-    post:
-      tags:
-      - Receipt Collection
-      summary: Collect an encrypted download and match a payment suffix
-      description: |-
-        The app saves the decrypted receipt independently of this request. Never send the fragment key or plaintext documents. NO_MATCH is a successful collection.
-
-        **Accessible for:** User
-      operationId: collect
-      parameters:
-      - name: X-Device-ID
-        in: header
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateReceiptCollectionRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ReceiptCollectionResponse"
-      x-accessible-for: User
-  /receipt/download/collections/{id}/recipients/resolve:
-    post:
-      tags:
-      - Receipt Collection
-      summary: Resolve owner-device and selected-account collection recipients
-      description: |-
-        Omit paymentAccountId for an automatic unique match. For MULTIPLE_MATCHES choose a candidate; NO_MATCH permits manual selection. Owner-device delivery does not require a match.
-
-        **Accessible for:** User
-      operationId: resolve
-      parameters:
-      - name: X-Device-ID
-        in: header
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResolveCollectionRecipientsRequest"
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/CollectionResolutionResponse"
-      x-accessible-for: User
-  /receipt/download/collections/{id}/deliveries:
-    post:
-      tags:
-      - Receipt Collection
-      summary: Submit encrypted envelopes for one collection delivery phase
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: deliver
-      parameters:
-      - name: X-Device-ID
-        in: header
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CollectionDeliveryRequest"
-        required: true
-      responses:
-        "202":
-          description: Accepted
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/CollectionDeliveryResponse"
-      x-accessible-for: User
-  /receipt/download/collections/device-deliveries/acknowledge:
-    post:
-      tags:
-      - Receipt Collection
-      summary: Acknowledge locally saved receipt copies with their document hashes
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: acknowledgeDeviceDeliveries
-      parameters:
-      - name: X-Device-ID
-        in: header
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                $ref: "#/components/schemas/ReceivedReceiptAckDto"
-        required: true
-      responses:
-        "204":
-          description: No Content
-      x-accessible-for: User
   /credit-note/initiate:
     post:
       tags:
@@ -881,14 +746,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "202":
-          description: Encrypted credit-note generation job accepted
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "403":
-          description: Insufficient permissions - requires receipt:issue scope
+        "202":
+          description: Encrypted credit-note generation job accepted
           content:
             '*/*':
               schema:
@@ -966,6 +831,12 @@ paths:
               $ref: "#/components/schemas/InviteEmployeeRequest"
         required: true
       responses:
+        "200":
+          description: "Existing members, new invitations, and pending invitations"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteEmployeesResponse"
         "400":
           description: Invalid invitation request
           content:
@@ -974,12 +845,6 @@ paths:
                 $ref: "#/components/schemas/InviteEmployeesResponse"
         "404":
           description: Company not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/InviteEmployeesResponse"
-        "200":
-          description: "Existing members, new invitations, and pending invitations"
           content:
             application/json:
               schema:
@@ -1080,14 +945,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Public key retrieved successfully
+        "404":
+          description: Client application not found or public key not configured
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicKeyResponse"
-        "404":
-          description: Client application not found or public key not configured
+        "200":
+          description: Public key retrieved successfully
           content:
             application/json:
               schema:
@@ -1132,6 +997,39 @@ paths:
         "404":
           description: Client application not found
       x-accessible-for: "Company, User"
+  /client-application/public-key:
+    post:
+      tags:
+      - Client Application Management
+      summary: Register the authenticated application's public encryption key
+      description: "Authenticates an approved confidential application using client_id\
+        \ and an active client_secret in the request body, then registers its public\
+        \ encryption key. Alternatively, omit client_secret and send the owning company\
+        \ API key as a bearer token. The API key must belong to the company that owns\
+        \ the selected client_id. Client credentials require no API key, bearer token,\
+        \ company grant, or application UUID. The credentials select the application;\
+        \ another application cannot be selected. Keep the corresponding private key\
+        \ in the receiving application. Use HTTPS."
+      operationId: registerPublicKey
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientApplicationPublicKeyRequest"
+        required: true
+      responses:
+        "200":
+          description: Public key registered
+        "400":
+          description: Missing fields or invalid public key
+        "401":
+          description: Invalid or revoked client credentials
+        "403":
+          description: "API key company does not own the application, or client credential\
+            \ registration is not allowed"
+        "429":
+          description: Authentication rate limit exceeded
+      security: []
   /webhook/subscription/{id}:
     patch:
       tags:
@@ -1156,6 +1054,12 @@ paths:
               $ref: "#/components/schemas/UpdateSubscriptionRequest"
         required: true
       responses:
+        "200":
+          description: Notification URL updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookDTO"
         "403":
           description: Insufficient permissions for the subscription's event type
           content:
@@ -1166,12 +1070,6 @@ paths:
           description: Invalid notification URL
           content:
             '*/*':
-              schema:
-                $ref: "#/components/schemas/WebhookDTO"
-        "200":
-          description: Notification URL updated
-          content:
-            application/json:
               schema:
                 $ref: "#/components/schemas/WebhookDTO"
         "404":
@@ -1192,7 +1090,7 @@ paths:
       - Credit Note Management
       summary: Update a return request status
       description: |-
-        Updates the lifecycle status of an encrypted customer return request. The encrypted per-product request remains opaque to Cheqi.
+        Updates a return request owned by the authenticated company and issuing application. Requires receipt:issue; delegated company grants and selected-store restrictions are revalidated. The encrypted request remains opaque to Cheqi.
 
         **Accessible for:** Company, Client Application
       operationId: updateRequestStatus
@@ -1216,6 +1114,9 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequestResponse"
+      security:
+      - cheqi_oauth:
+        - receipt:issue
       x-accessible-for: "Company, Client Application"
   /company/{companyId}/stores/{storeId}/deactivate:
     patch:
@@ -1241,14 +1142,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "404":
-          description: Store or company not found
+        "200":
+          description: Store deactivated successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store deactivated successfully
+        "404":
+          description: Store or company not found
           content:
             '*/*':
               schema:
@@ -1289,14 +1190,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "403":
-          description: Not authorized to activate this store
+        "200":
+          description: Store activated successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store activated successfully
+        "403":
+          description: Not authorized to activate this store
           content:
             '*/*':
               schema:
@@ -1365,74 +1266,33 @@ paths:
         - receipt:read
         - receipt:read:user-shared
       x-accessible-for: "Client Application, Company"
-  /receipt/download/collections/{id}/payment-accounts:
+  /receipt/document-capabilities:
     get:
       tags:
-      - Receipt Collection
-      summary: List eligible payment methods for a collected receipt
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: candidates
-      parameters:
-      - name: X-Device-ID
-        in: header
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+      - Receipt Management
+      summary: List supported receipt formats
+      description: "Public metadata for formatPreferences. Each ReceiptFormat value\
+        \ selects a representation and, for versioned invoice formats, its UBL schema\
+        \ and conformance profile. Newer UBL schema compatibility does not imply EN\
+        \ 16931:2026 or Peppol support."
+      operationId: get
       responses:
         "200":
           description: OK
           content:
-            '*/*':
+            application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/CollectionAccountCandidate"
-      x-accessible-for: User
-  /receipt/download/collections/device-deliveries:
-    get:
-      tags:
-      - Receipt Collection
-      summary: Fetch completed encrypted receipt copies for this owner device
-      description: |2-
-
-
-        **Accessible for:** User
-      operationId: deviceDeliveries
-      parameters:
-      - name: X-Device-ID
-        in: header
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                uniqueItems: true
-                type: array
-                items:
-                  $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
-      x-accessible-for: User
+                  $ref: "#/components/schemas/ReceiptFormat"
+      security: []
   /credit-note:
     get:
       tags:
       - Credit Note Management
       summary: Get all outstanding credit note initiation requests
       description: |-
-        Retrieves all outstanding credit note initiation requests for the authenticated company or client application. These are customer-initiated refund requests that are pending processing.
+        Retrieves outstanding customer return requests for the authenticated company and issuing application only. Requires receipt:read; delegated company grants and selected-store restrictions are revalidated.
 
         **Accessible for:** Company, Client Application
       operationId: getAllCreditNotes
@@ -1451,6 +1311,9 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EncryptedCreditNoteInitiationRequestResponse"
+      security:
+      - cheqi_oauth:
+        - receipt:read
       x-accessible-for: "Company, Client Application"
   /company/{companyId}/invitation-acceptances:
     get:
@@ -1530,7 +1393,7 @@ paths:
       - Client Application Management
       summary: Get authorized resources
       description: |-
-        Returns all resources the client application is authorized to access, organized hierarchically by companies, payment accounts, cards, and emails.
+        Returns receipt-routing resources for the authenticated company or user context only. Requires receipt:read. Company tokens must reference the active company grant and revision; application-wide credentials are not accepted.
 
         **Accessible for:** Client Application
       operationId: getAuthorizedResources
@@ -1548,11 +1411,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthorizedResourcesResponse"
         "403":
-          description: Not a client application token
+          description: Missing receipt:read or a valid delegated context
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AuthorizedResourcesResponse"
+      security:
+      - cheqi_oauth:
+        - receipt:read
       x-accessible-for: Client Application
   /company/receipt-destinations/{id}:
     delete:
@@ -1684,6 +1550,7 @@ components:
             - RETURN_REQUESTED
             - CREDIT_NOTE_CREATED
             - COMPANY_INVITATION_ACCEPTED
+            - SELF_BILLED_INVOICE_CREATED
         notificationUrl:
           type: string
         destinationId:
@@ -1882,14 +1749,27 @@ components:
           description: "Receipt formats this recipient accepts (e.g., CHEQI, UBL_PURCHASE_RECEIPT)."
           items:
             $ref: "#/components/schemas/ReceiptFormat"
+        requiredDocumentProfiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceiptDocumentProfile"
+    ReceiptDocumentProfile:
+      type: string
+      description: Versioned document-generation profile. EN16931_CORE_2017_V1 uses
+        EN 16931-1:2017+A1:2019 and its UBL 2.1 binding; no network-specific rules.
+      enum:
+      - EN16931_CORE_2017_V1
     ReceiptFormat:
       type: string
-      description: Receipt output format
+      description: "Receipt output selection. Choose at most one invoice format: UBL_INVOICE\
+        \ (generic UBL 2.1, valid against the UBL 2.1-2.5 schemas) or UBL_INVOICE_2_1_EN16931_CORE_2017_V1\
+        \ (EN 16931:2017 core invoice, UBL 2.1 binding)."
       enum:
       - CHEQI
       - UBL_PURCHASE_RECEIPT
       - UBL_INVOICE
       - UBL_CREDIT_NOTE
+      - UBL_INVOICE_2_1_EN16931_CORE_2017_V1
     RecipientResolutionResponse:
       type: object
       properties:
@@ -1993,6 +1873,27 @@ components:
             public key.
       description: One encrypted definitive receipt payload addressed to an owner
         device.
+    ReceiptSubmissionResponse:
+      type: object
+      properties:
+        cheqiReceiptId:
+          type: string
+          description: Stable Cheqi receipt identifier assigned to the processing
+            job.
+        matchId:
+          type: string
+        status:
+          type: string
+          description: Processing status of an encrypted receipt payload submission.
+          enum:
+          - PENDING
+          - CLAIMED
+          - COMPLETED
+          - FAILED_PERMANENT
+        createdAt:
+          type: string
+          format: date-time
+      description: Acknowledgement of an accepted encrypted receipt payload submission.
     MatchState:
       type: string
       description: State of a receipt match and its submission
@@ -2026,27 +1927,6 @@ components:
         retryAfterSeconds:
           type: integer
           format: int32
-    ReceiptSubmissionResponse:
-      type: object
-      properties:
-        cheqiReceiptId:
-          type: string
-          description: Stable Cheqi receipt identifier assigned to the processing
-            job.
-        matchId:
-          type: string
-        status:
-          type: string
-          description: Processing status of an encrypted receipt payload submission.
-          enum:
-          - PENDING
-          - CLAIMED
-          - COMPLETED
-          - FAILED_PERMANENT
-        createdAt:
-          type: string
-          format: date-time
-      description: Acknowledgement of an accepted encrypted receipt payload submission.
     Barcode:
       type: object
       properties:
@@ -2093,6 +1973,16 @@ components:
           description: The total amount of the receipt
           format: decimal
           example: 10.0
+        totalDiscountAmount:
+          type: number
+          description: Issuer-supplied sum of the receipt-level discounts.
+          format: decimal
+          example: 1.0
+        totalChargeAmount:
+          type: number
+          description: Issuer-supplied sum of the receipt-level charges.
+          format: decimal
+          example: 2.0
         documentNumber:
           type: string
           description: "The document number of the receipt, given by the seller, for\
@@ -2480,8 +2370,95 @@ components:
           description: Terminal identifier assigned by the card acquirer or payment
             processor.
           example: TID-from-payment-terminal
+        paidAmount:
+          type: number
+          description: "Issuer-supplied amount paid when the receipt was issued, across\
+            \ all payment methods. Required in new ReceiptPayloads, including zero\
+            \ when unpaid. Cheqi never calculates or fills in this value; later payments\
+            \ do not change it."
+          format: decimal
+          example: 50.0
+        amountDue:
+          type: number
+          description: "Issuer-supplied amount still owed after the receipt was issued,\
+            \ for example 0 for a receipt paid in full. Required in every new ReceiptPayload.\
+            \ Must equal totalAmount minus paidAmount plus roundingAmount."
+          format: decimal
+          example: 0.0
+        roundingAmount:
+          type: number
+          description: "Issuer-supplied rounding applied to the amount due, for example\
+            \ cash rounding. Required in new ReceiptPayloads; explicitly send zero\
+            \ when there is no rounding."
+          format: decimal
+          example: -0.01
+        dueDate:
+          type: string
+          description: "Date by which a remaining amountDue must be paid (YYYY-MM-DD).\
+            \ When amountDue is positive, supply dueDate or paymentTerms."
+          format: date
+          example: 2026-11-30
+        paymentTerms:
+          type: string
+          description: Free-text payment terms for a remaining amountDue.
+          example: Pay within 30 days
+        paymentMethods:
+          type: array
+          description: "Split payment only: every payment method used, each with the\
+            \ amount paid with it. Their amounts must add up to paidAmount. When present,\
+            \ leave the single-method fields (paymentMeansCode, card and account fields)\
+            \ empty; a receipt paid with one method uses those fields instead of this\
+            \ list."
+          items:
+            $ref: "#/components/schemas/PaymentMethod"
       description: Definitive issuer-supplied payment information encrypted as part
         of the ReceiptPayload. Cheqi never receives this object in plaintext.
+    PaymentMethod:
+      required:
+      - amount
+      type: object
+      properties:
+        amount:
+          type: number
+          description: Issuer-supplied amount paid with this method.
+          format: decimal
+          example: 30.0
+        paymentMeansCode:
+          type: string
+          description: "Issuer-supplied payment means code, such as 10 for cash, 48\
+            \ for card, or 49 for direct debit."
+          example: "48"
+        description:
+          type: string
+          description: Issuer-supplied display description for the payment method.
+        cardProvider:
+          type: string
+          description: Card scheme or provider when applicable.
+          example: VISA
+        cardLastFour:
+          type: string
+          description: Last four card digits when the issuer is permitted to include
+            them.
+          example: "4242"
+        accountIdentifier:
+          type: string
+          description: Payment-account identifier when applicable.
+        accountIdentifierType:
+          type: string
+          description: Type of the payment-account identifier when applicable.
+          example: IBAN
+        merchantId:
+          type: string
+          description: Merchant identifier assigned by the card acquirer or payment
+            processor.
+          example: MID-from-payment-terminal
+        paymentTerminalId:
+          type: string
+          description: Terminal identifier assigned by the card acquirer or payment
+            processor.
+          example: TID-from-payment-terminal
+      description: "One issuer-supplied payment method used for the receipt, with\
+        \ the amount paid with it. Cheqi never receives this object in plaintext."
     Period:
       required:
       - endDate
@@ -2814,212 +2791,6 @@ components:
           type: string
           description: Timestamp after which the download link stops resolving.
           format: date-time
-    CreateReceiptCollectionRequest:
-      required:
-      - downloadId
-      type: object
-      properties:
-        downloadId:
-          pattern: "^[A-Za-z0-9_-]{22,64}$"
-          type: string
-        paymentType:
-          type: string
-          enum:
-          - CARD
-          - IBAN
-        lastFour:
-          type: string
-    CollectionAccountCandidate:
-      type: object
-      properties:
-        paymentAccountId:
-          type: string
-          format: uuid
-        label:
-          type: string
-    ReceiptCollectionResponse:
-      type: object
-      properties:
-        collectionId:
-          type: string
-          format: uuid
-        cheqiReceiptId:
-          type: string
-        matchStatus:
-          type: string
-          enum:
-          - MATCHED
-          - MULTIPLE_MATCHES
-          - NO_MATCH
-        paymentAccountId:
-          type: string
-          format: uuid
-        candidates:
-          type: array
-          items:
-            $ref: "#/components/schemas/CollectionAccountCandidate"
-    ResolveCollectionRecipientsRequest:
-      type: object
-      properties:
-        paymentAccountId:
-          type: string
-          format: uuid
-    CollectionPhaseResponse:
-      type: object
-      properties:
-        phaseId:
-          type: string
-          format: uuid
-        phase:
-          type: string
-          enum:
-          - OWNER_DEVICES
-          - ACCOUNT_ROUTES
-        completed:
-          type: boolean
-        claimed:
-          type: boolean
-        expiresAt:
-          type: string
-          format: date-time
-        recipients:
-          type: array
-          items:
-            $ref: "#/components/schemas/MatchedRecipient"
-    CollectionResolutionResponse:
-      type: object
-      properties:
-        collectionId:
-          type: string
-          format: uuid
-        paymentAccountId:
-          type: string
-          format: uuid
-        selectionRequired:
-          type: boolean
-        phases:
-          type: array
-          items:
-            $ref: "#/components/schemas/CollectionPhaseResponse"
-    CollectionDeliveryRequest:
-      required:
-      - phaseId
-      - submission
-      type: object
-      properties:
-        phaseId:
-          type: string
-          format: uuid
-        submission:
-          $ref: "#/components/schemas/ReceiptDeliverySubmission"
-    ReceiptDeliveryRequest:
-      required:
-      - encryptedEnvelope
-      - encryptedEnvelopeKey
-      - includedFormats
-      - recipientId
-      - recipientPublicKey
-      type: object
-      properties:
-        recipientId:
-          type: string
-          description: Temporary recipient ID from this job's recipientResolution.
-        encryptedEnvelope:
-          maxLength: 20000000
-          minLength: 0
-          type: string
-          description: Base64-encoded AES-256-GCM ciphertext. The plaintext envelope
-            contains the generated CHEQI JSON and/or UBL documents; Cheqi never decrypts
-            it.
-        encryptedEnvelopeKey:
-          maxLength: 16384
-          minLength: 0
-          type: string
-          description: Base64-encoded AES key wrapped with the matched recipient public
-            key.
-        recipientPublicKey:
-          maxLength: 16384
-          minLength: 0
-          type: string
-          description: Exact public-key snapshot used to wrap encryptedEnvelopeKey.
-        includedFormats:
-          uniqueItems: true
-          type: array
-          description: Formats actually present in the encrypted plaintext envelope.
-          items:
-            $ref: "#/components/schemas/ReceiptFormat"
-      description: One recipient-specific encrypted generated-receipt envelope.
-    ReceiptDeliverySubmission:
-      required:
-      - deliveries
-      - finalHashes
-      - receiptGeneratorVersion
-      type: object
-      properties:
-        envelopeVersion:
-          maximum: 1
-          minimum: 1
-          type: integer
-          description: Schema version of the encrypted plaintext envelope.
-          format: int32
-          example: 1
-        receiptGeneratorVersion:
-          pattern: "^[A-Za-z0-9][A-Za-z0-9._+\\-]{0,63}$"
-          type: string
-          description: Version of the Rust receipt-template engine used on the device.
-          example: 0.3.1
-        finalHashes:
-          $ref: "#/components/schemas/ReceiptHashes"
-        deliveries:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReceiptDeliveryRequest"
-      description: Versioned encrypted receipt documents submitted by the elected
-        owner device.
-    ReceiptHashes:
-      type: object
-      properties:
-        cheqiJson:
-          pattern: "^[a-fA-F0-9]{64}$"
-          type: string
-        ublInvoice:
-          pattern: "^[a-fA-F0-9]{64}$"
-          type: string
-        ublPurchaseReceipt:
-          pattern: "^[a-fA-F0-9]{64}$"
-          type: string
-        ublCreditNote:
-          pattern: "^[a-fA-F0-9]{64}$"
-          type: string
-      description: SHA-256 hashes of the plaintext documents generated on the device.
-    CollectionDeliveryResponse:
-      type: object
-      properties:
-        collectionId:
-          type: string
-          format: uuid
-        phaseId:
-          type: string
-          format: uuid
-        cheqiReceiptId:
-          type: string
-        queuedRecipientCount:
-          type: integer
-          format: int32
-        completedAt:
-          type: string
-          format: date-time
-    ReceivedReceiptAckDto:
-      type: object
-      properties:
-        receiptId:
-          type: string
-        cheqiReceiptFinalHash:
-          type: string
-        ublPurchaseReceiptFinalHash:
-          type: string
-        ublInvoiceFinalHash:
-          type: string
     ClientCredentialsTokenRequest:
       type: object
       properties:
@@ -3350,6 +3121,12 @@ components:
           type: string
         acceptsEmployeeSubmissions:
           type: boolean
+        formatPreferences:
+          maxItems: 2147483647
+          minItems: 1
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceiptFormat"
     RegisterResponse:
       type: object
       properties:
@@ -3378,6 +3155,32 @@ components:
         keyAlgorithm:
           $ref: "#/components/schemas/KeyAlgorithm"
       description: Public key upload request with key data and algorithm
+    ClientApplicationPublicKeyRequest:
+      required:
+      - client_id
+      - keyAlgorithm
+      - publicKey
+      type: object
+      properties:
+        client_secret:
+          maxLength: 512
+          minLength: 0
+          type: string
+          description: Active client secret. May be omitted when using the owning
+            company API key.
+          writeOnly: true
+        publicKey:
+          maxLength: 16384
+          minLength: 0
+          type: string
+          description: Base64-encoded PEM public encryption key. Never include a private
+            key.
+        keyAlgorithm:
+          $ref: "#/components/schemas/KeyAlgorithm"
+        client_id:
+          maxLength: 256
+          minLength: 0
+          type: string
     UpdateSubscriptionRequest:
       type: object
       properties:
@@ -3431,6 +3234,7 @@ components:
       enum:
       - RECEIPT
       - CREDIT_NOTE
+      - SELF_BILLED_INVOICE
     EncryptedReceiptDeliveryResponse:
       type: object
       properties:
@@ -3526,6 +3330,17 @@ components:
         totalPages:
           type: integer
           format: int32
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        first:
+          type: boolean
+        last:
+          type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
         size:
           type: integer
           format: int32
@@ -3536,25 +3351,13 @@ components:
         number:
           type: integer
           format: int32
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
-        sort:
-          $ref: "#/components/schemas/SortObject"
-        numberOfElements:
-          type: integer
-          format: int32
-        first:
-          type: boolean
-        last:
-          type: boolean
         empty:
           type: boolean
     PageableObject:
       type: object
       properties:
-        offset:
-          type: integer
-          format: int64
+        sort:
+          $ref: "#/components/schemas/SortObject"
         paged:
           type: boolean
         pageNumber:
@@ -3563,18 +3366,19 @@ components:
         pageSize:
           type: integer
           format: int32
-        sort:
-          $ref: "#/components/schemas/SortObject"
         unpaged:
           type: boolean
+        offset:
+          type: integer
+          format: int64
     SortObject:
       type: object
       properties:
-        empty:
-          type: boolean
         sorted:
           type: boolean
         unsorted:
+          type: boolean
+        empty:
           type: boolean
     WebhookCompanyInvitationAccepted:
       type: object
@@ -3615,6 +3419,10 @@ components:
           type: boolean
         acceptsEmployeeSubmissions:
           type: boolean
+        formatPreferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceiptFormat"
     RoutingIdentifier:
       type: object
       properties:
@@ -3806,6 +3614,8 @@ components:
           $ref: "#/components/schemas/WebhookReceiptEnvelope"
         encryptedCreditNote:
           $ref: "#/components/schemas/WebhookReceiptEnvelope"
+        encryptedSelfBilledInvoice:
+          $ref: "#/components/schemas/WebhookReceiptEnvelope"
         creditNoteInitiationRequest:
           $ref: "#/components/schemas/WebhookCreditNoteInitiationRequest"
       description: Container for the event-specific webhook object.
@@ -3819,6 +3629,7 @@ components:
           - RETURN_REQUESTED
           - CREDIT_NOTE_CREATED
           - COMPANY_INVITATION_ACCEPTED
+          - SELF_BILLED_INVOICE_CREATED
         data:
           $ref: "#/components/schemas/WebhookData"
       description: Payload delivered to registered webhook notification URLs when
@@ -3899,6 +3710,12 @@ components:
             receipt.
           format: uuid
           example: 2a061905-30da-430d-b6b9-0be2189a6902
+        documentProfiles:
+          type: array
+          description: Versioned profiles of documents inside this encrypted envelope.
+            Recipients validate their decrypted documents against these profiles.
+          items:
+            $ref: "#/components/schemas/ReceiptDocumentProfile"
       description: Versioned plaintext receipt package encrypted independently for
         one recipient.
       x-tags:
@@ -3941,8 +3758,10 @@ components:
       - currency
       - documentNumber
       - issueDate
+      - paymentDetails
       - products
       - receiptSubtotal
+      - taxes
       - taxesApplied
       - totalAmount
       - totalBeforeTax
@@ -3963,6 +3782,7 @@ components:
           description: Date and time at which the issuer issued the receipt.
           format: date-time
         currency:
+          pattern: "[A-Z]{3}"
           type: string
           description: ISO 4217 currency code.
           example: EUR
@@ -3982,27 +3802,52 @@ components:
           type: number
           description: Issuer-supplied final receipt total.
           format: decimal
+        totalDiscountAmount:
+          type: number
+          description: Issuer-supplied sum of the receipt-level discounts. Cheqi never
+            calculates or fills in this value; it only checks it against the discounts.
+            Required whenever receipt-level discounts are present.
+          format: decimal
+          example: 1.0
+        totalChargeAmount:
+          type: number
+          description: Issuer-supplied sum of the receipt-level charges. Cheqi never
+            calculates or fills in this value; it only checks it against the charges.
+            Required whenever receipt-level charges are present.
+          format: decimal
+          example: 2.0
         taxesApplied:
           type: boolean
           description: Issuer-supplied indication whether taxes apply to this receipt.
         products:
+          maxItems: 1024
+          minItems: 1
           type: array
-          description: Issuer-supplied receipt line items.
+          description: "Issuer-supplied receipt line items. Each line must have exactly\
+            \ one VAT entry with an explicit category and tax amount, including zero\
+            \ tax."
           items:
             $ref: "#/components/schemas/Product"
         discounts:
+          maxItems: 256
+          minItems: 0
           type: array
           description: Issuer-supplied receipt-level discounts.
           items:
             $ref: "#/components/schemas/Discount"
         charges:
+          maxItems: 256
+          minItems: 0
           type: array
           description: Issuer-supplied receipt-level charges.
           items:
             $ref: "#/components/schemas/Charge"
         taxes:
+          maxItems: 64
+          minItems: 1
           type: array
-          description: Issuer-supplied receipt-level tax breakdown.
+          description: "Issuer-supplied VAT breakdown, including zero tax. Each entry\
+            \ must state category, rate, taxableAmount and amount."
           items:
             $ref: "#/components/schemas/Tax"
         transactionDate:
@@ -4027,7 +3872,9 @@ components:
       description: "Definitive merchant-supplied receipt values encrypted independently\
         \ for each matched owner device. Cheqi never receives this object in plaintext.\
         \ All monetary, tax, fiscalization, signature, sequence, and QR values must\
-        \ be provided by the issuer; the SDK does not calculate them."
+        \ be provided by the issuer. Every new payload must satisfy the shared issuer\
+        \ validator, regardless of receiver formats; no financial values are inferred\
+        \ or repaired."
       x-tags:
       - Receipt Management
     CreditNoteContextEnvelope:
@@ -4168,7 +4015,7 @@ components:
               company
             company:members:invite: Invite ordinary members to an authorized company
         authorizationCode:
-          authorizationUrl: https://api.cheqi.io/oauth2/authorize
+          authorizationUrl: https://sandbox.api.cheqi.io/oauth2/authorize
           tokenUrl: https://sandbox.api.cheqi.io/oauth2/token
           scopes:
             receipt:read: "Receive receipts automatically from the companies, payment\

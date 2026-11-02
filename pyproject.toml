@@ -27,6 +27,7 @@ dependencies = [
     "pydantic>=2.5",
     "cryptography>=42.0",
     "lxml>=5.2",
+    "wasmtime>=50.0.1,<51",
 ]
 
 [project.optional-dependencies]

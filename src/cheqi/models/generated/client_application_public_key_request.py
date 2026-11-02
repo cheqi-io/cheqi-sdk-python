@@ -17,23 +17,22 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
-from cheqi.models.generated.receipt_format import ReceiptFormat
+from cheqi.models.generated.key_algorithm import KeyAlgorithm
 from typing import Optional, Set
 from typing_extensions import Self
 
-class ReceiptDeliveryRequest(BaseModel):
+class ClientApplicationPublicKeyRequest(BaseModel):
     """
-    One recipient-specific encrypted generated-receipt envelope.
+    ClientApplicationPublicKeyRequest
     """ # noqa: E501
-    recipient_id: StrictStr = Field(description="Temporary recipient ID from this job's recipientResolution.", alias="recipientId")
-    encrypted_envelope: Annotated[str, Field(min_length=0, strict=True, max_length=20000000)] = Field(description="Base64-encoded AES-256-GCM ciphertext. The plaintext envelope contains the generated CHEQI JSON and/or UBL documents; Cheqi never decrypts it.", alias="encryptedEnvelope")
-    encrypted_envelope_key: Annotated[str, Field(min_length=0, strict=True, max_length=16384)] = Field(description="Base64-encoded AES key wrapped with the matched recipient public key.", alias="encryptedEnvelopeKey")
-    recipient_public_key: Annotated[str, Field(min_length=0, strict=True, max_length=16384)] = Field(description="Exact public-key snapshot used to wrap encryptedEnvelopeKey.", alias="recipientPublicKey")
-    included_formats: List[ReceiptFormat] = Field(description="Formats actually present in the encrypted plaintext envelope.", alias="includedFormats")
-    __properties: ClassVar[List[str]] = ["recipientId", "encryptedEnvelope", "encryptedEnvelopeKey", "recipientPublicKey", "includedFormats"]
+    client_secret: Optional[Annotated[str, Field(min_length=0, strict=True, max_length=512)]] = Field(default=None, description="Active client secret. May be omitted when using the owning company API key.")
+    public_key: Annotated[str, Field(min_length=0, strict=True, max_length=16384)] = Field(description="Base64-encoded PEM public encryption key. Never include a private key.", alias="publicKey")
+    key_algorithm: KeyAlgorithm = Field(alias="keyAlgorithm")
+    client_id: Annotated[str, Field(min_length=0, strict=True, max_length=256)]
+    __properties: ClassVar[List[str]] = ["client_secret", "publicKey", "keyAlgorithm", "client_id"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -53,7 +52,7 @@ class ReceiptDeliveryRequest(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of ReceiptDeliveryRequest from a JSON string"""
+        """Create an instance of ClientApplicationPublicKeyRequest from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -78,7 +77,7 @@ class ReceiptDeliveryRequest(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of ReceiptDeliveryRequest from a dict"""
+        """Create an instance of ClientApplicationPublicKeyRequest from a dict"""
         if obj is None:
             return None
 
@@ -86,11 +85,10 @@ class ReceiptDeliveryRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "recipientId": obj.get("recipientId"),
-            "encryptedEnvelope": obj.get("encryptedEnvelope"),
-            "encryptedEnvelopeKey": obj.get("encryptedEnvelopeKey"),
-            "recipientPublicKey": obj.get("recipientPublicKey"),
-            "includedFormats": obj.get("includedFormats")
+            "client_secret": obj.get("client_secret"),
+            "publicKey": obj.get("publicKey"),
+            "keyAlgorithm": obj.get("keyAlgorithm"),
+            "client_id": obj.get("client_id")
         })
         return _obj
 
