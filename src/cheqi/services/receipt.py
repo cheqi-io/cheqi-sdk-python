@@ -24,6 +24,7 @@ from cheqi.models.generated.receipt_payload import ReceiptPayload as GeneratedRe
 from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
 from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
 from cheqi.models.receipt import DeliveryRouteType, PreparedReceiptDownload, ReceiptResult
+from cheqi.models.validation import InvoiceValidationReport
 from cheqi.services.download import DownloadService
 from cheqi.services.encryption import EncryptionService
 from cheqi.services.matching import MatchingService
@@ -58,6 +59,10 @@ class ReceiptService:
         self._download_service = download_service or DownloadService()
         self._verification_service = VerificationService()
         self._receipt_download_base_url = receipt_download_base_url
+
+    def validate(self, receipt_payload: GeneratedReceiptPayload) -> InvoiceValidationReport:
+        """Return all detected receipt data issues without issuing or changing the receipt."""
+        return ReceiptPayloadValidator().validate(receipt_payload)
 
     def issue_receipt(
         self,

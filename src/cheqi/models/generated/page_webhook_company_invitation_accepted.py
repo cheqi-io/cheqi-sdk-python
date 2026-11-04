@@ -31,16 +31,16 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
     """ # noqa: E501
     total_elements: Optional[StrictInt] = Field(default=None, alias="totalElements")
     total_pages: Optional[StrictInt] = Field(default=None, alias="totalPages")
-    pageable: Optional[PageableObject] = None
-    number_of_elements: Optional[StrictInt] = Field(default=None, alias="numberOfElements")
-    first: Optional[StrictBool] = None
-    last: Optional[StrictBool] = None
-    sort: Optional[SortObject] = None
     size: Optional[StrictInt] = None
     content: Optional[List[WebhookCompanyInvitationAccepted]] = None
     number: Optional[StrictInt] = None
+    pageable: Optional[PageableObject] = None
+    sort: Optional[SortObject] = None
+    number_of_elements: Optional[StrictInt] = Field(default=None, alias="numberOfElements")
+    first: Optional[StrictBool] = None
+    last: Optional[StrictBool] = None
     empty: Optional[StrictBool] = None
-    __properties: ClassVar[List[str]] = ["totalElements", "totalPages", "pageable", "numberOfElements", "first", "last", "sort", "size", "content", "number", "empty"]
+    __properties: ClassVar[List[str]] = ["totalElements", "totalPages", "size", "content", "number", "pageable", "sort", "numberOfElements", "first", "last", "empty"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -81,12 +81,6 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of pageable
-        if self.pageable:
-            _dict['pageable'] = self.pageable.to_dict()
-        # override the default output from pydantic by calling `to_dict()` of sort
-        if self.sort:
-            _dict['sort'] = self.sort.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in content (list)
         _items = []
         if self.content:
@@ -94,6 +88,12 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
                 if _item_content:
                     _items.append(_item_content.to_dict())
             _dict['content'] = _items
+        # override the default output from pydantic by calling `to_dict()` of pageable
+        if self.pageable:
+            _dict['pageable'] = self.pageable.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of sort
+        if self.sort:
+            _dict['sort'] = self.sort.to_dict()
         return _dict
 
     @classmethod
@@ -108,14 +108,14 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
         _obj = cls.model_validate({
             "totalElements": obj.get("totalElements"),
             "totalPages": obj.get("totalPages"),
-            "pageable": PageableObject.from_dict(obj["pageable"]) if obj.get("pageable") is not None else None,
-            "numberOfElements": obj.get("numberOfElements"),
-            "first": obj.get("first"),
-            "last": obj.get("last"),
-            "sort": SortObject.from_dict(obj["sort"]) if obj.get("sort") is not None else None,
             "size": obj.get("size"),
             "content": [WebhookCompanyInvitationAccepted.from_dict(_item) for _item in obj["content"]] if obj.get("content") is not None else None,
             "number": obj.get("number"),
+            "pageable": PageableObject.from_dict(obj["pageable"]) if obj.get("pageable") is not None else None,
+            "sort": SortObject.from_dict(obj["sort"]) if obj.get("sort") is not None else None,
+            "numberOfElements": obj.get("numberOfElements"),
+            "first": obj.get("first"),
+            "last": obj.get("last"),
             "empty": obj.get("empty")
         })
         return _obj
