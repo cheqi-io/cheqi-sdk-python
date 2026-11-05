@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cheqi-sdk"
-version = "2.0.0"
+version = "2.1.0"
 description = "Cheqi Python SDK for end-to-end encrypted receipt processing"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -27,6 +27,7 @@ dependencies = [
     "pydantic>=2.5",
     "cryptography>=42.0",
     "lxml>=5.2",
+    "wasmtime>=50.0.1,<51",
 ]
 
 [project.optional-dependencies]
@@ -53,7 +54,6 @@ exclude = ["src/cheqi/models/generated"]
 select = ["E", "F", "I", "W"]
 
 [tool.mypy]
-python_version = "3.9"
 strict = true
 plugins = ["pydantic.mypy"]
 exclude = "^src/cheqi/models/generated/"

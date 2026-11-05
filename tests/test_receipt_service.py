@@ -14,11 +14,14 @@ from cheqi.models import (
     EncryptedReceiptPayload,
     IdentificationDetails,
     MatchedRecipient,
+    PaymentDetails,
     PaymentType,
     Product,
     ReceiptPayload,
     ReceiptSubmissionResponse,
     RecipientResolutionResponse,
+    Tax,
+    TaxCategoryCode,
     UnitCode,
 )
 from cheqi.models.download import DownloadLink
@@ -35,6 +38,8 @@ def _payload() -> ReceiptPayload:
         total_tax_amount="2.10",
         total_amount="12.10",
         taxes_applied=True,
+        taxes=[Tax(rate=21, type="VAT", taxable_amount=10, amount=2.1, category=TaxCategoryCode.STANDARD)],
+        payment_details=PaymentDetails(paid_amount=12.1, amount_due=0, rounding_amount=0),
         products=[
             Product(
                 name="Coffee",
@@ -45,7 +50,7 @@ def _payload() -> ReceiptPayload:
                 unit_price="10.00",
                 subtotal="10.00",
                 total="12.10",
-            ).add_tax(21, "VAT", "10.00", "2.10")
+            ).add_tax(Tax(rate=21, type="VAT", taxable_amount=10, amount=2.1, category=TaxCategoryCode.STANDARD))
         ],
     )
 
@@ -83,6 +88,47 @@ def _service(resolution: RecipientResolutionResponse):
     return service, api, encryption, download
 
 
+def test_validate_accepts_valid_receipt_without_issuance_or_payload_changes() -> None:
+    service, api, encryption, download = _service(RecipientResolutionResponse())
+    download.reset_mock()
+    receipt = _payload()
+    original_json = receipt.to_json()
+
+    report = service.validate(receipt)
+
+    assert report.valid
+    assert not report.complete_document
+    assert not report.issues
+    assert receipt.to_json() == original_json
+    assert not api.mock_calls
+    assert not service._matching_service.mock_calls
+    assert not encryption.mock_calls
+    assert not download.mock_calls
+
+
+def test_validate_returns_all_missing_facts_without_issuance_or_payload_changes() -> None:
+    service, api, encryption, download = _service(RecipientResolutionResponse())
+    download.reset_mock()
+    receipt = _payload()
+    receipt.payment_details.amount_due = None
+    receipt.payment_details.rounding_amount = None
+    receipt.products[0].taxes[0].category = None
+    original_json = receipt.to_json()
+
+    report = service.validate(receipt)
+
+    assert not report.valid
+    assert not report.complete_document
+    paths = {issue.path for issue in report.issues}
+    assert {"paymentDetails.amountDue", "paymentDetails.roundingAmount", "products[0].taxes[0].category"} <= paths
+    assert all(issue.rule_id and issue.message for issue in report.issues)
+    assert receipt.to_json() == original_json
+    assert not api.mock_calls
+    assert not service._matching_service.mock_calls
+    assert not encryption.mock_calls
+    assert not download.mock_calls
+
+
 def test_issue_receipt_encrypts_same_definitive_json_for_each_device() -> None:
     recipients = [
         MatchedRecipient(id="device-1", public_key="key-1"),
@@ -97,9 +143,11 @@ def test_issue_receipt_encrypts_same_definitive_json_for_each_device() -> None:
         )
     )
 
+    payload = _payload()
+    original_json = payload.to_json()
     result = service.issue_receipt(
         IdentificationDetails(pairing_code="12345678"),
-        _payload(),
+        payload,
         options=RequestOptions.with_access_token("oauth-token"),
     )
 
@@ -108,6 +156,9 @@ def test_issue_receipt_encrypts_same_definitive_json_for_each_device() -> None:
     calls = encryption.encrypt_receipt_for_recipient.call_args_list
     assert len(calls) == 2
     assert calls[0].args[0] == calls[1].args[0]
+    assert calls[0].args[0] == original_json
+    assert payload.to_json() == original_json
+    assert json.loads(original_json)["totalAmount"] == 12.1
     assert json.loads(calls[0].args[0])["products"][0]["taxes"][0]["type"] == "VAT"
     envelope = api.submit_encrypted_receipt.call_args.args[0]
     assert envelope.match_id == "match-1"
@@ -402,3 +453,41 @@ def test_invalid_payload_is_rejected_before_matching() -> None:
         service.issue_receipt(IdentificationDetails(pairing_code="12345678"), payload)
     service._matching_service.match_customer.assert_not_called()
     api.submit_encrypted_receipt.assert_not_called()
+
+
+@pytest.mark.parametrize("operation", ["issue", "resume", "download", "envelope", "prepare_download"])
+def test_invalid_receipts_stop_before_matching_encryption_or_upload(operation: str) -> None:
+    service, api, encryption, download = _digital_service()
+    receipt = _payload()
+    receipt.payment_details.amount_due = None
+    receipt.payment_details.rounding_amount = None
+    receipt.products[0].taxes[0].category = None
+    before = receipt.to_json()
+    with pytest.raises(CheqiSDKError) as caught:
+        if operation == "issue":
+            service.issue_receipt(IdentificationDetails(pairing_code="12345678"), receipt)
+        elif operation == "resume":
+            service.resume_receipt("match-1", receipt)
+        elif operation == "download":
+            service.issue_download_receipt(IdentificationDetails(payment_type=PaymentType.CASH), receipt)
+        elif operation == "prepare_download":
+            service._prepare_download(receipt)
+        else:
+            service.generate_encrypted_receipt_envelope(service._matching_service.match_customer.return_value, receipt)
+    assert caught.value.error_code == ErrorCodes.VALIDATION_ERROR
+    paths = {issue.path for issue in caught.value.validation_report.issues}
+    assert {"paymentDetails.amountDue", "paymentDetails.roundingAmount", "products[0].taxes[0].category"} <= paths
+    assert receipt.to_json() == before
+    assert not api.method_calls
+    assert not encryption.method_calls
+    assert not download.method_calls
+    service._matching_service.match_customer.assert_not_called()
+
+
+def test_download_preparation_keeps_the_existing_payload_json() -> None:
+    service, _, _, download = _digital_service()
+    receipt = _payload()
+    original_json = receipt.to_json()
+    service._prepare_download(receipt)
+    envelope = download.encrypt_download_envelope.call_args.args[0]
+    assert envelope.documents["RECEIPT_PAYLOAD"].content == original_json

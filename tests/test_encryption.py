@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import base64
 import json
+from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.padding import MGF1, OAEP
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.hashes import SHA256
 
+from cheqi import ReceiptPayloadValidator
 from cheqi.models import (
     CreditNoteInitiationRequest,
     EncryptedCreditNoteInitiationRequest,
@@ -14,6 +16,7 @@ from cheqi.models import (
     MatchedRecipient,
     ReceiptEnvelope,
     ReceiptEnvelopeDocument,
+    ReceiptPayload,
     RefundPreference,
     ReturnLineItem,
     ReturnReasonCode,
@@ -48,6 +51,24 @@ def test_device_encryption_preserves_exact_plaintext(rsa_key_pair: tuple[str, st
         )
         == plaintext
     )
+
+
+def test_validation_keeps_the_receipt_json_readable_after_decryption(rsa_key_pair: tuple[str, str]) -> None:
+    private_key, public_key = rsa_key_pair
+    receipt = ReceiptPayload.model_validate_json(
+        (Path(__file__).parent / "fixtures" / "validation" / "receipt-payload.json").read_bytes()
+    )
+    plaintext = receipt.to_json()
+    ReceiptPayloadValidator().validate_or_raise(receipt)
+    encrypted = EncryptionService().encrypt_receipt_for_recipient(
+        plaintext, MatchedRecipient(id="device-1", public_key=public_key),
+    )
+    decrypted = _decrypt_device_payload(encrypted.encrypted_content, encrypted.encrypted_aes_key, private_key)
+    assert decrypted == plaintext == receipt.to_json()
+    data = json.loads(decrypted)
+    assert data["totalAmount"] == 19.41
+    assert data["products"][0]["unitPrice"] == 8.905
+    assert data["paymentDetails"]["roundingAmount"] == 0
 
 
 def test_complete_receipt_envelope_decryption(rsa_key_pair: tuple[str, str]) -> None:

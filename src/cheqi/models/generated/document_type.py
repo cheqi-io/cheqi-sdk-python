@@ -28,6 +28,7 @@ class DocumentType(str, Enum):
     """
     RECEIPT = 'RECEIPT'
     CREDIT_NOTE = 'CREDIT_NOTE'
+    SELF_BILLED_INVOICE = 'SELF_BILLED_INVOICE'
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

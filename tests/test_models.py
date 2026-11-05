@@ -11,12 +11,14 @@ from cheqi.models import (
     FiscalizationData,
     FiscalizationStatus,
     JurisdictionalData,
+    PaymentDetails,
     Product,
     ReceiptPayload,
     RefundBankAccount,
     RefundPreference,
     ReturnLineItem,
     ReturnReasonCode,
+    Tax,
     UnitCode,
 )
 
@@ -72,6 +74,8 @@ def test_receipt_payload_serializes_definitive_values_without_template_wrapper()
         total_tax_amount="3.03",
         total_amount="9.04",
         taxes_applied=True,
+        taxes=[Tax(rate=21, type="VAT", taxable_amount=8.02, amount=3.03)],
+        payment_details=PaymentDetails(paid_amount=9.04, amount_due=0, rounding_amount=0),
         products=[product],
         jurisdictional_data=jurisdiction,
     ).add_qr_code("https://verify.example/AT-100", "Verify")
@@ -118,3 +122,12 @@ def test_return_line_requires_positive_quantity_and_product_id() -> None:
         ReturnLineItem(product_id="", quantity=1, reason_code=ReturnReasonCode.UNWANTED)
     with pytest.raises(ValidationError):
         ReturnLineItem(product_id="SKU", quantity=0, reason_code=ReturnReasonCode.UNWANTED)
+
+
+def test_public_recipient_schema_hides_wallet_profile_requirements() -> None:
+    from cheqi.models import MatchedRecipient, ReceiptEnvelope
+
+    assert "requiredDocumentProfiles" not in MatchedRecipient.model_json_schema(by_alias=True)["properties"]
+    envelope = ReceiptEnvelope.model_json_schema(by_alias=True)
+    assert "documentProfiles" in envelope["properties"]
+    assert envelope["$defs"]["ReceiptDocumentProfile"]["enum"] == ["EN16931_CORE_2017_V1"]
