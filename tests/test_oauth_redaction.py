@@ -46,4 +46,5 @@ def test_token_errors_do_not_expose_response_or_validation_input(status: int, bo
             client.request_access_token(ClientCredentialsTokenRequest(
                 client_id="client", client_secret="secret", grant_id="grant",
             ))
-        assert "dummy-echoed-secret" not in "".join(traceback.format_exception(caught.value))
+        error = caught.value
+        assert "dummy-echoed-secret" not in "".join(traceback.format_exception(type(error), error, error.__traceback__))
