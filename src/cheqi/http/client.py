@@ -245,7 +245,8 @@ class DefaultCheqiApiClient:
             elif response.status_code >= 500:
                 error_code = ErrorCodes.SERVER_ERROR
             raise CheqiApiError(
-                f"{operation} failed with status {response.status_code}: {response.text}",
+                (f"{operation} failed with status {response.status_code}" if operation == "requestAccessToken"
+                 else f"{operation} failed with status {response.status_code}: {response.text}"),
                 error_code=error_code,
                 http_status_code=response.status_code,
                 correlation_id=correlation_id,
@@ -258,7 +259,7 @@ class DefaultCheqiApiClient:
             raise CheqiApiError(
                 "Invalid API response", ErrorCodes.INVALID_RESPONSE, response.status_code,
                 response.headers.get("X-Correlation-Id"),
-            ) from exc
+            ) from (None if operation == "requestAccessToken" else exc)
 
     def _post(
         self, path: str, body: Any, operation: str, options: Optional[RequestOptions] = None,
@@ -301,8 +302,8 @@ class DefaultCheqiApiClient:
         data = self._handle_response(response, "requestAccessToken")
         try:
             token = OAuthTokenExchangeResponse.model_validate(data)
-        except ValidationError as exc:
-            raise CheqiApiError("Invalid token response", ErrorCodes.INVALID_RESPONSE) from exc
+        except ValidationError:
+            raise CheqiApiError("Invalid token response", ErrorCodes.INVALID_RESPONSE) from None
         if not token.access_token:
             raise CheqiApiError("Token response did not include an access token", ErrorCodes.INVALID_RESPONSE)
         return token

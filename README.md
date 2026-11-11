@@ -326,3 +326,12 @@ The existing HTTP retry policy is unchanged. No polling, queues, storage, or bac
 workers are added: integration partners own scheduling and recovery architecture.
 Low-level failures preserve API status, code, correlation id and in-progress retry delay.
 See [the recovery flow](docs/receipt-retry.mmd).
+
+### OAuth diagnostic redaction
+
+OAuth client secrets, access tokens, authorization codes, and PKCE verifiers are
+redacted in SDK model diagnostic strings. Token-endpoint errors omit response
+bodies and parser details that could contain credentials. Explicit JSON
+serialization and credential properties retain their values for authentication.
+Model regeneration preserves retired public DTOs for source compatibility while
+refreshing models still present in the production OpenAPI contract.

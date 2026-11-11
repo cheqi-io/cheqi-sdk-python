@@ -29,7 +29,7 @@ class ClientCredentialsTokenRequest(BaseModel):
     scope: Optional[StrictStr] = Field(default=None, description="Requested OAuth scope")
     grant_type: Optional[StrictStr] = Field(default=None, description="OAuth grant type")
     client_id: Optional[StrictStr] = Field(default=None, description="Client application identifier")
-    client_secret: Optional[StrictStr] = Field(default=None, description="Client application secret")
+    client_secret: Optional[StrictStr] = Field(repr=False, default=None, description="Client application secret")
     grant_id: Optional[StrictStr] = Field(default=None, description="Explicit Company Grant to use")
     __properties: ClassVar[List[str]] = ["scope", "grant_type", "client_id", "client_secret", "grant_id"]
 
@@ -47,12 +47,13 @@ class ClientCredentialsTokenRequest(BaseModel):
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
+        hide_input_in_errors=True,
     )
 
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
-        return pprint.pformat(self.model_dump(by_alias=True))
+        return pprint.pformat({key: '<redacted>' if key in ('client_secret',) else value for key, value in self.model_dump(by_alias=True).items()})
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
