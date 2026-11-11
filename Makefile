@@ -33,12 +33,13 @@ generate:
 		-o /tmp/cheqi-python-gen \
 		--global-property models \
 		--additional-properties=packageName=cheqi_generated,projectName=cheqi-generated,hideGenerationTimestamp=true
-	rm -rf $(GENERATED_DIR)
+	# Preserve retired public DTOs used by existing integrations.
 	mkdir -p $(GENERATED_DIR)
 	cp /tmp/cheqi-python-gen/cheqi_generated/models/*.py $(GENERATED_DIR)/
 	perl -pi -e 's/from cheqi_generated\.models/from cheqi.models.generated/g' $(GENERATED_DIR)/*.py
 	rm -rf /tmp/cheqi-python-gen
 	rm -f openapitools.json
+	python3 scripts/prepare_generated_models.py
 	@echo "Generated OpenAPI models in $(GENERATED_DIR)/"
 
 spec-check:

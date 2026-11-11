@@ -27,21 +27,22 @@ class AuthorizationCodeExchangeRequest(BaseModel):
     Authorization code exchange request
     """ # noqa: E501
     client_id: Optional[StrictStr] = Field(default=None, description="Client application identifier")
-    client_secret: Optional[StrictStr] = Field(default=None, description="Client application secret")
-    code: Optional[StrictStr] = Field(default=None, description="One-time authorization code returned by the OAuth redirect")
-    code_verifier: Optional[StrictStr] = Field(default=None, description="PKCE code verifier used to create the authorization request")
+    client_secret: Optional[StrictStr] = Field(repr=False, default=None, description="Client application secret")
+    code: Optional[StrictStr] = Field(repr=False, default=None, description="One-time authorization code returned by the OAuth redirect")
+    code_verifier: Optional[StrictStr] = Field(repr=False, default=None, description="PKCE code verifier used to create the authorization request")
     __properties: ClassVar[List[str]] = ["client_id", "client_secret", "code", "code_verifier"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
+        hide_input_in_errors=True,
     )
 
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
-        return pprint.pformat(self.model_dump(by_alias=True))
+        return pprint.pformat({key: '<redacted>' if key in ('client_secret', 'code', 'code_verifier') else value for key, value in self.model_dump(by_alias=True).items()})
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""

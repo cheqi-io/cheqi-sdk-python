@@ -17,7 +17,7 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, field_validator
+from pydantic import Field, BaseModel, ConfigDict, StrictInt, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
@@ -26,7 +26,7 @@ class OAuthTokenExchangeResponse(BaseModel):
     """
     OAuthTokenExchangeResponse
     """ # noqa: E501
-    access_token: Optional[StrictStr] = None
+    access_token: Optional[StrictStr] = Field(default=None, repr=False)
     token_type: Optional[StrictStr] = None
     expires_in: Optional[StrictInt] = None
     scope: Optional[StrictStr] = None
@@ -46,12 +46,13 @@ class OAuthTokenExchangeResponse(BaseModel):
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
+        hide_input_in_errors=True,
     )
 
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
-        return pprint.pformat(self.model_dump(by_alias=True))
+        return pprint.pformat({key: '<redacted>' if key in ('access_token',) else value for key, value in self.model_dump(by_alias=True).items()})
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""

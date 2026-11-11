@@ -28,7 +28,7 @@ class ClientApplicationPublicKeyRequest(BaseModel):
     """
     ClientApplicationPublicKeyRequest
     """ # noqa: E501
-    client_secret: Optional[Annotated[str, Field(min_length=0, strict=True, max_length=512)]] = Field(default=None, description="Active client secret. May be omitted when using the owning company API key.")
+    client_secret: Optional[Annotated[str, Field(min_length=0, strict=True, max_length=512)]] = Field(repr=False, default=None, description="Active client secret. May be omitted when using the owning company API key.")
     public_key: Annotated[str, Field(min_length=0, strict=True, max_length=16384)] = Field(description="Base64-encoded PEM public encryption key. Never include a private key.", alias="publicKey")
     key_algorithm: KeyAlgorithm = Field(alias="keyAlgorithm")
     client_id: Annotated[str, Field(min_length=0, strict=True, max_length=256)]
@@ -38,12 +38,13 @@ class ClientApplicationPublicKeyRequest(BaseModel):
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
+        hide_input_in_errors=True,
     )
 
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
-        return pprint.pformat(self.model_dump(by_alias=True))
+        return pprint.pformat({key: '<redacted>' if key in ('client_secret',) else value for key, value in self.model_dump(by_alias=True).items()})
 
     def to_json(self) -> str:
         """Returns the JSON representation of the model using alias"""
