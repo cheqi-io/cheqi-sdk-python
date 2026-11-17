@@ -29,7 +29,7 @@ class ClientReceiptDownloadResponse(BaseModel):
     """ # noqa: E501
     cheqi_receipt_id: Optional[StrictStr] = Field(default=None, description="Stable Cheqi receipt identifier minted at upload time, for merchant back-office reconciliation. The customer-facing reference is the download URL itself.", alias="cheqiReceiptId")
     created_at: Optional[datetime] = Field(default=None, description="Timestamp when Cheqi first accepted this upload.", alias="createdAt")
-    expires_at: Optional[datetime] = Field(default=None, description="Timestamp after which the download link stops resolving.", alias="expiresAt")
+    expires_at: Optional[datetime] = Field(default=None, description="Always null: client-encrypted download links do not expire.", alias="expiresAt")
     __properties: ClassVar[List[str]] = ["cheqiReceiptId", "createdAt", "expiresAt"]
 
     model_config = ConfigDict(
@@ -71,6 +71,11 @@ class ClientReceiptDownloadResponse(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # set to None if expires_at (nullable) is None
+        # and model_fields_set contains the field
+        if self.expires_at is None and "expires_at" in self.model_fields_set:
+            _dict['expiresAt'] = None
+
         return _dict
 
     @classmethod

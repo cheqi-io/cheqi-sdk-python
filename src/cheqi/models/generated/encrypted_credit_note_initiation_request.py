@@ -24,7 +24,7 @@ from typing_extensions import Self
 
 class EncryptedCreditNoteInitiationRequest(BaseModel):
     """
-    Encrypted credit note initiation request
+    Encrypted credit note initiation request from a customer's device
     """ # noqa: E501
     cheqi_receipt_id: StrictStr = Field(description="The Cheqi receipt ID for the original receipt", alias="cheqiReceiptId")
     public_key: StrictStr = Field(description="The public key of the requesting device", alias="publicKey")
