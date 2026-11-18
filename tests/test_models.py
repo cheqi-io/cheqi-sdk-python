@@ -122,3 +122,12 @@ def test_return_line_requires_positive_quantity_and_product_id() -> None:
         ReturnLineItem(product_id="", quantity=1, reason_code=ReturnReasonCode.UNWANTED)
     with pytest.raises(ValidationError):
         ReturnLineItem(product_id="SKU", quantity=0, reason_code=ReturnReasonCode.UNWANTED)
+
+
+def test_public_recipient_schema_hides_wallet_profile_requirements() -> None:
+    from cheqi.models import MatchedRecipient, ReceiptEnvelope
+
+    assert "requiredDocumentProfiles" not in MatchedRecipient.model_json_schema(by_alias=True)["properties"]
+    envelope = ReceiptEnvelope.model_json_schema(by_alias=True)
+    assert "documentProfiles" in envelope["properties"]
+    assert envelope["$defs"]["ReceiptDocumentProfile"]["enum"] == ["EN16931_CORE_2017_V1"]

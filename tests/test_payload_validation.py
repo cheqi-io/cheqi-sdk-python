@@ -30,13 +30,14 @@ def test_bundled_validator_matches_all_native_reference_reports(case: dict[str, 
     assert report.model_dump(mode="json", by_alias=True) == json.loads(case["expected"])
 
 
-def test_all_findings_are_structured_and_readable_on_the_existing_exception() -> None:
+@pytest.mark.parametrize("operation", ["require_valid_json", "validate_or_raise"])
+def test_all_findings_are_structured_and_readable_on_the_existing_exception(operation: str) -> None:
     receipt = payload()
     receipt.payment_details.amount_due = None
     receipt.payment_details.rounding_amount = None
     receipt.products[0].taxes[0].category = None
     with pytest.raises(CheqiSDKError) as caught:
-        ReceiptPayloadValidator().require_valid_json(receipt)
+        getattr(ReceiptPayloadValidator(), operation)(receipt)
     error = caught.value
     assert error.is_validation_error
     assert not error.validation_report.complete_document

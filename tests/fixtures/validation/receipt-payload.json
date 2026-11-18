@@ -45,14 +45,13 @@
       "category": "STANDARD"
     }
   ],
-  "note": "The current Java generator intentionally ignores this request note.",
   "barcodes": [],
   "paymentDetails": {
     "amountDue": 19.41,
     "dueDate": "2026-05-01",
     "paymentTerms": "Pay within 30 days",
-    "paidAmount": "0.00",
-    "roundingAmount": "0.00"
+    "paidAmount": 0.00,
+    "roundingAmount": 0.00
   },
   "taxesApplied": true
 }

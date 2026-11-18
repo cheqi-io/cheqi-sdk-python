@@ -104,6 +104,10 @@ class ReceiptPayloadValidator:
         except Exception as exc:
             raise CheqiSDKError(f"Receipt validator could not run: {exc}", ErrorCodes.CONFIGURATION_ERROR) from exc
 
+    def validate_or_raise(self, payload: ReceiptPayload) -> None:
+        """Stop issuance with all detected receipt data issues."""
+        self.require_valid_json(payload)
+
     def require_valid_json(self, payload: ReceiptPayload) -> str:
         """Return the exact JSON to encrypt, or raise with all detected findings."""
         payload_json = self._serialize(payload)

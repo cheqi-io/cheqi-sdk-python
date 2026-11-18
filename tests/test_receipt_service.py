@@ -492,3 +492,45 @@ def test_public_download_preparation_rejects_invalid_payload_before_encryption()
     assert not api.method_calls
     assert not encryption.method_calls
     service._matching_service.match_customer.assert_not_called()
+
+
+def test_validate_accepts_valid_receipt_without_issuance_or_payload_changes() -> None:
+    service, api, encryption, download = _service(RecipientResolutionResponse())
+    download.reset_mock()
+    receipt = _payload()
+    original_json = receipt.to_json()
+
+    report = service.validate(receipt)
+
+    assert report.valid
+    assert not report.complete_document
+    assert not report.issues
+    assert receipt.to_json() == original_json
+    assert not api.mock_calls
+    assert not service._matching_service.mock_calls
+    assert not encryption.mock_calls
+    assert not download.mock_calls
+
+
+
+def test_validate_returns_all_missing_facts_without_issuance_or_payload_changes() -> None:
+    service, api, encryption, download = _service(RecipientResolutionResponse())
+    download.reset_mock()
+    receipt = _payload()
+    receipt.payment_details.amount_due = None
+    receipt.payment_details.rounding_amount = None
+    receipt.products[0].taxes[0].category = None
+    original_json = receipt.to_json()
+
+    report = service.validate(receipt)
+
+    assert not report.valid
+    assert not report.complete_document
+    paths = {issue.path for issue in report.issues}
+    assert {"paymentDetails.amountDue", "paymentDetails.roundingAmount", "products[0].taxes[0].category"} <= paths
+    assert all(issue.rule_id and issue.message for issue in report.issues)
+    assert receipt.to_json() == original_json
+    assert not api.mock_calls
+    assert not service._matching_service.mock_calls
+    assert not encryption.mock_calls
+    assert not download.mock_calls

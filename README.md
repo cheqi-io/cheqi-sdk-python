@@ -16,6 +16,11 @@ pip install cheqi-sdk
 
 Python 3.9 or newer is required.
 
+Version `2.1.0` adds automatic receipt validation and
+`sdk.receipt_service.validate(payload)` for an explicit check before issuance.
+New receipts must include the payment amounts and VAT facts described in
+[Receipt validation](#receipt-validation).
+
 Version `2.0.0` replaces the per-method `access_token` argument with a keyword-only
 `options: RequestOptions` on every API call, and adds `sdk.oauth_service` for requesting
 per-Grant company access tokens. See [Request options and OAuth](#request-options-and-oauth).
@@ -116,7 +121,7 @@ product = Product(
     unit_price="10.00",
     subtotal="10.00",
     total="12.10",
-).add_tax(21, "VAT", "10.00", "2.10", category=TaxCategoryCode.STANDARD)
+).add_tax(Tax(rate=21, type="VAT", taxable_amount=10, amount=2.1, category=TaxCategoryCode.STANDARD))
 
 payload = ReceiptPayload(
     document_number="POS-2026-0001",
@@ -128,11 +133,11 @@ payload = ReceiptPayload(
     total_amount="12.10",
     taxes_applied=True,
     products=[product],
-    taxes=[Tax(rate=21, type="VAT", taxable_amount="10.00", amount="2.10", category=TaxCategoryCode.STANDARD)],
+    taxes=[Tax(rate=21, type="VAT", taxable_amount=10, amount=2.1, category=TaxCategoryCode.STANDARD)],
     payment_details=PaymentDetails(
-        paid_amount="12.10",
-        amount_due="0.00",
-        rounding_amount="0.00",
+        paid_amount=12.1,
+        amount_due=0,
+        rounding_amount=0,
         payment_means_code="48",
         description="Card payment",
         card_provider="VISA",
@@ -168,53 +173,53 @@ result = sdk.receipt_service.issue_receipt(
 All monetary, tax, payment, barcode, and jurisdictional values remain caller-supplied. For example,
 `Product.add_tax(...)` only appends the supplied tax; it does not calculate it.
 
-## Payload validation
+## Receipt validation
 
-Every new receipt is checked locally before matching, encryption or submission.
-This runs automatically for `issue_receipt`, `resume_receipt`,
-`issue_download_receipt` and `generate_encrypted_receipt_envelope`.
-The SDK encrypts the exact JSON snapshot that passed validation.
-
-Always supply `payment_details.paid_amount`, `amount_due` and `rounding_amount`,
-including zero when applicable. Supply the VAT breakdown and one explicit VAT
-category and tax amount per line, including zero tax. Receipt discounts and
-charges require their respective stated totals. The SDK never fills in or
-corrects amounts. Use `Decimal` or decimal strings for exact monetary values;
-values and scale are preserved and encoded as decimal strings.
+The SDK checks receipt data locally before matching, encryption or submission.
+Supply all payment amounts, including zero, and the VAT category and amount for
+each line and receipt-level tax entry. Invalid data stops issuance; the SDK
+never fills in or corrects financial values.
 
 ```python
-from cheqi import CheqiSDKError, ReceiptPayloadValidator
+from cheqi import CheqiSDKError
 
-report = ReceiptPayloadValidator().validate(payload)  # Optional explicit preflight.
 try:
     result = sdk.receipt_service.issue_receipt(identification, payload)
 except CheqiSDKError as error:
-    if error.validation_report is not None:
-        for issue in error.validation_report.issues:
-            print(f"{issue.rule_id} — {issue.path}: {issue.message}")
-    raise
+    if error.validation_report is None:
+        raise
+    for issue in error.validation_report.issues:
+        print(f"{issue.rule_id} — {issue.path}: {issue.message}")
 ```
 
-Validation errors include every detected rule, field and explanation in both
-the exception message and `validation_report`. Serialization and runtime errors
-retain their underlying cause. Errors are returned locally to the caller.
-A missing or corrupt validator stops issuance with `CONFIGURATION_ERROR`.
-A valid report has `complete_document=False`: the wallet still checks party
-context and the completed document.
+For an optional preflight without issuing a receipt:
 
-Required fields, collection limits and descriptions come from the backend
-specification through `make fetch-spec` and `make generate`. Shared models allow
-some nested fields to be absent in older received receipts; the issuance
-validator enforces the new receipt requirements described above.
+```python
+report = sdk.receipt_service.validate(payload)
+if not report.valid:
+    for issue in report.issues:
+        print(f"{issue.rule_id} — {issue.path}: {issue.message}")
+```
 
-To prepare an encrypted browser download without uploading it, use
-`sdk.receipt_service.prepare_download(payload, identification)`. It applies the
-same validation and returns a `PreparedReceiptDownload` for later upload through
-`upload_prepared_download`. Invalid receipt data is rejected before encryption.
+The method returns a report for valid and invalid receipt data without changing
+the payload or making an API request. Invalid fields appear in the report; wrong
+payload types, serialization errors and validator failures raise `CheqiSDKError`.
+The standalone `ReceiptPayloadValidator().validate(payload)` remains available
+after importing `ReceiptPayloadValidator` from `cheqi`.
+The validator is bundled with the SDK and runs without a network request.
+Issuance validates one JSON snapshot and encrypts that same snapshot for every
+device and fallback download, even if application callbacks later change the model.
+Monetary fields in the public receipt models retain `Decimal` values and serialize
+as decimal strings, preserving precision and trailing zeros, as in the Java SDK.
+Use `Decimal` or strings for exact input; precision already lost in a Python float
+cannot be recovered. Generated models remain unchanged.
 
-The package bundles its validator. The only additional runtime dependency is
-Wasmtime; customers need no Rust installation, compiler or validator download.
-See [bundle provenance and the offline example](docs/receipt-validator.md).
+Use `sdk.receipt_service.prepare_download(payload)` to validate and prepare an
+encrypted browser receipt locally without matching or uploading it. The existing
+`validate(payload)` and `ReceiptPayloadValidator().validate_or_raise(payload)`
+methods remain available.
+
+The [validation flow](docs/receipt-validation.mmd) precedes the existing issuance flow.
 
 ## Delivery routes and downloads
 

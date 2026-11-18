@@ -21,7 +21,7 @@ are sent to Cheqi by validation.
 ## Model generation
 
 ```sh
-make fetch-spec
+make fetch-spec ENV=prod
 make generate
 ```
 
@@ -33,9 +33,8 @@ The handwritten public receipt models extend the generated classes to preserve
 `Decimal` monetary values. Their aliases, descriptions, defaults and constraints
 come from the generated contract. The generated classes remain unchanged.
 
-The production-spec CI guard remains enabled. The test API schema is ahead of
-production; normal production promotion and schema synchronization are required
-before SDK publication. No version or release tag is changed by this work.
+The production-spec CI guard remains enabled. CI also verifies regenerated
+models and runs the existing suite against the installed wheel.
 
 ## Offline example
 
