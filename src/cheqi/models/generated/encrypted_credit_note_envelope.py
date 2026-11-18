@@ -25,7 +25,7 @@ from typing_extensions import Self
 
 class EncryptedCreditNoteEnvelope(BaseModel):
     """
-    Encrypted definitive credit-note payloads submitted for on-device formatting.
+    Independently encrypted credit-note generation request for every owner device
     """ # noqa: E501
     match_id: StrictStr = Field(description="Device-processing match ID returned by POST /recipient/resolve.", alias="matchId")
     child_company_id: Optional[StrictStr] = Field(default=None, alias="childCompanyId")

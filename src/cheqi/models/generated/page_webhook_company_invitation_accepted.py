@@ -31,16 +31,16 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
     """ # noqa: E501
     total_elements: Optional[StrictInt] = Field(default=None, alias="totalElements")
     total_pages: Optional[StrictInt] = Field(default=None, alias="totalPages")
-    pageable: Optional[PageableObject] = None
-    sort: Optional[SortObject] = None
     first: Optional[StrictBool] = None
     last: Optional[StrictBool] = None
     number_of_elements: Optional[StrictInt] = Field(default=None, alias="numberOfElements")
+    pageable: Optional[PageableObject] = None
+    sort: Optional[SortObject] = None
     size: Optional[StrictInt] = None
     content: Optional[List[WebhookCompanyInvitationAccepted]] = None
     number: Optional[StrictInt] = None
     empty: Optional[StrictBool] = None
-    __properties: ClassVar[List[str]] = ["totalElements", "totalPages", "pageable", "sort", "first", "last", "numberOfElements", "size", "content", "number", "empty"]
+    __properties: ClassVar[List[str]] = ["totalElements", "totalPages", "first", "last", "numberOfElements", "pageable", "sort", "size", "content", "number", "empty"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -108,11 +108,11 @@ class PageWebhookCompanyInvitationAccepted(BaseModel):
         _obj = cls.model_validate({
             "totalElements": obj.get("totalElements"),
             "totalPages": obj.get("totalPages"),
-            "pageable": PageableObject.from_dict(obj["pageable"]) if obj.get("pageable") is not None else None,
-            "sort": SortObject.from_dict(obj["sort"]) if obj.get("sort") is not None else None,
             "first": obj.get("first"),
             "last": obj.get("last"),
             "numberOfElements": obj.get("numberOfElements"),
+            "pageable": PageableObject.from_dict(obj["pageable"]) if obj.get("pageable") is not None else None,
+            "sort": SortObject.from_dict(obj["sort"]) if obj.get("sort") is not None else None,
             "size": obj.get("size"),
             "content": [WebhookCompanyInvitationAccepted.from_dict(_item) for _item in obj["content"]] if obj.get("content") is not None else None,
             "number": obj.get("number"),

@@ -17,9 +17,8 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
-from typing_extensions import Annotated
 from cheqi.models.generated.encrypted_receipt_payload import EncryptedReceiptPayload
 from typing import Optional, Set
 from typing_extensions import Self
@@ -28,22 +27,11 @@ class EncryptedReceiptEnvelope(BaseModel):
     """
     Encrypted definitive receipt payloads submitted for on-device formatting.
     """ # noqa: E501
-    document_reference_hash: Optional[Annotated[str, Field(strict=True)]] = Field(default=None, description="SDK-computed SHA-256 hex of UTF-8 cheqi:issuer-document:v1: followed by the exact documentNumber; scoped to the authenticated issuer for credit-note resolution.", alias="documentReferenceHash")
     match_id: StrictStr = Field(description="Device-processing match ID returned by POST /recipient/resolve.", alias="matchId")
     child_company_id: Optional[StrictStr] = Field(default=None, description="Deprecated compatibility field. It may only equal the company in the authentication context and no longer grants parent-to-child issuance.", alias="childCompanyId")
     store_id: Optional[StrictStr] = Field(default=None, description="Optional store/location issuing the receipt. It must be owned by the company in the authentication context, which remains the legal receipt issuer.", alias="storeId")
     device_deliveries: List[EncryptedReceiptPayload] = Field(description="Independently encrypted copies of the definitive receipt payload for the matched devices.", alias="deviceDeliveries")
-    __properties: ClassVar[List[str]] = ["documentReferenceHash", "matchId", "childCompanyId", "storeId", "deviceDeliveries"]
-
-    @field_validator('document_reference_hash')
-    def document_reference_hash_validate_regular_expression(cls, value):
-        """Validates the regular expression"""
-        if value is None:
-            return value
-
-        if not re.match(r"^[0-9a-f]{64}$", value):
-            raise ValueError(r"must validate the regular expression /^[0-9a-f]{64}$/")
-        return value
+    __properties: ClassVar[List[str]] = ["matchId", "childCompanyId", "storeId", "deviceDeliveries"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -103,7 +91,6 @@ class EncryptedReceiptEnvelope(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "documentReferenceHash": obj.get("documentReferenceHash"),
             "matchId": obj.get("matchId"),
             "childCompanyId": obj.get("childCompanyId"),
             "storeId": obj.get("storeId"),

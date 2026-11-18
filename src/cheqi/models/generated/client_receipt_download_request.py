@@ -25,44 +25,18 @@ from typing_extensions import Self
 
 class ClientReceiptDownloadRequest(BaseModel):
     """
-    ClientReceiptDownloadRequest
+    Client-encrypted receipt payload
     """ # noqa: E501
     download_id: Annotated[str, Field(strict=True)] = Field(description="Client-generated download identifier: at least 16 CSPRNG bytes encoded as base64url without padding. Must be exactly the id embedded in the QR URL path. Resubmitting the same id with identical payload bytes is an idempotent replay.", alias="downloadId")
     ciphertext: StrictStr = Field(description="Base64-encoded AES-256-GCM blob framed as iv || ciphertext || tag (12-byte IV, 128-bit tag) of the receipt envelope, encrypted client-side with the key from the QR URL fragment. Cheqi never receives that key and cannot decrypt this payload.")
     template_hash: Optional[StrictStr] = Field(default=None, description="Optional locally computed template hash for audit and reconciliation.", alias="templateHash")
-    parent_download_id: Optional[Annotated[str, Field(strict=True)]] = Field(default=None, description="Legacy symmetric-link protocol. For a credit note, the original invoice download ID. Must belong to the same issuing company and application. Supply together with encryptedParentLink; never include a URL fragment or key.", alias="parentDownloadId")
-    encrypted_parent_link: Optional[Annotated[str, Field(min_length=0, strict=True, max_length=22000)]] = Field(default=None, description="SDK-generated AES-GCM encrypted child link. Version 2 plaintext: {version:2,parentCheqiReceiptId,downloadId,contentKey}; its fresh AES key is wrapped in encryptedParentLinkKey. Never supply keys manually.", alias="encryptedParentLink")
-    document_reference_hash: Optional[Annotated[str, Field(strict=True)]] = Field(default=None, description="SDK-computed SHA-256 hex of UTF-8 cheqi:issuer-document:v1: followed by the exact documentNumber. Indexed within the authenticated issuing company for later credit-note resolution. This is a routing identifier, not encryption.", alias="documentReferenceHash")
-    credit_note_public_key: Optional[Annotated[str, Field(min_length=0, strict=True, max_length=2048)]] = Field(default=None, description="SDK-generated RSA public receiving key, base64 SPKI, 2048-4096 bits, RSA-OAEP SHA-256/MGF1 SHA-256. The corresponding PKCS8 private key is only inside the encrypted original envelope.", alias="creditNotePublicKey")
-    parent_cheqi_receipt_id: Optional[Annotated[str, Field(min_length=0, strict=True, max_length=255)]] = Field(default=None, description="SDK-internal original identifier returned by POST /credit-note/resolve. Merchants supply originatorDocumentReference in their encrypted credit-note payload.", alias="parentCheqiReceiptId")
-    encrypted_parent_link_key: Optional[Annotated[str, Field(min_length=0, strict=True, max_length=1024)]] = Field(default=None, description="SDK-generated base64 RSA-OAEP SHA-256/MGF1 SHA-256 wrapped AES key for encryptedParentLink. Supply with parentCheqiReceiptId and encryptedParentLink.", alias="encryptedParentLinkKey")
-    __properties: ClassVar[List[str]] = ["downloadId", "ciphertext", "templateHash", "parentDownloadId", "encryptedParentLink", "documentReferenceHash", "creditNotePublicKey", "parentCheqiReceiptId", "encryptedParentLinkKey"]
+    __properties: ClassVar[List[str]] = ["downloadId", "ciphertext", "templateHash"]
 
     @field_validator('download_id')
     def download_id_validate_regular_expression(cls, value):
         """Validates the regular expression"""
         if not re.match(r"^[A-Za-z0-9_-]{22,64}$", value):
             raise ValueError(r"must validate the regular expression /^[A-Za-z0-9_-]{22,64}$/")
-        return value
-
-    @field_validator('parent_download_id')
-    def parent_download_id_validate_regular_expression(cls, value):
-        """Validates the regular expression"""
-        if value is None:
-            return value
-
-        if not re.match(r"^[A-Za-z0-9_-]{22,64}$", value):
-            raise ValueError(r"must validate the regular expression /^[A-Za-z0-9_-]{22,64}$/")
-        return value
-
-    @field_validator('document_reference_hash')
-    def document_reference_hash_validate_regular_expression(cls, value):
-        """Validates the regular expression"""
-        if value is None:
-            return value
-
-        if not re.match(r"^[0-9a-f]{64}$", value):
-            raise ValueError(r"must validate the regular expression /^[0-9a-f]{64}$/")
         return value
 
     model_config = ConfigDict(
@@ -123,13 +97,7 @@ class ClientReceiptDownloadRequest(BaseModel):
         _obj = cls.model_validate({
             "downloadId": obj.get("downloadId"),
             "ciphertext": obj.get("ciphertext"),
-            "templateHash": obj.get("templateHash"),
-            "parentDownloadId": obj.get("parentDownloadId"),
-            "encryptedParentLink": obj.get("encryptedParentLink"),
-            "documentReferenceHash": obj.get("documentReferenceHash"),
-            "creditNotePublicKey": obj.get("creditNotePublicKey"),
-            "parentCheqiReceiptId": obj.get("parentCheqiReceiptId"),
-            "encryptedParentLinkKey": obj.get("encryptedParentLinkKey")
+            "templateHash": obj.get("templateHash")
         })
         return _obj
 
