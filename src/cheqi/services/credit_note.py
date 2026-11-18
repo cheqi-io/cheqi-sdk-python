@@ -65,9 +65,9 @@ class CreditNoteService:
         parent = original.parent_cheqi_receipt_id
         self._require_text(parent, "resolved parentCheqiReceiptId")
         assert parent is not None
+        if not isinstance(node.get("taxesApplied"), bool):
+            self._validation_error("taxesApplied must be a boolean")
         if original.delivery_route == "DIGITAL":
-            if not isinstance(node.get("taxesApplied"), bool):
-                self._validation_error("taxesApplied must be a boolean for device generation")
             match = self._matching_service.match_customer(
                 IdentificationDetails(cheqi_receipt_id=parent), options=options
             )
@@ -104,7 +104,8 @@ class CreditNoteService:
             receipt_generator_version="credit-note-payload-v1",
             documents={
                 "CREDIT_NOTE_PAYLOAD": ReceiptEnvelopeDocument(
-                    media_type="application/json", content=self._reference_json(body)
+                    media_type="application/json",
+                    content=self._reference_json({**body, "taxesApplied": node["taxesApplied"]}),
                 )
             },
         )

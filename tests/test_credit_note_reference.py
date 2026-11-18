@@ -48,7 +48,10 @@ def test_download_reference_encrypts_keys_and_replays_identical_submission():
     )
     api.upload_encrypted_download_receipt.return_value = ClientReceiptDownloadResponse(cheqi_receipt_id="credit")
     service = CreditNoteService(api, EncryptionService(), matching)
-    prepared = service.prepare_credit_note(PAYLOAD)
+    prepared = service.prepare_credit_note({
+        "taxesApplied": True,
+        "creditNoteTemplateRequest": {k: v for k, v in PAYLOAD.items() if k != "taxesApplied"},
+    })
     saved = prepared.model_dump_json(by_alias=True, exclude_none=True)
     for value in ["INV-123", "CN-123", "contentKey", "privateKey"]:
         assert value not in saved
