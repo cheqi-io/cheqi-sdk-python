@@ -16,7 +16,7 @@ from cheqi.sdk import CheqiSDK
 from cheqi.services.download import DownloadService
 from cheqi.validation import ReceiptPayloadValidator
 
-__version__ = "2.1.1"
+__version__ = "2.1.2"
 
 __all__ = [
     "__version__",

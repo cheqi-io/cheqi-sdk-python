@@ -41,7 +41,7 @@ from cheqi.models.generated.webhook_receipt_envelope import WebhookReceiptEnvelo
 
 logger = logging.getLogger("cheqi.http")
 
-_USER_AGENT = "CheqiSDK-Python/2.1.1"
+_USER_AGENT = "CheqiSDK-Python/2.1.2"
 
 
 def _model_dict(model: BaseModel) -> dict[str, Any]:
