@@ -116,14 +116,14 @@ paths:
               $ref: "#/components/schemas/AuthorizationCodeExchangeRequest"
         required: true
       responses:
-        "200":
-          description: Authorization code exchanged successfully
+        "401":
+          description: Invalid client credentials
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/CompanyAuthorizationResponse"
-        "401":
-          description: Invalid client credentials
+        "200":
+          description: Authorization code exchanged successfully
           content:
             '*/*':
               schema:
@@ -190,12 +190,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/OAuthTokenExchangeResponse"
-        "400":
-          description: Invalid authorization code or request parameters
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
         "200":
           description: OAuth exchange completed successfully
           content:
@@ -211,6 +205,12 @@ paths:
                     token_type: bearer
                     expires_in: 900
                     scope: receipt:issue
+        "400":
+          description: Invalid authorization code or request parameters
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
       security: []
   /company/{companyId}/stores/{storeId}:
     get:
@@ -336,16 +336,16 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
-        "403":
-          description: Insufficient permissions for one or more requested event types
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WebhookResponse"
         "200":
           description: Webhook subscription created successfully
           content:
             application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "403":
+          description: Insufficient permissions for one or more requested event types
+          content:
+            '*/*':
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
       security:
@@ -480,12 +480,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
-        "200":
-          description: Recipient successfully resolved and matched
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RecipientResolutionResponse"
         "401":
           description: Authentication required
           content:
@@ -494,6 +488,12 @@ paths:
                 $ref: "#/components/schemas/RecipientResolutionResponse"
         "400":
           description: Invalid identification details provided
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RecipientResolutionResponse"
+        "200":
+          description: Recipient successfully resolved and matched
           content:
             '*/*':
               schema:
@@ -669,14 +669,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "403":
-          description: Insufficient permissions - requires receipt:issue scope
+        "201":
+          description: Encrypted receipt stored
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "201":
-          description: Encrypted receipt stored
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
@@ -799,12 +799,6 @@ paths:
               $ref: "#/components/schemas/InviteEmployeeRequest"
         required: true
       responses:
-        "200":
-          description: "Existing members, new invitations, and pending invitations"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/InviteEmployeesResponse"
         "400":
           description: Invalid invitation request
           content:
@@ -813,6 +807,12 @@ paths:
                 $ref: "#/components/schemas/InviteEmployeesResponse"
         "404":
           description: Company not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteEmployeesResponse"
+        "200":
+          description: "Existing members, new invitations, and pending invitations"
           content:
             application/json:
               schema:
@@ -913,14 +913,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Public key retrieved successfully
+        "404":
+          description: Client application not found or public key not configured
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicKeyResponse"
-        "404":
-          description: Client application not found or public key not configured
+        "200":
+          description: Public key retrieved successfully
           content:
             application/json:
               schema:
@@ -1214,6 +1214,12 @@ paths:
         **Accessible for:** Client Application, Company
       operationId: getQueuedReceipts
       responses:
+        "200":
+          description: Queued receipts returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
         "403":
           description: Insufficient receipt read permission
           content:
@@ -1223,12 +1229,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
-        "200":
-          description: Queued receipts returned successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EncryptedReceiptDeliveryResponse"
       security:
       - cheqi_oauth:
         - receipt:read
@@ -3281,13 +3281,13 @@ components:
           $ref: "#/components/schemas/PageableObject"
         sort:
           $ref: "#/components/schemas/SortObject"
-        numberOfElements:
-          type: integer
-          format: int32
         first:
           type: boolean
         last:
           type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
         empty:
           type: boolean
     PageableObject:
@@ -3627,16 +3627,16 @@ components:
           additionalProperties:
             $ref: "#/components/schemas/ReceiptEnvelopeDocument"
           description: "Version 1 holds generated CHEQI/UBL documents. Version 2 download\
-            \ envelopes hold RECEIPT_PAYLOAD generation input and optional IDENTIFICATION_DETAILS.\
-            \ Each document's content is serialized JSON or XML, not a nested parsed\
-            \ document."
+            \ envelopes hold RECEIPT_PAYLOAD or CREDIT_NOTE_PAYLOAD generation input\
+            \ and optional IDENTIFICATION_DETAILS. Each document's content is serialized\
+            \ JSON or XML, not a nested parsed document."
         envelopeVersion:
           maximum: 2
           minimum: 1
           type: integer
           description: Schema version of this encrypted plaintext envelope. Version
-            2 download envelopes carry RECEIPT_PAYLOAD generation input instead of
-            a generated CHEQI document.
+            2 download envelopes carry RECEIPT_PAYLOAD or CREDIT_NOTE_PAYLOAD generation
+            input instead of a generated CHEQI document.
           format: int32
           example: 1
         expenseSubmission:

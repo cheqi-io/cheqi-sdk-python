@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel
 
@@ -15,10 +15,15 @@ from cheqi.exceptions import CheqiSDKError, CreditNoteProcessingError, ErrorCode
 from cheqi.http.client import CheqiApiClient
 from cheqi.http.request_options import RequestOptions
 from cheqi.models.credit_note import CreditNoteResult
+from cheqi.models.generated.client_receipt_download_request import ClientReceiptDownloadRequest
 from cheqi.models.generated.encrypted_credit_note_envelope import EncryptedCreditNoteEnvelope
 from cheqi.models.generated.identification_details import IdentificationDetails
+from cheqi.models.generated.receipt_envelope import ReceiptEnvelope
+from cheqi.models.generated.receipt_envelope_document import ReceiptEnvelopeDocument
 from cheqi.models.generated.receipt_submission_response import ReceiptSubmissionResponse
 from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
+from cheqi.models.receipt import PreparedReceiptDownload
+from cheqi.services.download import DownloadService
 from cheqi.services.encryption import EncryptionService
 from cheqi.services.matching import MatchingService
 
@@ -35,6 +40,46 @@ class CreditNoteService:
         self._api_client = api_client
         self._encryption_service = encryption_service
         self._matching_service = matching_service
+
+    def prepare_download(self, payload: Any, base_url: str = "https://receipt.cheqi.io") -> PreparedReceiptDownload:
+        """Prepare an ordinary encrypted receipt link; only the receiving wallet matches its invoice."""
+        if isinstance(payload, BaseModel):
+            node = json.loads(payload.model_dump_json(by_alias=True, exclude_none=True), parse_float=Decimal)
+        elif isinstance(payload, str):
+            node = json.loads(payload, parse_float=Decimal)
+        else:
+            node = payload
+        body = node.get("creditNoteTemplateRequest", node) if isinstance(node, dict) else None
+        if not isinstance(body, dict):
+            raise ValueError("Credit-note payload must be an object")
+        for field in ("documentNumber", "originatorDocumentReference"):
+            if not isinstance(body.get(field), str) or not body[field].strip():
+                raise ValueError(f"{field} is required")
+        if not isinstance(node.get("taxesApplied"), bool):
+            raise ValueError("taxesApplied must be a boolean")
+        document = {**body, "taxesApplied": node["taxesApplied"]}
+        content = json.dumps(
+            document,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+            default=lambda value: str(value) if isinstance(value, Decimal) else self._json_default(value),
+        )
+        downloads = DownloadService()
+        link = downloads.generate_download_link(base_url)
+        envelope = ReceiptEnvelope(
+            envelope_version=2,
+            cheqi_receipt_id=link.download_id,
+            receipt_uuid=str(uuid4()),
+            receipt_generator_version="credit-note-payload-v1",
+            documents={"CREDIT_NOTE_PAYLOAD": ReceiptEnvelopeDocument(media_type="application/json", content=content)},
+        )
+        return PreparedReceiptDownload(
+            download_url=link.url,
+            upload_request=ClientReceiptDownloadRequest(
+                download_id=link.download_id, ciphertext=downloads.encrypt_download_envelope(envelope, link.content_key)
+            ),
+        )
 
     def issue_credit_note(
         self,
