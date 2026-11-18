@@ -106,13 +106,19 @@ class ReceiptPayloadValidator:
 
     def validate_or_raise(self, payload: ReceiptPayload) -> None:
         """Stop issuance with all detected receipt data issues."""
-        report = self.validate(payload)
+        self.require_valid_json(payload)
+
+    def require_valid_json(self, payload: ReceiptPayload) -> str:
+        """Return the exact JSON to encrypt, or raise with all detected findings."""
+        payload_json = self._serialize(payload)
+        report = self.validate_json(payload_json)
         if not report.valid:
             details = "; ".join(f"{issue.rule_id} — {issue.path}: {issue.message}" for issue in report.issues)
             raise CheqiSDKError(
                 f"Invalid receipt payload: {details}", ErrorCodes.VALIDATION_ERROR,
                 validation_report=report,
             )
+        return payload_json
 
     @staticmethod
     def _serialize(payload: ReceiptPayload) -> str:

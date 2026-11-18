@@ -29,7 +29,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install test dependencies
-        run: python -m pip install ".[dev]"
+        run: python -m pip install ".[dev]" build
 
       - name: Check OpenAPI spec drift
         run: make spec-check ENV=prod
@@ -42,3 +42,29 @@ jobs:
 
       - name: Run tests
         run: make test
+
+      - name: Build and verify the installed package
+        run: |
+          python -m build
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+          make test
+          python examples/validate_receipt.py tests/fixtures/validation/receipt-payload.json
+
+  generated-models:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned generator launcher
+        run: npm install --global @openapitools/openapi-generator-cli@2.18.4
+      - name: Verify generated models are committed
+        run: |
+          make generate
+          git diff --exit-code -- src/cheqi/models/generated
+          test -z "$(git ls-files --others --exclude-standard src/cheqi/models/generated)"

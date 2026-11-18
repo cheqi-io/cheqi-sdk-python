@@ -66,9 +66,9 @@ def test_validation_keeps_the_receipt_json_readable_after_decryption(rsa_key_pai
     decrypted = _decrypt_device_payload(encrypted.encrypted_content, encrypted.encrypted_aes_key, private_key)
     assert decrypted == plaintext == receipt.to_json()
     data = json.loads(decrypted)
-    assert data["totalAmount"] == 19.41
-    assert data["products"][0]["unitPrice"] == 8.905
-    assert data["paymentDetails"]["roundingAmount"] == 0
+    assert data["totalAmount"] == "19.41"
+    assert data["products"][0]["unitPrice"] == "8.905"
+    assert data["paymentDetails"]["roundingAmount"] == "0"
 
 
 def test_complete_receipt_envelope_decryption(rsa_key_pair: tuple[str, str]) -> None:

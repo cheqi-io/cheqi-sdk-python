@@ -207,6 +207,18 @@ payload types, serialization errors and validator failures raise `CheqiSDKError`
 The standalone `ReceiptPayloadValidator().validate(payload)` remains available
 after importing `ReceiptPayloadValidator` from `cheqi`.
 The validator is bundled with the SDK and runs without a network request.
+Issuance validates one JSON snapshot and encrypts that same snapshot for every
+device and fallback download, even if application callbacks later change the model.
+Monetary fields in the public receipt models retain `Decimal` values and serialize
+as decimal strings, preserving precision and trailing zeros, as in the Java SDK.
+Use `Decimal` or strings for exact input; precision already lost in a Python float
+cannot be recovered. Generated models remain unchanged.
+
+Use `sdk.receipt_service.prepare_download(payload)` to validate and prepare an
+encrypted browser receipt locally without matching or uploading it. The existing
+`validate(payload)` and `ReceiptPayloadValidator().validate_or_raise(payload)`
+methods remain available.
+
 The [validation flow](docs/receipt-validation.mmd) precedes the existing issuance flow.
 
 ## Delivery routes and downloads
