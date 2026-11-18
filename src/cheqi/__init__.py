@@ -12,6 +12,7 @@ from cheqi.exceptions import (
     SubmissionInProgressError,
 )
 from cheqi.http.request_options import RequestOptions
+from cheqi.models.generated.prepared_credit_note import PreparedCreditNote
 from cheqi.sdk import CheqiSDK
 from cheqi.services.download import DownloadService
 from cheqi.validation import ReceiptPayloadValidator
@@ -21,6 +22,7 @@ __version__ = "2.1.1"
 __all__ = [
     "__version__",
     "CheqiSDK",
+    "PreparedCreditNote",
     "CheqiSDKConfig",
     "DownloadService",
     "ReceiptPayloadValidator",

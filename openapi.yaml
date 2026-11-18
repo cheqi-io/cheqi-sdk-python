@@ -13,6 +13,8 @@ security:
 - cheqi_oauth: []
 - cheqi_api_key: []
 tags:
+- name: Receipt Download
+  description: Public self-service receipt download (QR-code fallback)
 - name: Store Management
   description: Endpoints for managing lightweight store/location records under a company.
     Stores are not child companies and do not create a separate Cheqi company identity.
@@ -116,14 +118,14 @@ paths:
               $ref: "#/components/schemas/AuthorizationCodeExchangeRequest"
         required: true
       responses:
-        "200":
-          description: Authorization code exchanged successfully
+        "401":
+          description: Invalid client credentials
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/CompanyAuthorizationResponse"
-        "401":
-          description: Invalid client credentials
+        "200":
+          description: Authorization code exchanged successfully
           content:
             '*/*':
               schema:
@@ -152,14 +154,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Grant details retrieved successfully
+        "404":
+          description: Grant not found
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/OAuthGrantDetailsResponse"
-        "404":
-          description: Grant not found
+        "200":
+          description: Grant details retrieved successfully
           content:
             '*/*':
               schema:
@@ -184,18 +186,6 @@ paths:
               $ref: "#/components/schemas/ClientCredentialsTokenRequest"
         required: true
       responses:
-        "401":
-          description: Invalid client credentials
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
-        "400":
-          description: Invalid authorization code or request parameters
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
         "200":
           description: OAuth exchange completed successfully
           content:
@@ -211,6 +201,18 @@ paths:
                     token_type: bearer
                     expires_in: 900
                     scope: receipt:issue
+        "401":
+          description: Invalid client credentials
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
+        "400":
+          description: Invalid authorization code or request parameters
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/OAuthTokenExchangeResponse"
       security: []
   /company/{companyId}/stores/{storeId}:
     get:
@@ -236,6 +238,12 @@ paths:
           type: string
           format: uuid
       responses:
+        "200":
+          description: Store retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to view this store
           content:
@@ -244,12 +252,6 @@ paths:
                 $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store retrieved successfully
           content:
             '*/*':
               schema:
@@ -283,12 +285,6 @@ paths:
               $ref: "#/components/schemas/UpdateStoreRequest"
         required: true
       responses:
-        "200":
-          description: Store updated successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
           content:
@@ -307,6 +303,12 @@ paths:
             '*/*':
               schema:
                 type: object
+        "200":
+          description: Store updated successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
   /webhook/subscription:
     post:
       tags:
@@ -336,16 +338,16 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
-        "403":
-          description: Insufficient permissions for one or more requested event types
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WebhookResponse"
         "200":
           description: Webhook subscription created successfully
           content:
             application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "403":
+          description: Insufficient permissions for one or more requested event types
+          content:
+            '*/*':
               schema:
                 $ref: "#/components/schemas/WebhookResponse"
       security:
@@ -427,12 +429,6 @@ paths:
               $ref: "#/components/schemas/CreateStoreRequest"
         required: true
       responses:
-        "201":
-          description: Store created successfully
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to create stores for this company
           content:
@@ -445,6 +441,12 @@ paths:
             '*/*':
               schema:
                 type: object
+        "201":
+          description: Store created successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
         "400":
           description: Invalid request data
           content:
@@ -571,6 +573,14 @@ paths:
               $ref: "#/components/schemas/EncryptedReceiptEnvelope"
         required: true
       responses:
+        "202":
+          description: Encrypted receipt payload accepted for on-device formatting
+          content:
+            '*/*':
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/ReceiptSubmissionResponse"
+                - $ref: "#/components/schemas/MatchStatusResponse"
         "410":
           description: Unsubmitted match expired
           content:
@@ -589,14 +599,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "202":
-          description: Encrypted receipt payload accepted for on-device formatting
-          content:
-            '*/*':
-              schema:
-                oneOf:
-                - $ref: "#/components/schemas/ReceiptSubmissionResponse"
-                - $ref: "#/components/schemas/MatchStatusResponse"
         "404":
           description: Match absent or belongs to another requester
           content:
@@ -675,18 +677,45 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
-        "201":
-          description: Encrypted receipt stored
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
         "200":
           description: Idempotent replay of an identical earlier upload
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ClientReceiptDownloadResponse"
+        "201":
+          description: Encrypted receipt stored
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadResponse"
+      security:
+      - cheqi_oauth:
+        - receipt:issue
+      x-accessible-for: "Company, Client Application"
+  /credit-note/resolve:
+    post:
+      tags:
+      - credit-note-reference-controller
+      summary: Resolve an issuer document reference for credit-note delivery
+      description: |-
+        The SDK hashes originatorDocumentReference and resolves it within the authenticated issuing company. Returns 404 if unknown, 409 if ambiguous or unavailable. Never guesses between documents. Only routing metadata is returned; receipt contents remain encrypted.
+
+        **Accessible for:** Company, Client Application
+      operationId: resolveCreditNoteDocumentReference
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreditNoteDocumentReference"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CreditNoteReferenceResolution"
       security:
       - cheqi_oauth:
         - receipt:issue
@@ -714,14 +743,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "403":
-          description: Insufficient permissions - requires receipt:issue scope
+        "202":
+          description: Encrypted credit-note generation job accepted
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ReceiptSubmissionResponse"
-        "202":
-          description: Encrypted credit-note generation job accepted
+        "403":
+          description: Insufficient permissions - requires receipt:issue scope
           content:
             '*/*':
               schema:
@@ -913,14 +942,14 @@ paths:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Public key retrieved successfully
+        "404":
+          description: Client application not found or public key not configured
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicKeyResponse"
-        "404":
-          description: Client application not found or public key not configured
+        "200":
+          description: Public key retrieved successfully
           content:
             application/json:
               schema:
@@ -1152,6 +1181,12 @@ paths:
           type: string
           format: uuid
       responses:
+        "200":
+          description: Store activated successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StoreDTO"
         "404":
           description: Store or company not found
           content:
@@ -1160,12 +1195,6 @@ paths:
                 $ref: "#/components/schemas/StoreDTO"
         "403":
           description: Not authorized to activate this store
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/StoreDTO"
-        "200":
-          description: Store activated successfully
           content:
             '*/*':
               schema:
@@ -1253,6 +1282,61 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ReceiptFormat"
+      security: []
+  /public/receipt/encrypted/{downloadId}:
+    get:
+      tags:
+      - Receipt Download
+      summary: Get the encrypted receipt for a client-generated download link
+      description: "Returns opaque ciphertext and public merchant metadata. Receipt\
+        \ decryption happens in-browser with the AES key from the URL fragment; the\
+        \ server never holds that key. Responds 404 for unknown, expired, and not-yet-uploaded\
+        \ ids alike — the download page treats 404 as 'receipt on its way' and polls."
+      operationId: getEncryptedContent
+      parameters:
+      - name: downloadId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ClientReceiptDownloadContentResponse"
+      security: []
+  /public/receipt/encrypted/{downloadId}/credit-notes:
+    get:
+      tags:
+      - Receipt Download
+      summary: List encrypted credit-note links for a receipt download
+      description: "Returns encrypted references to normal credit-note downloads,\
+        \ in pages of 50. Decrypt each link locally using the original receipt fragment\
+        \ key, then fetch and decrypt the child through the normal receipt download\
+        \ endpoint. Keys never reach Cheqi."
+      operationId: creditNotes
+      parameters:
+      - name: downloadId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CreditNoteLinks"
       security: []
   /credit-note:
     get:
@@ -1372,14 +1456,14 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AuthorizedResourcesResponse"
-        "200":
-          description: Authorized resources retrieved successfully
+        "403":
+          description: Missing receipt:read or a valid delegated context
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AuthorizedResourcesResponse"
-        "403":
-          description: Missing receipt:read or a valid delegated context
+        "200":
+          description: Authorized resources retrieved successfully
           content:
             '*/*':
               schema:
@@ -1786,6 +1870,12 @@ components:
       - matchId
       type: object
       properties:
+        documentReferenceHash:
+          pattern: "^[0-9a-f]{64}$"
+          type: string
+          description: "SDK-computed SHA-256 hex of UTF-8 cheqi:issuer-document:v1:\
+            \ followed by the exact documentNumber; scoped to the authenticated issuer\
+            \ for credit-note resolution."
         matchId:
           type: string
           description: Device-processing match ID returned by POST /recipient/resolve.
@@ -1831,6 +1921,27 @@ components:
             public key.
       description: One encrypted definitive receipt payload addressed to an owner
         device.
+    ReceiptSubmissionResponse:
+      type: object
+      properties:
+        cheqiReceiptId:
+          type: string
+          description: Stable Cheqi receipt identifier assigned to the processing
+            job.
+        matchId:
+          type: string
+        status:
+          type: string
+          description: Processing status of an encrypted receipt payload submission.
+          enum:
+          - PENDING
+          - CLAIMED
+          - COMPLETED
+          - FAILED_PERMANENT
+        createdAt:
+          type: string
+          format: date-time
+      description: Acknowledgement of an accepted encrypted receipt payload submission.
     MatchState:
       type: string
       description: State of a receipt match and its submission
@@ -1864,27 +1975,6 @@ components:
         retryAfterSeconds:
           type: integer
           format: int32
-    ReceiptSubmissionResponse:
-      type: object
-      properties:
-        cheqiReceiptId:
-          type: string
-          description: Stable Cheqi receipt identifier assigned to the processing
-            job.
-        matchId:
-          type: string
-        status:
-          type: string
-          description: Processing status of an encrypted receipt payload submission.
-          enum:
-          - PENDING
-          - CLAIMED
-          - COMPLETED
-          - FAILED_PERMANENT
-        createdAt:
-          type: string
-          format: date-time
-      description: Acknowledgement of an accepted encrypted receipt payload submission.
     Barcode:
       type: object
       properties:
@@ -2731,7 +2821,49 @@ components:
           type: string
           description: Optional locally computed template hash for audit and reconciliation.
           nullable: true
-      description: Client-encrypted receipt payload
+        parentDownloadId:
+          pattern: "^[A-Za-z0-9_-]{22,64}$"
+          type: string
+          description: "Legacy symmetric-link protocol. For a credit note, the original\
+            \ invoice download ID. Must belong to the same issuing company and application.\
+            \ Supply together with encryptedParentLink; never include a URL fragment\
+            \ or key."
+          deprecated: true
+        encryptedParentLink:
+          maxLength: 22000
+          minLength: 0
+          type: string
+          description: "SDK-generated AES-GCM encrypted child link. Version 2 plaintext:\
+            \ {version:2,parentCheqiReceiptId,downloadId,contentKey}; its fresh AES\
+            \ key is wrapped in encryptedParentLinkKey. Never supply keys manually."
+        documentReferenceHash:
+          pattern: "^[0-9a-f]{64}$"
+          type: string
+          description: "SDK-computed SHA-256 hex of UTF-8 cheqi:issuer-document:v1:\
+            \ followed by the exact documentNumber. Indexed within the authenticated\
+            \ issuing company for later credit-note resolution. This is a routing\
+            \ identifier, not encryption."
+        creditNotePublicKey:
+          maxLength: 2048
+          minLength: 0
+          type: string
+          description: "SDK-generated RSA public receiving key, base64 SPKI, 2048-4096\
+            \ bits, RSA-OAEP SHA-256/MGF1 SHA-256. The corresponding PKCS8 private\
+            \ key is only inside the encrypted original envelope."
+        parentCheqiReceiptId:
+          maxLength: 255
+          minLength: 0
+          type: string
+          description: SDK-internal original identifier returned by POST /credit-note/resolve.
+            Merchants supply originatorDocumentReference in their encrypted credit-note
+            payload.
+        encryptedParentLinkKey:
+          maxLength: 1024
+          minLength: 0
+          type: string
+          description: SDK-generated base64 RSA-OAEP SHA-256/MGF1 SHA-256 wrapped
+            AES key for encryptedParentLink. Supply with parentCheqiReceiptId and
+            encryptedParentLink.
     ClientReceiptDownloadResponse:
       type: object
       properties:
@@ -2856,6 +2988,28 @@ components:
           - ALL_STORES
           - SELECTED_STORES
       description: Company Grant metadata returned after authorization-code exchange
+    CreditNoteDocumentReference:
+      required:
+      - documentReferenceHash
+      type: object
+      properties:
+        documentReferenceHash:
+          pattern: "[0-9a-f]{64}"
+          type: string
+          description: "SDK-computed SHA-256 hex of UTF-8 cheqi:issuer-document:v1:\
+            \ followed by the exact original documentNumber."
+    CreditNoteReferenceResolution:
+      type: object
+      properties:
+        deliveryRoute:
+          type: string
+        parentCheqiReceiptId:
+          type: string
+        creditNotePublicKey:
+          type: string
+        storeId:
+          type: string
+          format: uuid
     EncryptedCreditNoteEnvelope:
       required:
       - deviceDeliveries
@@ -2880,8 +3034,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EncryptedReceiptPayload"
-      description: Independently encrypted credit-note generation request for every
-        owner device
+      description: Encrypted definitive credit-note payloads submitted for on-device
+        formatting.
     CompanyCreationRequest:
       required:
       - address
@@ -3214,6 +3368,149 @@ components:
           format: date-time
       description: Encrypted receipt or credit-note delivery envelope returned to
         an authorized recipient.
+    ClientReceiptDownloadContentResponse:
+      type: object
+      properties:
+        ciphertext:
+          type: string
+          description: Base64-encoded AES-256-GCM blob framed as iv || ciphertext
+            || tag of the receipt envelope.
+        cheqiReceiptId:
+          type: string
+        merchantCompanyId:
+          type: string
+          format: uuid
+        documentType:
+          type: string
+        parentCheqiReceiptId:
+          type: string
+        createdAt:
+          type: string
+          description: Timestamp when the receipt was uploaded.
+          format: date-time
+        expiresAt:
+          type: string
+          description: "Always null: client-encrypted download links do not expire."
+          format: date-time
+          nullable: true
+          deprecated: true
+        merchant:
+          $ref: "#/components/schemas/Merchant"
+        supplierParty:
+          $ref: "#/components/schemas/ReceiptGenerationSupplierParty"
+    Merchant:
+      type: object
+      properties:
+        name:
+          type: string
+        legalName:
+          type: string
+        taxNumber:
+          type: string
+        phoneNumber:
+          type: string
+        address:
+          $ref: "#/components/schemas/MerchantAddress"
+        identifiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/MerchantIdentifier"
+      description: Public merchant/company metadata for rendering the receipt header.
+    MerchantAddress:
+      type: object
+      properties:
+        street:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipCode:
+          type: string
+        country:
+          type: string
+    MerchantIdentifier:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        identifierType:
+          $ref: "#/components/schemas/CompanyIdentifierType"
+        registrationScheme:
+          type: string
+        value:
+          type: string
+        label:
+          type: string
+        countryCode:
+          type: string
+        isVerified:
+          type: boolean
+    ReceiptGenerationSupplierParty:
+      type: object
+      properties:
+        companyName:
+          type: string
+        companyLegalName:
+          type: string
+        companyEmail:
+          type: string
+        phoneNumber:
+          type: string
+        companyLegalForm:
+          type: string
+        companyReceiptText:
+          type: string
+        identifiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompanyIdentifierDTO"
+        address:
+          $ref: "#/components/schemas/SupplierAddress"
+      description: Public supplier context for local generation from a version 2 download
+        payload.
+    SupplierAddress:
+      type: object
+      properties:
+        streetName:
+          type: string
+        additionalStreetName:
+          type: string
+        addressLine:
+          type: string
+        region:
+          type: string
+        cityName:
+          type: string
+        postalZone:
+          type: string
+        countryIsoCode:
+          type: string
+    CreditNoteLink:
+      type: object
+      properties:
+        cheqiReceiptId:
+          type: string
+        encryptedParentLink:
+          type: string
+        encryptedParentLinkKey:
+          type: string
+    CreditNoteLinks:
+      type: object
+      properties:
+        parentCheqiReceiptId:
+          type: string
+        merchantCompanyId:
+          type: string
+          format: uuid
+        creditNotes:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreditNoteLink"
+        nextPage:
+          type: integer
+          format: int32
     OAuthGrantCompanyResponse:
       type: object
       properties:
@@ -3267,6 +3564,17 @@ components:
         totalPages:
           type: integer
           format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        first:
+          type: boolean
+        last:
+          type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
         size:
           type: integer
           format: int32
@@ -3277,25 +3585,11 @@ components:
         number:
           type: integer
           format: int32
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
-        sort:
-          $ref: "#/components/schemas/SortObject"
-        numberOfElements:
-          type: integer
-          format: int32
-        first:
-          type: boolean
-        last:
-          type: boolean
         empty:
           type: boolean
     PageableObject:
       type: object
       properties:
-        offset:
-          type: integer
-          format: int64
         paged:
           type: boolean
         pageNumber:
@@ -3308,14 +3602,17 @@ components:
           $ref: "#/components/schemas/SortObject"
         unpaged:
           type: boolean
+        offset:
+          type: integer
+          format: int64
     SortObject:
       type: object
       properties:
-        empty:
+        unsorted:
           type: boolean
         sorted:
           type: boolean
-        unsorted:
+        empty:
           type: boolean
     WebhookCompanyInvitationAccepted:
       type: object
@@ -3960,6 +4257,21 @@ components:
       - UNWANTED
       - EXPIRED
       - INCOMPLETE
+    PreparedCreditNote:
+      required:
+      - parentCheqiReceiptId
+      type: object
+      properties:
+        parentCheqiReceiptId:
+          type: string
+        deviceSubmission:
+          $ref: "#/components/schemas/EncryptedCreditNoteEnvelope"
+        downloadSubmission:
+          $ref: "#/components/schemas/ClientReceiptDownloadRequest"
+      description: Persist this encrypted SDK submission before sending it. Exactly
+        one of deviceSubmission or downloadSubmission must be present and must reference
+        parentCheqiReceiptId. Retry the same submission after uncertain outcomes.
+        Contains no plaintext document contents or content keys.
   securitySchemes:
     cheqi_oauth:
       type: oauth2
@@ -3983,7 +4295,7 @@ components:
               company
             company:members:invite: Invite ordinary members to an authorized company
         authorizationCode:
-          authorizationUrl: https://api.cheqi.io/oauth2/authorize
+          authorizationUrl: https://sandbox.api.cheqi.io/oauth2/authorize
           tokenUrl: https://sandbox.api.cheqi.io/oauth2/token
           scopes:
             receipt:read: "Receive receipts automatically from the companies, payment\

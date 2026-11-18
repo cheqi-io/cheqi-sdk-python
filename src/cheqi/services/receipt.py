@@ -25,6 +25,7 @@ from cheqi.models.generated.receipt_submission_response import ReceiptSubmission
 from cheqi.models.generated.recipient_resolution_response import RecipientResolutionResponse
 from cheqi.models.receipt import DeliveryRouteType, PreparedReceiptDownload, ReceiptResult
 from cheqi.models.validation import InvoiceValidationReport
+from cheqi.services.document_reference import add_download_recipient, document_reference_hash
 from cheqi.services.download import DownloadService
 from cheqi.services.encryption import EncryptionService
 from cheqi.services.matching import MatchingService
@@ -148,6 +149,7 @@ class ReceiptService:
             self._validation_error("Match must contain owner devices")
         return EncryptedReceiptEnvelope(
             match_id=match.match_id, store_id=str(store_id) if store_id else None,
+            document_reference_hash=document_reference_hash(json.loads(payload_json)["documentNumber"]),
             device_deliveries=[
                 self._encryption_service.encrypt_receipt_for_recipient(payload_json, recipient)
                 for recipient in match.recipients or []
@@ -334,12 +336,15 @@ class ReceiptService:
             receipt_generator_version=_PAYLOAD_DOCUMENT_VERSION,
             receipt_uuid=str(uuid4()),
         )
+        public_key = add_download_recipient(envelope)
         ciphertext = self._download_service.encrypt_download_envelope(envelope, link.content_key)
         template_hash = self._verification_service.calculate_cheqi_receipt_hash(payload_document)
         request = ClientReceiptDownloadRequest(
             download_id=link.download_id,
             ciphertext=ciphertext,
             template_hash=template_hash,
+            document_reference_hash=document_reference_hash(json.loads(payload_document)["documentNumber"]),
+            credit_note_public_key=public_key,
         )
         return PreparedReceiptDownload(download_url=link.url, upload_request=request)
 

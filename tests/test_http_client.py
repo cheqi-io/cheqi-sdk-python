@@ -276,3 +276,22 @@ def test_request_options_validate_and_hide_the_token() -> None:
     with pytest.raises(CheqiSDKError):
         RequestOptions(max_retries=-1)
     assert "secret-token" not in repr(RequestOptions.with_access_token("secret-token"))
+
+
+def test_credit_note_reference_sends_only_hash_and_uses_request_auth(httpx_mock: HTTPXMock) -> None:
+    from cheqi.models.generated.credit_note_document_reference import CreditNoteDocumentReference
+
+    httpx_mock.add_response(json={
+        "deliveryRoute": "DOWNLOAD", "parentCheqiReceiptId": "original", "creditNotePublicKey": "public",
+    })
+    client = _client()
+    resolution = client.resolve_credit_note_reference(
+        CreditNoteDocumentReference(document_reference_hash="a" * 64),
+        options=RequestOptions.with_access_token("delegated-token"),
+    )
+    assert resolution.parent_cheqi_receipt_id == "original"
+    request = httpx_mock.get_request()
+    assert request is not None
+    assert request.url.path == "/credit-note/resolve"
+    assert request.headers["Authorization"] == "Bearer delegated-token"
+    assert json.loads(request.content) == {"documentReferenceHash": "a" * 64}

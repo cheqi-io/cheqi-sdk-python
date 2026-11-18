@@ -21,6 +21,8 @@ from cheqi.models.generated.client_credentials_token_request import ClientCreden
 from cheqi.models.generated.client_receipt_download_request import ClientReceiptDownloadRequest
 from cheqi.models.generated.client_receipt_download_response import ClientReceiptDownloadResponse
 from cheqi.models.generated.create_store_request import CreateStoreRequest
+from cheqi.models.generated.credit_note_document_reference import CreditNoteDocumentReference
+from cheqi.models.generated.credit_note_reference_resolution import CreditNoteReferenceResolution
 from cheqi.models.generated.destination_response import DestinationResponse
 from cheqi.models.generated.email_receipt_request import EmailReceiptRequest
 from cheqi.models.generated.encrypted_credit_note_envelope import EncryptedCreditNoteEnvelope
@@ -50,6 +52,9 @@ def _model_dict(model: BaseModel) -> dict[str, Any]:
 
 @runtime_checkable
 class CheqiApiClient(Protocol):
+    def resolve_credit_note_reference(self, request: CreditNoteDocumentReference, *,
+        options: Optional[RequestOptions] = None) -> CreditNoteReferenceResolution: ...
+
     def request_access_token(
         self, request: ClientCredentialsTokenRequest, *, options: Optional[RequestOptions] = None,
     ) -> OAuthTokenExchangeResponse: ...
@@ -385,6 +390,11 @@ class DefaultCheqiApiClient:
             options,
         )
         return ClientReceiptDownloadResponse.model_validate(data)
+
+    def resolve_credit_note_reference(self, request: CreditNoteDocumentReference, *,
+        options: Optional[RequestOptions] = None) -> CreditNoteReferenceResolution:
+        data = self._post("/credit-note/resolve", _model_dict(request), "resolveCreditNoteReference", options)
+        return CreditNoteReferenceResolution.model_validate(data)
 
     def send_receipt_via_email(
         self,
