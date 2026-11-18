@@ -16,6 +16,10 @@ pip install cheqi-sdk
 
 Python 3.9 or newer is required.
 
+Version `2.1.2` preserves exact monetary values as decimal strings, encrypts the
+same receipt snapshot that passed validation, and adds local credit-note download
+preparation with the original invoice reference for matching in the receiving wallet.
+
 Version `2.1.0` adds automatic receipt validation and
 `sdk.receipt_service.validate(payload)` for an explicit check before issuance.
 New receipts must include the payment amounts and VAT facts described in
