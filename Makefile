@@ -27,7 +27,7 @@ fetch-spec:
 
 generate:
 	rm -rf /tmp/cheqi-python-gen
-	openapi-generator generate \
+	openapi-generator-cli generate \
 		-i openapi.yaml \
 		-g python \
 		-o /tmp/cheqi-python-gen \

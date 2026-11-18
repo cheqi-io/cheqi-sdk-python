@@ -21,6 +21,7 @@ are sent to Cheqi by validation.
 ## Model generation
 
 ```sh
+npm install --global @openapitools/openapi-generator-cli@2.18.4
 make fetch-spec ENV=prod
 make generate
 ```
